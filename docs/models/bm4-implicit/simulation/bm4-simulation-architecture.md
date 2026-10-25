@@ -20,9 +20,8 @@ solver strategies and observation records, see the
 The compact diagram above is retained.
 
 The numerical implementation now lives in `src/methods/extended/`.
-Public method names and exports from `simulation` remain unchanged. ABBA6
-now uses one outer projection; its observer substeps are unprojected pairs and
-its nonlinear-work arrays have one column per accepted step. The former `methods/abba/` and
+ABBA2Implicit, ABBA4Implicit and BM4Implicit directly share
+ProjectedPalindromicMethod. ABBA6 is removed from the current API. The former `methods/abba/` and
 `methods/bm4/` import adapters have been removed. Internal imports point directly
 to the defining modules in `methods.extended`.
 
@@ -43,8 +42,7 @@ Numerical convergence and singularity guards remain in their solve loops.
 Initialization binds this model's recipe and options. The ordinary implicit
 path is `advance -> solve_projection -> compose -> A/B/T/C operations`.
 Explicit midpoint methods use `midpoint_step` in place of the nonlinear
-projection. ABBA4 and ABBA6 both project once around the complete
-unprojected composition; their recipes contain six and fourteen stages.
+projection. ABBA4 projects once around its complete unprojected six-stage composition.
 
 One reduced Hairer equation surrounds the complete twelve-stage cycle.
 Newton retains analytic and finite-difference strategies; Broyden uses the same

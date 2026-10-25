@@ -4,9 +4,7 @@
 """Explicit palindromes of A/B/T/C, shared by all extended methods."""
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import Any
-from dataclasses import dataclass, field
+from typing import Any, TypeAlias
 import math
 
 import numpy as np
@@ -15,105 +13,28 @@ from types import ModuleType
 from contracts.arrays import array_namespace, checked_finite, scan_arrays, select_array_branch
 
 from methods.extended.maps import GCDoubledMaps
-from methods.extended.core.operations import Operation, A, B, T, C
-from methods.extended.core.records import CompositionTrace, MapStage, OperationStage
+from methods.extended.core.operations import Operation
+from methods.extended.core.records import CompositionTrace, OperationStage
 
-_CUBE_ROOT_TWO: 'float' = float(np.cbrt(2.0))
-_GAMMA = 1.0 / (2.0 - _CUBE_ROOT_TWO)
-_DELTA = -_CUBE_ROOT_TWO / (2.0 - _CUBE_ROOT_TWO)
-_ABBA4_COEFFICIENTS: 'np.ndarray' = np.asarray((_GAMMA, _DELTA, _GAMMA), dtype=float)
-
-# Yoshida's real symmetric order-six solution. Its negative stages are required
-# for the odd composition conditions to cancel while preserving self-adjointness.
-_ABBA6_COEFFICIENTS: 'np.ndarray' = np.asarray(
-	(
-		0.78451361047755726382,
-		0.23557321335935813368,
-		-1.17767998417887100695,
-		1.31518632068391121889,
-		-1.17767998417887100695,
-		0.23557321335935813368,
-		0.78451361047755726382,
-	),
-	dtype=float,
-)
+# Recipes contain only the chronological operations; coefficients multiply h.
+Composition: TypeAlias = tuple[Operation, ...]
 
 
-@dataclass(frozen=True, slots=True)
-class Composition:
-	"""A complete chronological palindrome with explicit spatial and time weights.
+def validate_composition(recipe: Composition) -> None:
+	"""Check one recipe at run preparation, independently of stage observations.
 
-	A and B each integrate one copy for total duration h; T advances the clock
-	by h. C is optional and its total weight scales the chosen coupling rate.
-	Symmetry and consistency do not establish an order beyond two.
+	A/B/T each have total weight one. C is optional; its total weight scales
+	the configured coupling. Palindromy alone does not establish higher order.
 	"""
-
-	name: str
-	operations: tuple[Operation, ...]
-	# Grouping retains the established preset observations, not execution logic.
-	coefficients: tuple[float, ...] = field(default=(), init=False)
-	_group_size: int = field(default=0, init=False, repr=False)
-
-	def __post_init__(self) -> None:
-		operations: tuple[Operation, ...] = tuple(self.operations)
-		if not isinstance(self.name, str) or not self.name.strip() or not operations or any(not isinstance(op, Operation) for op in operations):
-			raise ValueError('A composition requires a name and a nonempty sequence of operations.')
-		object.__setattr__(self, 'operations', operations)
-		tolerance: float = float(64 * np.finfo(float).eps)
-		for left, right in zip(operations, reversed(operations)):
-			if left.name != right.name or abs(left.coefficient - right.coefficient) > tolerance:
-				raise ValueError('Composition operations and coefficients must be palindromic.')
-		for name in ('A', 'B', 'T'):
-			if abs(math.fsum(op.coefficient for op in operations if op.name == name) - 1.) > tolerance:
-				raise ValueError(f'Composition {name} weights must sum to one.')
-
-	@classmethod
-	def from_half(cls, name: str, half: tuple[Operation, ...],
-	              center: Operation | None = None) -> Composition:
-		"""Reflect a chronological half, optionally around one central operation."""
-		left: tuple[Operation, ...] = tuple(half)
-		return cls(name, left + (() if center is None else (center,)) + left[::-1])
-
-	@classmethod
-	def from_direct_adjoint(cls, name: str, coefficients: tuple[float, ...], *,
-	                        coupled: bool = False) -> Composition:
-		"""Expand traditional signed stages into an explicit operation palindrome.
-
-		Adjoint groups are A,B,T (or C,A,B,T); direct groups are their reverse.
-		No grouping is consulted while executing or differentiating operations.
-		"""
-		weights: np.ndarray = np.asarray(coefficients, dtype=float)
-		tolerance: float = float(64 * np.finfo(float).eps)
-		if (weights.ndim != 1 or weights.size == 0 or weights.size % 2
-				or not np.all(np.isfinite(weights))
-				or not np.allclose(weights, weights[::-1], rtol=0, atol=tolerance)
-				or not np.isclose(np.sum(weights), 1., rtol=0, atol=tolerance)):
-			raise ValueError('Direct/adjoint weights must be finite, even, palindromic and sum to one.')
-		operations: list[Operation] = []
-		for index, weight in enumerate(weights):
-			group = ((C(float(weight)),) if coupled else ()) + (A(float(weight)), B(float(weight)), T(float(weight)))
-			operations.extend(group if index % 2 == 0 else group[::-1])
-		result: Composition = cls(name, tuple(operations))
-		object.__setattr__(result, 'coefficients', tuple(float(w) for w in weights))
-		object.__setattr__(result, '_group_size', 4 if coupled else 3)
-		return result
-
-	@property
-	def has_coupling(self) -> bool:
-		return any(op.name == 'C' for op in self.operations)
-
-	@property
-	def shear_count(self) -> int:
-		return sum(op.name in ('A', 'B') for op in self.operations)
-
-
-ABBA2: 'Composition' = Composition.from_direct_adjoint('ABBA2', (0.5, 0.5))
-ABBA4: 'Composition' = Composition.from_direct_adjoint('ABBA4', tuple(float(c / 2) for c in _ABBA4_COEFFICIENTS for _ in range(2)))
-ABBA6: 'Composition' = Composition.from_direct_adjoint('ABBA6', tuple(float(c / 2) for c in _ABBA6_COEFFICIENTS for _ in range(2)))
-_BM4_HALF = (0.0792036964311957, 0.1303114101821663, 0.2228614958676077,
-             -0.3667132690474257, 0.3246481886897062, 0.1096884778767498)
-BM4: 'Composition' = Composition.from_direct_adjoint('BM4', _BM4_HALF + _BM4_HALF[::-1])
-StageMap = Callable[[float, float, BackendArray], BackendArray]
+	if not isinstance(recipe, tuple) or not recipe or any(not isinstance(op, Operation) for op in recipe):
+		raise ValueError('A composition requires a nonempty tuple of operations.')
+	tolerance: float = float(64 * np.finfo(float).eps)
+	for left, right in zip(recipe, reversed(recipe)):
+		if left.name != right.name or abs(left.coefficient - right.coefficient) > tolerance:
+			raise ValueError('Composition operations and coefficients must be palindromic.')
+	for name in ('A', 'B', 'T'):
+		if abs(math.fsum(op.coefficient for op in recipe if op.name == name) - 1.) > tolerance:
+			raise ValueError(f'Composition {name} weights must sum to one.')
 
 
 def compose(maps: GCDoubledMaps, recipe: Composition, t: float,
@@ -121,7 +42,7 @@ def compose(maps: GCDoubledMaps, recipe: Composition, t: float,
 	"""Execute each operation once; only T changes the clock.
 
 	Retained spatial sources serve analytic tangents and passive quadrature.
-	Existing grouped stage records are reconstructed without replaying maps.
+	Observation adapters group retained spatial states without replaying maps.
 	"""
 	xp: ModuleType = array_namespace(state)
 	initial: BackendArray = xp.asarray(state, dtype=float)
@@ -130,12 +51,12 @@ def compose(maps: GCDoubledMaps, recipe: Composition, t: float,
 		raise ValueError('The doubled composition state must be a finite vector.')
 	t = checked_finite(t, 'Composition time and duration must be finite.')
 	h = checked_finite(h, 'Composition time and duration must be finite.')
-	if recipe.has_coupling and maps.coupling is None:
+	if any(op.name == 'C' for op in recipe) and maps.coupling is None:
 		raise ValueError('A composition containing C requires a HarmonicCoupling.')
 	# Encode only the existing recipe's operation names; both array routes
 	# execute this same ordered recurrence and retain its accepted sources.
-	codes: np.ndarray = np.asarray([('A', 'B', 'T', 'C').index(op.name) for op in recipe.operations])
-	durations: BackendArray = h * xp.asarray([op.coefficient for op in recipe.operations])
+	codes: np.ndarray = np.asarray([('A', 'B', 'T', 'C').index(op.name) for op in recipe])
+	durations: BackendArray = h * xp.asarray([op.coefficient for op in recipe])
 	def apply(carry: Any, operation: Any) -> tuple[Any, Any]:
 		current: BackendArray
 		clock: Any
@@ -164,18 +85,12 @@ def compose(maps: GCDoubledMaps, recipe: Composition, t: float,
 	clock: Any
 	current, clock = accepted
 	operations: list[OperationStage] = []
-	for index, operation in enumerate(recipe.operations):
+	for index, operation in enumerate(recipe):
 		before: BackendArray = history[1][index]
 		after: BackendArray = before if operation.name == 'T' else history[2][index]
 		source: BackendArray | None = history[3][index] if operation.name in ('A', 'B') else None
 		operations.append(OperationStage(operation.name, history[0][index], durations[index], before, after, source))
-	stages: list[MapStage] = []
-	for index, coefficient in enumerate(recipe.coefficients):
-		group = operations[index * recipe._group_size:(index + 1) * recipe._group_size]
-		quadrature: tuple[tuple[float, float, BackendArray], ...] = tuple((op.time, op.duration, op.source) for op in group if op.source is not None)
-		stages.append(MapStage(group[0].time, quadrature[0][0], coefficient * h,
-		                       index % 2 == 1, group[0].state_before, group[-1].state_after, quadrature))
-	return CompositionTrace(t, h, initial, current, tuple(stages), tuple(operations), clock)
+	return CompositionTrace(t, h, initial, current, tuple(operations), clock)
 
 
 __all__ = ['Composition']

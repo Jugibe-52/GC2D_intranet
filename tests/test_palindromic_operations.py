@@ -3,7 +3,7 @@
 from dynamics import GuidingCenterDynamics
 from diagnostics.methods.energy import EnergyObserver
 from solvers import BroydenSolver, NewtonSolver
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 import importlib.util
 import json
 import unittest
@@ -14,16 +14,18 @@ import numpy as np
 from execution.options import ExecutionOptions
 from methods.extended.maps import HarmonicCoupling
 from methods.extended.maps import GCDoubledMaps
-from methods.extended.core.composition import ABBA2, ABBA4, ABBA6, BM4, compose
+from methods.extended.core.composition import compose
 from methods.extended.core.jacobians import composition_jacobian
 from solvers.derivatives import centered_difference, packed_particle_jacobian
-from simulation import (A, B, T, C, Composition, Operation, PalindromicMethod,
-	PalindromicImplicit, PalindromicMidpoint, ABBA2Implicit, ABBA4Implicit, ABBA6Implicit,
-	ABBA2Midpoint, BM4Implicit, BM4Midpoint, InitialValueProblem, SimulationRequest, simulate)
+from simulation import (
+	A, B, T, C, Operation, PalindromicMethod, PalindromicImplicit, PalindromicMidpoint, ABBA2Implicit,
+	ABBA4Implicit, ABBA2Midpoint, BM4Implicit, BM4Midpoint, InitialValueProblem, SimulationRequest,
+	simulate,
+)
 from tests.test_extended_family import problem
 
-EDGES = Composition.from_half('ABBA2-edges', (T(.5), A(.5), B(.5)))
-COUPLED = Composition.from_half('coupled-edges', (T(.5), C(.5), A(.5), B(.5)))
+EDGES = (T(.5), A(.5), B(.5), B(.5), A(.5), T(.5))
+COUPLED = (T(.5), C(.5), A(.5), B(.5), B(.5), A(.5), C(.5), T(.5))
 
 
 class TimeRotation:
@@ -48,13 +50,17 @@ class TimeRotation:
 
 
 class PalindromicOperationTests(unittest.TestCase):
-	def test_half_reflection_and_consistency_validation(self):
-		self.assertEqual(tuple(op.name for op in EDGES.operations), tuple('TABBAT'))
-		center = Composition.from_half('center', (A(.5), B(.5)), T(1.))
-		self.assertEqual(tuple(op.name for op in center.operations), tuple('ABTBA'))
-		for operations in ((), (A(1.), B(1.), T(1.)), (A(.2), B(.5), T(1.), B(.5), A(.2))):
-			with self.assertRaises(ValueError):
-				Composition('invalid', operations)
+	def test_tuple_recipes_are_validated_when_preparing_a_run(self):
+		self.assertEqual(tuple(op.name for op in EDGES), tuple('TABBAT'))
+		self.assertIsInstance(ABBA2Implicit.recipe, tuple)
+		self.assertEqual(tuple(op.name for op in ABBA2Implicit.recipe), tuple('ABTBA'))
+		p = problem()
+		request = SimulationRequest((.3, .34), np.array([.3, .34]))
+		for operations in ((), list(ABBA2Implicit.recipe), ('A',), (A(1.), B(1.), T(1.)),
+			(A(.2), B(.5), T(1.), B(.5), A(.2))):
+			for method in (PalindromicMidpoint, PalindromicImplicit):
+				with self.assertRaises(ValueError):
+					method(operations).new_run(p.dynamics.vector_field, p.initial_conditions, request)
 		for coefficient in (np.nan, np.inf, True):
 			with self.assertRaises(ValueError): A(coefficient)
 		with self.assertRaises(ValueError): Operation('Z', 1.)
@@ -107,8 +113,8 @@ class PalindromicOperationTests(unittest.TestCase):
 
 	def test_every_preset_inherits_common_execution_and_retains_its_recipe(self):
 		p = problem(); request = SimulationRequest((.3, .34),  np.array([.3, .34]))
-		for cls, recipe in ((ABBA2Implicit, ABBA2), (ABBA4Implicit, ABBA4), (ABBA6Implicit, ABBA6),
-			(BM4Implicit, BM4), (ABBA2Midpoint, ABBA2), (BM4Midpoint, BM4)):
+		for cls, recipe in ((ABBA2Implicit, ABBA2Implicit.recipe), (ABBA4Implicit, ABBA4Implicit.recipe),
+			(BM4Implicit, BM4Midpoint.recipe), (ABBA2Midpoint, ABBA2Implicit.recipe), (BM4Midpoint, BM4Midpoint.recipe)):
 			method = cls()
 			self.assertIsInstance(method, PalindromicMethod)
 			self.assertIs(method.recipe, recipe)
@@ -116,15 +122,15 @@ class PalindromicOperationTests(unittest.TestCase):
 			self.assertIs(cls.advance, generic.advance)
 			actual = simulate(p, replace(method, step=0.02), request, observers=(EnergyObserver(),))
 			self.assertEqual(json.loads(actual.diagnostics['operation_coefficients']),
-				[op.coefficient for op in recipe.operations])
+				[op.coefficient for op in recipe])
 			expected = simulate(p, replace(generic(recipe), step=0.02), request, observers=(EnergyObserver(),))
 			np.testing.assert_array_equal(actual.states, expected.states)
 			np.testing.assert_array_equal(actual.diagnostics['extended_momentum'], expected.diagnostics['extended_momentum'])
 
 	def test_recipe_only_subclass_and_explicit_c_configuration(self):
 		@dataclass
-		class EndTimeMidpoint(PalindromicMidpoint):
-			recipe: Composition = field(default=EDGES, init=False)
+		class EndTimeMidpoint(ABBA2Midpoint):
+			recipe = EDGES
 		p = problem(); request = SimulationRequest((.3, .34),  np.array([.3, .34]))
 		np.testing.assert_array_equal(simulate(p, replace(EndTimeMidpoint(), step=0.02), request).states,
 			simulate(p, PalindromicMidpoint(EDGES, step=0.02), request).states)
@@ -144,7 +150,7 @@ class PalindromicOperationTests(unittest.TestCase):
 		exact = np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]]) @ p.initial_state
 		coarse = []
 		for cls in (PalindromicImplicit, PalindromicMidpoint):
-			for recipe in (ABBA2, EDGES):
+			for recipe in (ABBA2Implicit.recipe, EDGES):
 				errors, balances = [], []
 				for h in (.1, .05, .025):
 					r = SimulationRequest((0., end),  np.array([0., end]))
@@ -154,7 +160,7 @@ class PalindromicOperationTests(unittest.TestCase):
 					if h == .1: coarse.append(s.states[:, -1])
 				for gains in (np.array(errors[:-1])/errors[1:], np.array(balances[:-1])/balances[1:]):
 					self.assertTrue(np.all((gains>3.5) & (gains<4.5)), gains)
-				print(f'{cls.__name__} {recipe.name}: errors={errors}, balance={balances}')
+				print(f'{cls.__name__} {"center" if recipe is ABBA2Implicit.recipe else "edges"}: errors={errors}, balance={balances}')
 		self.assertGreater(np.max(abs(coarse[0]-coarse[1])), 1e-5)
 
 	@unittest.skipUnless(importlib.util.find_spec('jax'), 'Optional JAX is not installed')

@@ -16,13 +16,12 @@ from diagnostics import abba4_implicit_step_particle_jacobians, central_differen
 from dynamics import GuidingCenterDynamics
 
 from potential import Potential
-from simulation import ABBA2Implicit, ABBA2Midpoint, ABBA4Implicit, ABBA6Implicit, ABBA_PROJECTION_FORMULATIONS, InitialValueProblem, SimulationRequest, simulate
+from simulation import ABBA2Implicit, ABBA2Midpoint, ABBA4Implicit, ABBA_PROJECTION_FORMULATIONS, InitialValueProblem, SimulationRequest, simulate
 
 
 _IMPLICIT_METHODS = (
 	ABBA2Implicit,
 	ABBA4Implicit,
-	ABBA6Implicit,
 )
 _NONLINEAR_SOLVERS = ("newton", "broyden")
 _ENERGY_STRATEGIES = (
@@ -52,8 +51,6 @@ _EXPECTED_DIMENSIONS = {
 _EXPECTED_NONLINEAR_SOLVES = {
 	"ABBA2Implicit": 1,
 	"ABBA4Implicit": 1,
-	"ABBA4Implicit": 1,
-	"ABBA6Implicit": 1,
 }
 
 
@@ -91,7 +88,7 @@ def _dense_component_major_jacobian(blocks: np.ndarray) -> np.ndarray:
 
 
 class ABBAConfigurationCubeTests(unittest.TestCase):
-	"""Exercise two midpoint variants and the 24 implicit combinations once."""
+	"""Exercise two midpoint variants and the 16 implicit combinations once."""
 
 	implicit_solutions: dict[tuple[str, str, str, str, bool], object] = {}
 	midpoint_solutions: dict[tuple[str, bool], object] = {}
@@ -99,7 +96,7 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 
 	@classmethod
 	def setUpClass(cls) -> None:
-		"""Cache all 26 one-step runs for smoke and equivalence assertions."""
+		"""Cache all 18 one-step runs for smoke and equivalence assertions."""
 		problem = _problem()
 		request = _request()
 		for (
@@ -127,15 +124,15 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 			except Exception as exc:  # pragma: no cover - reported by the smoke test
 				cls.configuration_failures[key] = exc
 
-	def test_configuration_space_contains_exactly_26_variants(self) -> None:
+	def test_configuration_space_contains_exactly_18_variants(self) -> None:
 		self.assertEqual(len(_MIDPOINT_CONFIGURATIONS), 2)
-		self.assertEqual(len(_IMPLICIT_CONFIGURATIONS), 24)
+		self.assertEqual(len(_IMPLICIT_CONFIGURATIONS), 16)
 		self.assertEqual(
 			len(_MIDPOINT_CONFIGURATIONS) + len(_IMPLICIT_CONFIGURATIONS),
-			26,
+			18,
 		)
 
-	def test_all_26_configurations_run_and_report_canonical_dimensions(self) -> None:
+	def test_all_18_configurations_run_and_report_canonical_dimensions(self) -> None:
 		for (
 			method_type,
 			formulation,
@@ -407,7 +404,7 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 		self.assertEqual(midpoint.diagnostics["nonlinear_unknown_dimension"], 0)
 
 	def test_composed_residual_ratio_uses_one_consistent_substep(self) -> None:
-		for method_type in (ABBA4Implicit, ABBA6Implicit):
+		for method_type in (ABBA4Implicit,):
 			key = (
 				method_type.__name__,
 				"reduced_multiplier",

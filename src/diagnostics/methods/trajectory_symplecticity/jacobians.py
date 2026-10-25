@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from methods.extended.abba import _ABBA4_COEFFICIENTS
 import numpy as np
 
 from diagnostics.methods.extended.abba_jacobian.analysis import particle_jacobian_blocks
@@ -9,16 +10,12 @@ from diagnostics.methods.jacobians import implicit_function_step_jacobian
 from contracts.dynamics.protocols import GuidingCenterJacobianSystem
 from methods.extended.configuration import ABBA_PROJECTION_FORMULATIONS
 from contracts.methods.extended.abba import (
-	ABBA4ImplicitIntegrationStep,
-	ABBA6ImplicitIntegrationStep,
-	ABBAImplicitCompositionIntegrationStep,
-	ABBA2ImplicitIntegrationStep,
-	UnprojectedABBAIntegrationStep,
+	ABBA4ImplicitIntegrationStep, ABBAImplicitCompositionIntegrationStep,
+	ABBA2ImplicitIntegrationStep, UnprojectedABBAIntegrationStep,
 )
 from contracts.methods.extended.bm4 import ImplicitBM4IntegrationStep
 from contracts.methods.observation import IntegrationStage, IntegrationStep
 from methods.extended.maps import gc_coupling_matrix
-from methods.extended.core.composition import _ABBA4_COEFFICIENTS, _ABBA6_COEFFICIENTS
 
 from typing import TYPE_CHECKING
 
@@ -275,13 +272,6 @@ def abba4_implicit_step_particle_jacobians(step: IntegrationStep) -> np.ndarray:
 	if not isinstance(step, ABBA4ImplicitIntegrationStep):
 		raise TypeError("ABBA4 exact Jacobians require ABBA4 outer-projection snapshots.")
 	return _composed_abba_particle_jacobians(step, "ABBA4Implicit", _ABBA4_COEFFICIENTS)
-
-
-def abba6_implicit_step_particle_jacobians(step: IntegrationStep) -> np.ndarray:
-	"""Differentiate the one outer projection around the ABBA6 composition."""
-	if not isinstance(step, ABBA6ImplicitIntegrationStep):
-		raise TypeError("ABBA6 exact Jacobians require ABBA6 outer-projection snapshots.")
-	return _composed_abba_particle_jacobians(step, "ABBA6Implicit", _ABBA6_COEFFICIENTS)
 
 
 def _validated_abba_composition(
@@ -649,7 +639,6 @@ def bm4_implicit_step_particle_jacobians(
 
 __all__ = [
 	"abba4_implicit_step_particle_jacobians",
-	"abba6_implicit_step_particle_jacobians",
 	"bm4_implicit_step_particle_jacobians",
 	"coupled_bm4_stage_particle_jacobians",
 	"abba2_implicit_step_particle_jacobians",

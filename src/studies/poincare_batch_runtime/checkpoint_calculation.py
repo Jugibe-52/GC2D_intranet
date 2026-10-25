@@ -47,7 +47,7 @@ def calculate_checkpointed_group(
     import numpy as np
     from problem import InitialValueProblem
     from methods.extended.maps import GCDoubledMaps
-    from methods.extended.core.composition import BM4
+    from methods.extended.bm4 import BM4Midpoint
     from methods.extended.core.projection import solve_projection
     from methods.extended.core.midpoint import midpoint_step
     from solvers.nonlinear import NewtonSolver
@@ -126,7 +126,7 @@ def calculate_checkpointed_group(
                     threshold = settings['newton_atol'] + settings['newton_rtol'] * max(
                         1.0, float(np.linalg.norm(value, ord=np.inf)))
                     result: ProjectedMapResult = solve_projection(
-                        prepared, BM4, chunk_solver, 'reduced_multiplier', t0 + k * h, value, h,
+                        prepared, BM4Midpoint.recipe, chunk_solver, 'reduced_multiplier', t0 + k * h, value, h,
                         observe=True)
                     value = np.asarray(result.state)
                     assert np.isfinite(value).all() and result.residual_norm <= threshold
@@ -136,7 +136,7 @@ def calculate_checkpointed_group(
                     tolerances[local] = threshold
                     mu[local] = np.linalg.norm(result.multiplier, ord=np.inf)
                 else:
-                    midpoint: MidpointResult = midpoint_step(prepared, BM4, t0 + k * h, value, h)
+                    midpoint: MidpointResult = midpoint_step(prepared, BM4Midpoint.recipe, t0 + k * h, value, h)
                     value = np.asarray(midpoint.state)
                     assert np.isfinite(value).all()
                     states[:, local + 1] = value

@@ -4,18 +4,9 @@ from solvers.nonlinear import NONLINEAR_SOLVERS, NonlinearSolver
 from methods.adaptive import DOP853, Radau
 from methods.extended import (
 	PalindromicMethod, PalindromicImplicit, PalindromicMidpoint, Composition, Operation, A, B, T, C,
-	BM4Implicit,
-	BM4Midpoint,
-	ABBA2Midpoint,
-	ABBA2Implicit,
-	ABBA4Implicit,
-	ABBA6Implicit,
-	ABBA4_PROJECTION_PLACEMENTS,
-	ABBA_PROJECTION_FORMULATIONS,
-	ABBA_STATE_EXTENSIONS,
-	ProjectionPlacement,
-	ProjectionFormulation,
-	StateExtension,
+	BM4Implicit, BM4Midpoint, ABBA2Midpoint, ABBA2Implicit, ABBA4Implicit,
+	ABBA4_PROJECTION_PLACEMENTS, ABBA_PROJECTION_FORMULATIONS, ABBA_STATE_EXTENSIONS,
+	ProjectionPlacement, ProjectionFormulation, StateExtension,
 )
 from methods.base import FixedStepMethod, IntegrationMethod
 from contracts.methods.base import NumericalMethod
@@ -41,7 +32,6 @@ __all__ = [
 	"ABBA2Midpoint",
 	"ABBA2Implicit",
 	"ABBA4Implicit",
-	"ABBA6Implicit",
 	"BM4Implicit",
 	"BM4Midpoint",
 	"ExplicitEuler",

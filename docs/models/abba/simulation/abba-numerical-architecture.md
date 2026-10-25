@@ -5,14 +5,13 @@ See [palindromic methods and time placement](../../extended/simulation/palindrom
 
 The compact diagrams describe the current shared numerical execution and executor-owned lifecycle. Older detailed diagrams explicitly marked as historical retain their original ownership conventions.
 
-ABBA2 pair; ABBA4 triple jump; ABBA6: seven signed ABBA2 steps. ABBA4 and ABBA6 both project once around their complete compositions.
+ABBA2 declares one pair; ABBA4 declares its complete triple-jump tuple. Each implicit method applies one projection around its full composition.
 
 ![ABBA family architecture](abba-numerical-architecture.svg)
 
 The numerical implementation now lives in `src/methods/extended/`.
-Public method names and exports from `simulation` remain unchanged. ABBA6
-now uses one outer projection; its observer substeps are unprojected pairs and
-its nonlinear-work arrays have one column per accepted step. The former `methods/abba/` and
+ABBA2Implicit, ABBA4Implicit and BM4Implicit directly share
+ProjectedPalindromicMethod. ABBA6 is removed from the current API. The former `methods/abba/` and
 `methods/bm4/` import adapters have been removed. Internal imports point directly
 to the defining modules in `methods.extended`.
 
@@ -34,8 +33,7 @@ singularity, stagnation and convergence checks stay inside the numerical loops.
 Initialization binds this model's recipe and options. The ordinary implicit
 path is `advance -> solve_projection -> compose -> A/B/T/C operations`.
 Explicit midpoint methods use `midpoint_step` in place of the nonlinear
-projection. ABBA4 and ABBA6 both project once around the complete
-unprojected composition; their recipes contain six and fourteen stages.
+projection. ABBA4 projects once around its complete unprojected six-stage composition.
 
 The reduced and simultaneous formulations use the same shared spatial
 projection engine. Newton uses exact particle-block Jacobians and Broyden uses

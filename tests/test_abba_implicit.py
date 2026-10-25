@@ -15,7 +15,10 @@ from diagnostics.methods.symplecticity import (
 	central_difference_jacobian,
 )
 
-from simulation import ABBA_PROJECTION_FORMULATIONS, ABBA_STATE_EXTENSIONS, ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, InitialValueProblem, SimulationRequest, simulate
+from simulation import (
+	ABBA_PROJECTION_FORMULATIONS, ABBA_STATE_EXTENSIONS, ABBA2Implicit, ABBA4Implicit,
+	InitialValueProblem, SimulationRequest, simulate,
+)
 from tests._extended_reference.abba_maps import (
 	_differentiate_stages,
 	_evaluate_displaced_stages,
@@ -57,7 +60,6 @@ class ImplicitABBAFormulationTests(unittest.TestCase):
 		for method_type in (
 			ABBA2Implicit,
 			ABBA4Implicit,
-			ABBA6Implicit,
 		):
 			for formulation in ABBA_PROJECTION_FORMULATIONS:
 				for extension, track_energy in _ENERGY_STRATEGIES:
@@ -204,7 +206,6 @@ class ImplicitABBASymplecticityStudyTests(unittest.TestCase):
 			potential,
 			side=0.5,
 			points_per_side=1,
-
 		)
 		config = ImplicitABBASymplecticityConfig(
 			rho=0.05,

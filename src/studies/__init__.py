@@ -21,13 +21,6 @@ from .abba4_configuration_comparison import (
 	ABBA4ConfigurationVariant,
 	run_abba4_configuration_comparison,
 )
-from .abba6_accuracy import (
-	ABBA6AccuracyConfig,
-	ABBA6AccuracyOrder,
-	ABBA6AccuracyResult,
-	ABBA6AccuracySummary,
-	run_abba6_accuracy_study,
-)
 from .abba_comparison import (
 	ABBA_METHOD_NAMES,
 	ABBAComparisonConfig,
@@ -283,10 +276,6 @@ __all__ = [
 	"ABBA4ImplicitAccuracyOrder",
 	"ABBA4ImplicitAccuracyResult",
 	"ABBA4ImplicitAccuracySummary",
-	"ABBA6AccuracyConfig",
-	"ABBA6AccuracyOrder",
-	"ABBA6AccuracyResult",
-	"ABBA6AccuracySummary",
 	"AdaptiveReferenceSolveSummary",
 	"ABBA_METHOD_NAMES",
 	"ABBA_JACOBIAN_FORMULATIONS",
@@ -422,7 +411,6 @@ __all__ = [
 	"quartic_oscillator_configuration",
 	"run_abba4_implicit_accuracy_study",
 	"run_abba4_configuration_comparison",
-	"run_abba6_accuracy_study",
 	"run_abba4_implicit_trajectory_symplecticity_study",
 	"run_area_comparison",
 	"run_bm4_implicit_symplecticity_study",

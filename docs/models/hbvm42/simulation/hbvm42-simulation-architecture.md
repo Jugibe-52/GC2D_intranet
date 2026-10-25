@@ -89,7 +89,7 @@ It raises explicit migration guidance. Use `observers=(EnergyObserver(),)` with 
 projection. The historical full-state symplecticity study is retired because it
 measured a different map; existing saved artifacts can still be read.
 
-Tests in `tests/test_state_formulations.py` cover all 13 methods, both tracking
+Tests in `tests/test_state_formulations.py` cover all 12 methods, both tracking
 settings, particle batches, physical-only observers, adaptive control, per-particle
 time alignment and energy normalization. Model tests retain order, projection,
 Jacobian and nonlinear-solver checks. The pre-change physical trajectories are

@@ -14,9 +14,8 @@ from dynamics import GuidingCenterDynamics
 
 from potential import Potential
 from simulation import (
-	ABBA2Implicit, ABBA2Midpoint, ABBA4Implicit, ABBA6Implicit,
-	BM4Implicit, BM4Midpoint, ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42,
-	InitialValueProblem, SimulationRequest, simulate,
+	ABBA2Implicit, ABBA2Midpoint, ABBA4Implicit, BM4Implicit, BM4Midpoint, ExplicitEuler, RK4,
+	GaussLegendre4, SDIRK4, HBVM42, InitialValueProblem, SimulationRequest, simulate,
 )
 from methods.base import IntegrationMethod
 from contracts.methods.step import StepInfo, StepResult
@@ -51,7 +50,7 @@ def _request(dense: bool = False) -> SimulationRequest:
 def _methods():
 	"""Cover all public fixed methods with and without independent energy state."""
 	for cls in (ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42,
-		BM4Implicit, BM4Midpoint, ABBA2Midpoint, ABBA2Implicit, ABBA4Implicit, ABBA6Implicit):
+		BM4Implicit, BM4Midpoint, ABBA2Midpoint, ABBA2Implicit, ABBA4Implicit,):
 		for tracking in (False, True):
 			yield cls(), tracking
 

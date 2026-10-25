@@ -19,7 +19,7 @@ from solvers.linear import _solve_particle_systems
 from solvers.nonlinear import _bind_newton_observer, _solve_newton
 from methods.classical.gauss_legendre import GaussLegendre4
 from methods.classical.sdirk import SDIRK4
-from methods.extended.abba import ABBA2Implicit, ABBA4Implicit, ABBA6Implicit
+from methods.extended.abba import ABBA2Implicit, ABBA4Implicit
 from methods.extended.bm4 import BM4Implicit
 from potential.potential import Potential
 from simulation.runner import simulate
@@ -38,7 +38,7 @@ class NewtonObservationTests(unittest.TestCase):
 	def test_observation_preserves_work_results_and_owned_iterates(self) -> None:
 		problem = _problem()
 		for method in (
-			BM4Implicit(), ABBA2Implicit(), ABBA4Implicit(), ABBA6Implicit(),
+			BM4Implicit(), ABBA2Implicit(), ABBA4Implicit(),
 			ABBA2Implicit(projection_formulation='simultaneous_state_multiplier'),
 			GaussLegendre4(), SDIRK4(),
 		):
@@ -65,7 +65,7 @@ class NewtonObservationTests(unittest.TestCase):
 								vector[:] = 99
 					if isinstance(method, SDIRK4):
 						self.assertIn(event.stage_index, range(5))
-					elif isinstance(method, (BM4Implicit, ABBA2Implicit, ABBA4Implicit, ABBA6Implicit)):
+					elif isinstance(method, (BM4Implicit, ABBA2Implicit, ABBA4Implicit,)):
 						self.assertEqual(event.multiplier.shape, problem.initial_state.shape)
 
 	def test_reentrant_runs_and_diagnostic_maps_do_not_share_callbacks(self) -> None:
@@ -118,7 +118,7 @@ class NewtonObservationTests(unittest.TestCase):
 		initial_guesses = [event for event in events if event.iteration == 0]
 		self.assertEqual(len(initial_guesses), 3)
 		self.assertTrue(any(abs(event.duration - .01) < 1e-15 for event in initial_guesses))
-		for method in (BM4Implicit, ABBA2Implicit, ABBA4Implicit, ABBA6Implicit):
+		for method in (BM4Implicit, ABBA2Implicit, ABBA4Implicit,):
 			with self.assertRaisesRegex(ValueError, 'BroydenSolver does not support'):
 				method(solver=BroydenSolver(iteration_observer=events.append))
 

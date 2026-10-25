@@ -47,7 +47,7 @@ and the exact trace associated with that accepted residual.
 ## Composition and solver choices
 
 The signed weights are `(a1,a2,a3,a4,a5,a6,a6,a5,a4,a3,a2,a1)`, with `a4 < 0`.
-Their canonical values live in `methods/extended/core/composition.py`.
+Their canonical values live in `methods/extended/bm4.py`.
 Stages alternate adjoint then direct. For duration `delta`, the adjoint map uses
 the stage start time and the direct map its signed endpoint; the stage clock
 then advances by `delta`.

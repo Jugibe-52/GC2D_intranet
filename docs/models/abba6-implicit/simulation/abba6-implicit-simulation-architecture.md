@@ -1,5 +1,7 @@
 # ABBA6Implicit: shared extended-space execution
 
+**Historical model.** ABBA6Implicit, its exports and dedicated study were removed on 2026-10-25. The remaining text and diagrams document the archived implementation, not a supported method. Saved results retain their original labels.
+
 All presets now inherit PalindromicMethod and execute explicit A/B/T operations.
 See [palindromic methods and time placement](../../extended/simulation/palindromic-operations.md) for the common classes, generic recipes and independent C.
 

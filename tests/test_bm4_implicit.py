@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 
+from methods.extended.bm4 import BM4Midpoint
 from diagnostics.methods.energy import EnergyObserver
 from solvers import BroydenSolver, NewtonSolver
 from pathlib import Path
@@ -22,7 +23,7 @@ from simulation import (
 	SimulationRequest,
 	simulate,
 )
-from methods.extended.core.composition import BM4
+
 from studies import (
 	AreaStep,
 	BM4ImplicitSymplecticityConfig,
@@ -63,7 +64,7 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 					with self.subTest(particles=particles, solver=solver, jacobian=jacobian, step=step):
 						results, momenta, field_counts = [], [], []
 						for tracking in (False, True):
-							with patch.object(type(problem.dynamics), 'vector_field', autospec=True, side_effect=type(problem.dynamics).vector_field) as vector_field, \
+							with patch.object(type(problem.dynamics), 'vector_field', autospec=True, side_effect=type(problem.dynamics).vector_field) as vector_field,\
 							     patch.object(type(problem.dynamics), 'extended_momentum_derivative', autospec=True, side_effect=type(problem.dynamics).extended_momentum_derivative) as energy_rate:
 								run = BM4Implicit(step=0.2, solver=(NewtonSolver if solver == 'newton' else BroydenSolver)(jacobian_method=jacobian, absolute_tolerance=1e-14, relative_tolerance=1e-14)).new_run(problem.dynamics.vector_field, problem.initial_conditions, request, jacobian=problem.dynamics.particle_vector_field_jacobians, jacobian_structure='particle', observe=True, capture_quadrature=tracking)
 								result = run.advance(0.3, run.initial_state, step)
@@ -86,7 +87,7 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 						work = tracked.details.internal_input.copy()
 						clock, size = .3, problem.initial_state.size
 						raw_momentum = np.zeros(particles)
-						for operation in BM4.operations:
+						for operation in BM4Midpoint.recipe:
 							duration = operation.coefficient * step
 							if operation.name == 'T':
 								clock += duration
@@ -224,7 +225,6 @@ class BM4ImplicitStudyTests(unittest.TestCase):
 			potential,
 			side=0.5,
 			points_per_side=1,
-
 		)
 		config = BM4ImplicitSymplecticityConfig(
 			rho=0.05,

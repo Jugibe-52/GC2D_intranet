@@ -39,11 +39,11 @@ and capabilities rather than extra execution stages.
 
 ## Extended-family detail
 
-ABBA and BM4 use `DoubleFormulation` only for temporary spatial copies and `GCDoubledMaps` for physical direct/adjoint maps. Their shared composition traverses signed palindromic recipes: 2 stages for ABBA2, 6 for ABBA4, 14 for ABBA6 and 12 for BM4. Accepted states are physical arrays.
+ABBA and BM4 use `DoubleFormulation` only for temporary spatial copies and `GCDoubledMaps` for physical direct/adjoint maps. Their shared composition traverses signed palindromic recipes: 2 stages for ABBA2, 6 for ABBA4 and 12 for BM4. Accepted states are physical arrays.
 
 The implicit methods apply one outer Hairer projection around the complete
-recipe. ABBA4 and ABBA6 share this execution structure; their intermediate ABBA
-pairs are unprojected. Midpoint variants apply one arithmetic average after the
+recipe. ABBA2Implicit, ABBA4Implicit and BM4Implicit share the direct
+ProjectedPalindromicMethod base. ABBA4 intermediate pairs are unprojected. Midpoint variants apply one arithmetic average after the
 composition. Newton/Broyden support, analytic tangents and passive energy
 quadrature reuse the shared numerical implementation and accepted stage data.
 

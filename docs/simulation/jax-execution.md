@@ -34,7 +34,7 @@ or change of numerical method is performed.
 | ExplicitEuler, RK4 | Batched fields, stages and complete fixed time loop | Final result export |
 | GaussLegendre4, SDIRK4, HBVM42 | Fields, Jacobians, batched Newton solves, passive energy and time loop | Final result export |
 | ABBA2Midpoint, BM4Midpoint | Signed composition, arithmetic projection, energy and time loop | Final result export |
-| ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, BM4Implicit | Composition, residuals, Newton/Broyden, Hairer projection, energy and time loop | Final result export |
+| ABBA2Implicit, ABBA4Implicit, BM4Implicit | Composition, residuals, Newton/Broyden, Hairer projection, energy and time loop | Final result export |
 | DOP853, Radau | Batched field and energy evaluations | SciPy adaptive controller, stages, rejection, dense output and Radau Newton/LU |
 
 The fixed methods keep state, nonlinear work and output buffers on one selected

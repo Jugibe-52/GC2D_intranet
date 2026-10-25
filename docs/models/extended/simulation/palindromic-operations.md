@@ -22,25 +22,44 @@ States are component-major `(u_x, u_y, v_x, v_y)`, length `4N`. The clock is a s
 ```python
 from simulation import A, B, T, Composition, PalindromicImplicit, PalindromicMidpoint
 
-center = Composition.from_half("ABBA-center", (A(0.5), B(0.5), T(0.5)))
-edges = Composition.from_half("ABBA-edges", (T(0.5), A(0.5), B(0.5)))
+center: Composition = (A(0.5), B(0.5), T(1.0), B(0.5), A(0.5))
+edges: Composition = (T(0.5), A(0.5), B(0.5), B(0.5), A(0.5), T(0.5))
 
-implicit = PalindromicImplicit(edges)
+implicit = PalindromicImplicit(edges, composition_name="ABBA-edges")
 midpoint = PalindromicMidpoint(edges)
 ```
 
-The constructor reflects the supplied half. The chronological sequences are `A/2 B/2 T/2 T/2 B/2 A/2` and `T/2 A/2 B/2 B/2 A/2 T/2`. In the first, spatial evaluations use the step endpoints; in the second, they all use the midpoint time. Adjacent equal flows are deliberately retained to preserve evaluation and observation conventions. An optional `center=` operation allows an odd-length palindrome; the complete sequence can also be passed to `Composition(name, operations)`.
+`Composition` is the public type alias `tuple[Operation, ...]`, not a recipe
+object. The tuples are written in execution order. The first evaluates spatial
+flows at the step endpoints; the second evaluates them at the midpoint time.
+The consecutive translations `T(0.5), T(0.5)` are combined into `T(1.0)`.
+Spatial flows remain separate to retain field evaluations and energy quadrature.
 
-Validation checks finite coefficients, the reflected operation/coefficient pairs and unit total weights separately for A, B and T. Signed and zero coefficients are allowed. The total C weight scales its independent rate. Symmetry does not prove fourth or sixth order. The tests establish second-order convergence for both time placements on a nonautonomous rotation; the two finite-step maps are different. Arithmetic projection need not preserve reversibility or exact symplecticity.
+Operation construction checks finite coefficients. Method preparation checks a
+nonempty tuple of operations, reflected operation/coefficient pairs and unit
+weights separately for A, B and T. Signed and zero coefficients are allowed.
+The total C weight scales its independent rate. These checks run once per run,
+not on every residual evaluation. Symmetry does not prove fourth or sixth order;
+arithmetic projection need not preserve reversibility or exact symplecticity.
+
+To migrate, replace `Composition(name, operations)` with the operations tuple and
+pass `composition_name=name` to the generic method if a diagnostic label is needed
+(the default is `"custom"`). `Composition.from_half` and
+`Composition.from_direct_adjoint` are removed. Write the full tuple explicitly;
+a half can also be reflected with ordinary tuple concatenation. Recreate pickled
+method configurations using the new representation. Saved scientific results
+are not rewritten.
 
 A new method can select a recipe without implementing another numerical loop:
 
 ```python
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from simulation import ABBA2Midpoint
 
 @dataclass
-class EndTimeMidpoint(PalindromicMidpoint):
-    recipe: Composition = field(default=edges, init=False)
+class EndTimeMidpoint(ABBA2Midpoint):
+    composition_name = "ABBA-edges"
+    recipe = (T(0.5), A(0.5), B(0.5), B(0.5), A(0.5), T(0.5))
 ```
 
 NumPy supports this subclass. JAX supports the exact built-in generic configurations `PalindromicImplicit(recipe)` and `PalindromicMidpoint(recipe)` and the named ABBA/BM4 presets. Arbitrary subclass overrides are still rejected by the existing JAX dispatch contract.
@@ -51,7 +70,10 @@ For explicit C use:
 from simulation import C
 from methods.extended.maps import HarmonicCoupling
 
-coupled = Composition.from_half("coupled-edges", (T(0.5), C(0.5), A(0.5), B(0.5)))
+coupled: Composition = (
+    T(0.5), C(0.5), A(0.5), B(0.5),
+    B(0.5), A(0.5), C(0.5), T(0.5),
+)
 method = PalindromicMidpoint(coupled, coupling=HarmonicCoupling(0.7))
 ```
 
@@ -59,16 +81,43 @@ Both C in the recipe and the coupling object are required. BM4 presets have neit
 
 ## Presets, projection and observations
 
-The standard ABBA2, ABBA4, ABBA6 and BM4 recipes are unchanged numerically. `Composition.from_direct_adjoint` expands each former adjoint stage into A,B,T and each direct stage into T,B,A with the original signed stage weight. Explicit coupled generic recipes can additionally expand C,A,B,T and its reverse. Execution never decides operations from a stage's parity; it traverses the expanded sequence. Only T changes time.
+The standard ABBA2, ABBA4 and BM4 recipes are tuple literals declared
+directly as `recipe = (...)` on their method classes in `extended/abba.py` and
+`extended/bm4.py`. They are shared class attributes, with no dataclass field.
+ABBA2Midpoint reuses ABBA2Implicit.recipe; BM4Implicit reuses BM4Midpoint.recipe.
+The generic core validates and executes the tuples. Consecutive T operations are merged by adding their
+weights, giving 5, 15 and 30 elementary operations respectively. The same
+spatial operations remain, with no automatic fusion or implicit time placement.
+Only T changes time. Merging translations preserves the mathematical map;
+floating-point clock rounding can differ from two separate additions.
 
 `ProjectedPalindromicMethod` owns the common implicit advance and one exterior spatial Hairer solve. `MidpointPalindromicMethod` owns the final arithmetic mean. Both inherit common run preparation and quadrature description from `PalindromicMethod`. Preset-specific code retains public controls, metadata and established observation adapters; no preset defines its own advancement loop.
 
 The implicit generic method accepts reduced or simultaneous equations, Newton/Broyden, and analytic or centered-difference Jacobians. Time and passive momentum remain outside the nonlinear unknowns. The stopping scale remains `atol + rtol*max(1, ||z||_inf)`.
 
-Elementary operation records drive NumPy/JAX tangents and energy. Existing grouped ABBA pair and BM4 stage records are reconstructed from this trace without replaying the map. Their public counts and shapes remain unchanged: BM4 has 12 historical groups and 36 elementary operations, of which 24 are spatial shears. New metadata distinguishes `operation_count`, `operation_sequence`, `operation_coefficients` and the independent coupling rate. Coefficients are stored as a JSON string so configuration metadata cannot be confused with arrays of per-step history.
+Elementary operation records drive NumPy/JAX tangents and energy. The numerical
+trace contains no grouped stages or grouping metadata. Observation adapters
+assemble ABBA pairs from four retained shears and BM4 stages from two, without
+replaying the map. Public event counts and shapes remain unchanged: BM4 has
+12 observed groups, 30 elementary operations and 24 spatial shears.
+
+Recipe names belong to the method configuration. Metadata distinguishes
+`composition_name`, `operation_count`, `operation_sequence`,
+`operation_coefficients` and the independent coupling rate. Coefficients are
+stored as a JSON string so configuration metadata cannot be confused with arrays
+of per-step history.
+
+ABBA2Implicit, ABBA4Implicit and BM4Implicit directly inherit `ProjectedPalindromicMethod`, which also owns their preparation and solver validation. ABBA4 declares its complete tuple, with one exterior projection; it does not invoke three projected ABBA2 steps. ABBA6 and the intermediate ABBA bases have been removed.
 
 ## Verification and example
 
-`tests/test_palindromic_operations.py` covers half construction, consistency, independent end-time shears, signed reversal, C tangents, shared inheritance, recipe-only subclasses, center/end convergence, passive energy and CPU/JAX agreement. Existing ABBA/BM4 tests retain their orders, observers, particle packing, solvers and output sampling. The six pre-change trajectory and momentum baselines matched exactly in the tested three-particle nonautonomous case.
+`tests/test_palindromic_operations.py` covers tuple validation, independent
+end-time shears, signed reversal, C tangents, shared inheritance, recipe-only
+subclasses, center/end convergence, passive energy and CPU/JAX agreement.
+`tests/test_extended_family.py` compares merged and unmerged clock schedules
+for both step signs, including states, derivatives and energy sources. Existing
+ABBA/BM4 tests retain their orders, observers, particle packing, solvers and
+output sampling. Measured pre-change comparisons are recorded in the
+[tuple simplification results](../../../../specs/changes/2026-10-25-tuple-compositions/results.md).
 
 Run `python examples/palindromic_time.py` for a small comparison with the same potential, initial state and step. Changing the placement of T creates a different finite-step method; it does not alter the standard presets.

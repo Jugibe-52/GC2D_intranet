@@ -4,8 +4,9 @@ import unittest
 import numpy as np
 
 from contracts.methods.step import StepInfo
-from methods import ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, BM4Implicit, ABBA2Midpoint, BM4Midpoint
-from methods.extended.core.composition import ABBA4, Composition, compose
+from methods import ABBA2Implicit, ABBA4Implicit, BM4Implicit, ABBA2Midpoint, BM4Midpoint
+from methods.extended.core.composition import compose
+from methods.extended.core.operations import A, B, T, C
 from methods.extended.core.jacobians import composition_jacobian
 from methods.extended.maps import GCDoubledMaps
 from request import SimulationRequest
@@ -24,7 +25,7 @@ class FunctionPalindromesTests(unittest.TestCase):
 		self.jacobian = lambda t, z: self.matrix
 
 	def test_all_presets_accept_plain_functions_and_own_only_physical_state(self) -> None:
-		for kind in (ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, BM4Implicit, ABBA2Midpoint, BM4Midpoint):
+		for kind in (ABBA2Implicit, ABBA4Implicit,  BM4Implicit, ABBA2Midpoint, BM4Midpoint):
 			with self.subTest(method=kind.__name__):
 				run = kind().new_run(self.f, self.initial, self.request, jacobian=self.jacobian,
 					capture_quadrature=True, observe=True)
@@ -41,7 +42,7 @@ class FunctionPalindromesTests(unittest.TestCase):
 
 	def test_dense_composition_derivatives_preserve_cross_particle_coupling(self) -> None:
 		for coupling in (None, .7):
-			recipe = ABBA4 if coupling is None else Composition.from_direct_adjoint('coupled', (.5, .5), coupled=True)
+			recipe = ABBA4Implicit.recipe if coupling is None else (C(.5), A(.5), B(.5), T(1.), B(.5), A(.5), C(.5))
 			maps = GCDoubledMaps(self.f, 4, coordinates=self.initial.layout,
 				jacobian=self.jacobian, jacobian_structure='dense', coupling_frequency=coupling)
 			state = maps.state_formulation.lift(self.initial.values)

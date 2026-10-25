@@ -15,14 +15,17 @@ import numpy as np
 from dynamics import GuidingCenterDynamics
 
 from potential import Potential
-from simulation import ABBA2Implicit, ABBA2Midpoint, ABBA4Implicit, ABBA6Implicit, ABBA_PROJECTION_FORMULATIONS, ABBA_STATE_EXTENSIONS, InitialValueProblem, SimulationRequest, simulate
+from simulation import (
+	ABBA2Implicit, ABBA2Midpoint, ABBA4Implicit, ABBA_PROJECTION_FORMULATIONS, ABBA_STATE_EXTENSIONS,
+	InitialValueProblem, SimulationRequest, simulate,
+)
 
 
 _ALL_METHODS = (
 	ABBA2Midpoint,
 	ABBA2Implicit,
 	ABBA4Implicit,
-	ABBA6Implicit,
+
 )
 
 

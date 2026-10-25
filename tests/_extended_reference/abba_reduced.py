@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from methods.extended.abba import ABBA2Implicit
 import numpy as np
 from methods.extended.observations import abba_pairs
 from methods.extended.core.projection import solve_projection
-from methods.extended.core.composition import ABBA2
+
 from tests._extended_reference.abba_maps import uncoupled_maps
 from solvers import NewtonSolver, BroydenSolver
 
@@ -70,7 +71,7 @@ def _solve_reduced_multiplier_step(
 	nonlinear_solver: NonlinearSolver = "newton",
 ) -> _ProjectedStep:
     """Expose the shared solver result for independent residual checks."""
-    result = solve_projection(uncoupled_maps(dynamics, state), ABBA2,
+    result = solve_projection(uncoupled_maps(dynamics, state), ABBA2Implicit.recipe,
         (NewtonSolver if nonlinear_solver == 'newton' else BroydenSolver)(absolute_tolerance, relative_tolerance, max_iterations, jacobian_method='analytic'),
         'reduced_multiplier', t, state, step)
     return _ProjectedStep(result.state, result.multiplier, abba_pairs(result.trace)[0].stages,

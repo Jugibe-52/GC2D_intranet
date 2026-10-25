@@ -41,9 +41,8 @@ solution = simulate(problem, ABBA4Implicit(step=0.01), request,
 The current method projects only the two spatial copies. Energy tracking is
 passive; it does not reproduce the retired projection of time and momentum.
 ABBA4 observations now always describe the three continuous unprojected factors
-and one outer multiplier. ABBA6 now follows the same structure with seven
-unprojected pairs and one outer multiplier; previously saved results with seven
-separate projections describe a different numerical map.
+and one outer multiplier. ABBA6 has been removed; previously saved results
+retain their original method and projection labels.
 
 New comparison records use the method name `ABBA4Implicit`. Configuration keys
 use the `abba4_outer_projection` prefix to distinguish them from historical
@@ -100,14 +99,13 @@ saved results and scientific diagnostics retain their existing contracts.
 
 Import public configurations from `methods.extended`, `methods` or `simulation`. ABBA variants are defined in `methods.extended.abba`, BM4 in `methods.extended.bm4`, and compositions in `methods.extended.core.composition`. Projection, midpoint, Jacobians and numerical records remain in the matching `core` modules; passive energy belongs to `diagnostics.methods.energy`. Event adapters live in `methods.extended.observations`. Retired per-order modules and energy implementations have no forwarding imports.
 
-`ABBA6Implicit` now takes `projection_placement="around_complete_composition"`
-and performs one projection around seven unprojected pairs. This replaces the
-former seven-solve map. Saved historical ABBA6 results must retain their original
-identity and require recomputation for comparisons with the new method.
-Its substep work arrays change from `(steps, 7)` to `(steps, 1)`. The ABBA6 event
-now owns one multiplier and seven unprojected snapshots, sharing the ABBA4 event
-structure. Exact tangents are available through
-`diagnostics.abba6_implicit_step_particle_jacobians`.
+`ABBA2Implicit`, `ABBA4Implicit` and `BM4Implicit` directly inherit
+`ProjectedPalindromicMethod`, which owns preparation, solver validation and
+advancement. ABBA4 declares its full tuple and applies one exterior projection.
+`ABBA6Implicit`, `ABBA6ImplicitIntegrationStep`, `studies.abba6_accuracy`,
+its study exports and `diagnostics.abba6_implicit_step_particle_jacobians` are
+removed without aliases. Retained ABBA6 theory and saved results are historical;
+do not relabel those trajectories as another method.
 
 ## Current state and saved states (2026-10-20)
 

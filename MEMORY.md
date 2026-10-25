@@ -276,19 +276,21 @@ historical trajectories through the current methods. Observer rates stay zero.
 
 ## Explicit palindromic methods
 
-All ABBA/BM4 presets inherit PalindromicMethod; shared implicit and midpoint
-bases own advancement. Composition.from_half reflects explicit operations:
-A updates u from v, B updates v from u, only T moves the clock, and C applies
-independent HarmonicCoupling. Each coefficient multiplies h directly, without
-an extra half. Generic PalindromicImplicit/Midpoint accept recipes on CPU/JAX;
-arbitrary subclasses remain outside execution-owned JAX compatibility checks. C operations and
-a coupling object must be supplied together; BM4 presets remain uncoupled.
-Preserve named recipes and grouped observations. Elementary traces drive
-derivatives and passive energy without replaying the map. Operation coefficients
-are scalar JSON metadata: block consumers reserve diagnostic arrays for histories.
-Moving T creates a different method; palindromy alone proves no higher order,
-and arithmetic projection need not preserve reversal or symplecticity. See
-docs/models/extended/simulation/palindromic-operations.md.
+ABBA2Implicit, ABBA4Implicit and BM4Implicit directly inherit
+ProjectedPalindromicMethod for preparation and advancement; ABBA6 and intermediate
+ABBA bases are removed. ABBA4 has one outer projection around its complete tuple.
+Composition is tuple[Operation, ...], validated once at preparation. Fixed recipes
+are class tuple literals without dataclass fields. Shared variants merge adjacent T;
+counts are 5/15/30 for ABBA2/ABBA4/BM4. Preserve spatial shears and energy quadrature. Only T moves the clock; coefficients multiply h
+without another half. Names belong to methods (composition_name for generic
+recipes); old Composition constructors/factories are removed. Generic recipes
+support CPU/JAX; arbitrary subclasses remain outside JAX compatibility checks.
+C and HarmonicCoupling must be supplied together; BM4 stays uncoupled. Numerical
+traces retain elementary operations only; observers reconstruct public groups
+without replay. Coefficients remain scalar JSON metadata, not history arrays.
+Moving T changes the method; merging adjacent T preserves its mathematical map
+but may change rounding. Palindromy alone proves no higher order, and arithmetic
+projection need not preserve reversal or symplecticity. See docs/models/extended/simulation/palindromic-operations.md.
 
 ## Visible result types
 

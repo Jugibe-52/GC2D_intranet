@@ -11,16 +11,16 @@ from contracts.dynamics.protocols import DynamicalSystem, HamiltonianSystem
 from dynamics import FullCyclotronDynamics
 
 from simulation import (
-    ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42, DOP853, Radau,
-    ABBA2Midpoint, ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, BM4Midpoint, BM4Implicit,
-    InitialValueProblem, SimulationRequest, simulate, DoubleFormulation,
+	ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42, DOP853, Radau, ABBA2Midpoint, ABBA2Implicit,
+	ABBA4Implicit, BM4Midpoint, BM4Implicit, InitialValueProblem, SimulationRequest, simulate,
+	DoubleFormulation,
 )
 from tests.test_method_integration import _problem
 from diagnostics.methods.energy import EnergyObserver
 from solvers.nonlinear import NewtonSolver, BroydenSolver
 
 CLASSICAL = (ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42, DOP853, Radau)
-DUPLICATED = (ABBA2Midpoint, ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, BM4Midpoint, BM4Implicit)
+DUPLICATED = (ABBA2Midpoint, ABBA2Implicit, ABBA4Implicit,  BM4Midpoint, BM4Implicit)
 
 
 class RotatingHamiltonian:

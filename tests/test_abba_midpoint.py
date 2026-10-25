@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from methods.extended.abba import ABBA2Implicit
 from diagnostics.methods.energy import EnergyObserver
 from solvers import NewtonSolver
 
@@ -26,7 +27,7 @@ from simulation import (
 	simulate,
 )
 from methods.extended.core.midpoint import midpoint_step
-from methods.extended.core.composition import ABBA2
+
 from tests._extended_reference.abba_maps import uncoupled_maps
 from studies import (
 	ABBA2MidpointSymplecticityConfig,
@@ -128,7 +129,7 @@ class ABBA2MidpointTests(unittest.TestCase):
 		basis = np.eye(2)
 		matrix = np.column_stack(
 			[
-				midpoint_step(uncoupled_maps(dynamics, column), ABBA2, 0.0, column, step).state
+		  midpoint_step(uncoupled_maps(dynamics, column), ABBA2Implicit.recipe, 0.0, column, step).state
 				for column in basis.T
 			]
 		)
@@ -192,7 +193,6 @@ class ABBA2MidpointSymplecticityStudyTests(unittest.TestCase):
 			potential,
 			side=0.5,
 			points_per_side=1,
-
 		)
 		config = ABBA2MidpointSymplecticityConfig(
 			rho=0.05,

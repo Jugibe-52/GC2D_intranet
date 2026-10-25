@@ -1,6 +1,7 @@
 """Shared endpoint-time A-B-B-A stages and exact particle-block tangents."""
 from __future__ import annotations
 
+from methods.extended.abba import ABBA2Implicit
 from dynamics.gc import GuidingCenterDynamics
 from dataclasses import dataclass
 import numpy as np
@@ -9,7 +10,7 @@ from contracts.dynamics.protocols import DynamicalSystem, GuidingCenterJacobianS
 from methods.extended.maps import spatial_shear, GCDoubledMaps
 from problem import InitialValueProblem
 
-from methods.extended.core.composition import ABBA2, compose
+from methods.extended.core.composition import compose
 
 from methods.extended.observations import _ABBAStages
 
@@ -35,7 +36,7 @@ def _evaluate_unprojected_stages(
 ) -> _ABBAStages:
     """Expose ABBA's four-shear view of the shared direct/adjoint pair."""
     maps = uncoupled_maps(dynamics, u_initial)
-    trace = compose(maps, ABBA2, t, np.concatenate((u_initial, v_initial)), step)
+    trace = compose(maps, ABBA2Implicit.recipe, t, np.concatenate((u_initial, v_initial)), step)
     return abba_pairs(trace)[0].stages
 
 

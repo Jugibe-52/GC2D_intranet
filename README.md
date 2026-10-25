@@ -31,7 +31,7 @@ SimulationRequest -------------------------------/
 ```
 
 The [common integration architecture](docs/simulation/integration-architecture.md)
-shows the complete six-phase lifecycle, shared by all 13 methods. Each model
+shows the complete six-phase lifecycle, shared by all 12 methods. Each model
 also has its own detailed diagram in the [method catalog](docs/models/README.md).
 In `src/`, `problem.py` owns initial-value problems, `contracts/` holds shared
 interfaces and records, and `formulations/`
@@ -90,8 +90,7 @@ Numerical architecture is organized by model:
   [`ABBA2Midpoint`](docs/models/abba2-midpoint/simulation/abba2-midpoint-simulation-architecture.md),
   [`ABBA2Implicit`](docs/models/abba2-implicit/simulation/abba2-implicit-simulation-architecture.md),
   [`ABBA4Implicit`](docs/models/abba4-implicit/simulation/abba4-implicit-simulation-architecture.md),
-  including its [exterior-projection derivation](docs/models/abba4-implicit/tex/exterior-projection.pdf),
-  and [`ABBA6Implicit`](docs/models/abba6-implicit/simulation/abba6-implicit-simulation-architecture.md);
+  including its [exterior-projection derivation](docs/models/abba4-implicit/tex/exterior-projection.pdf);
 - `BM4Implicit`: [theory](docs/models/bm4-implicit/tex/theory.pdf),
   and [simulation architecture](docs/models/bm4-implicit/simulation/bm4-simulation-architecture.md);
 - `BM4Midpoint`: [theory](docs/models/bm4-midpoint/tex/theory.pdf),
@@ -217,29 +216,28 @@ potential is available as `problem.dynamics.effective_potential`.
 
 ## ABBA models and canonical configuration space
 
-The public API contains exactly four ABBA numerical-method classes:
+The public API contains exactly three ABBA numerical-method classes:
 
 1. `ABBA2Midpoint`;
 2. `ABBA2Implicit`;
-3. `ABBA4Implicit`;
-4. `ABBA6Implicit`.
+3. `ABBA4Implicit`.
 
 State-space choices are parameters of those methods, not additional public
-method classes. The three implicit methods share two nonlinear selector axes
+method classes. The two implicit ABBA methods share two nonlinear selector axes
 and one constrained state/energy strategy:
 
 | Axis | Canonical values | Meaning |
 |---|---|---|
-| `projection_placement` | `"around_complete_composition"` | ABBA4 and ABBA6 use one outer projection; per-map projection is rejected. |
+| `projection_placement` | `"around_complete_composition"` | ABBA4 uses one outer projection; per-map projection is rejected. |
 | `projection_formulation` | `"reduced_multiplier"`, `"simultaneous_state_multiplier"` | Chooses the nonlinear residual representation. |
 | `solver` | `NewtonSolver(...)`, `BroydenSolver(...)` | Owns the nonlinear algorithm and all its controls. |
 | `state_extension` | `"physical"` | Only spatial coordinates are duplicated. |
 | `observers` on `simulate` | `()`, `(EnergyObserver(), ...)` | Selects passive energy recording and accepted-step callbacks. |
 
-`ABBA2Implicit`, `ABBA4Implicit` and `ABBA6Implicit` each admit eight
+`ABBA2Implicit` and `ABBA4Implicit` each admit eight
 configurations: two spatial residual formulations, two nonlinear solvers and
-tracking off/on. `ABBA2Midpoint` has two tracking configurations, giving 26
-configurations across the four classes. Use `ABBA4Implicit` for the fourth-order
+tracking off/on. `ABBA2Midpoint` has two tracking configurations, giving 18
+configurations across the three classes. Use `ABBA4Implicit` for the fourth-order
 method with one projection around the complete composition.
 
 The former `state_extension="fully_extended"` projected time and momentum as well as space. It is rejected explicitly; register `EnergyObserver()` with execution for passive energy monitoring. Historical full-state studies are not silently reinterpreted as physical studies.
@@ -272,10 +270,16 @@ inside one outer projection.
 | `ABBA2Midpoint` | 1 | Arithmetic mean; no nonlinear solve |
 | `ABBA2Implicit` | 1 | One implicit symmetric projection |
 | `ABBA4Implicit` | 3 | One outer projection around the complete unprojected triple jump |
-| `ABBA6Implicit` | 7 | One implicit projection around the complete composition |
 
 The former per-map ABBA4 implementation is removed. Current ABBA4 has one
 nonlinear solve per step and three base maps per residual evaluation.
+
+ABBA2Implicit, ABBA4Implicit and BM4Implicit directly inherit
+`ProjectedPalindromicMethod`. Their fixed recipes are class tuples without
+`field`; ABBA4 declares its own full composition with one exterior projection.
+ABBA6, its event, derivative adapter and dedicated study are removed. Its
+[archived guide](docs/models/abba6-implicit/simulation/abba6-implicit-simulation-architecture.md)
+and saved results retain their historical meaning.
 
 ### Physical states and temporary workspaces
 
@@ -537,9 +541,6 @@ The focused `run_abba4_implicit_accuracy_study` performs the same verified
 reference comparison for fourth-order ABBA, while
 `run_abba4_implicit_trajectory_symplecticity_study` analyzes its exact
 ideal-root tangent product across a requested step refinement.
-`run_abba6_accuracy_study` applies the same reference, periodic-error,
-nonlinear-work, and runtime protocol to the seven-stage method and reports its
-observed sixth-order refinement slope.
 The focused `run_implicit_generalized_energy_study` runs any one of the three
 projected implicit GC methods over an ordered step refinement. Energy is
 recorded at every accepted main-grid node even when the physical solution uses

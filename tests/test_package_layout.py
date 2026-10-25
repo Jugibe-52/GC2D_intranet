@@ -19,7 +19,10 @@ import diagnostics
 from dynamics import GuidingCenterDynamics
 
 from potential import Potential
-from simulation import ABBA2Midpoint, ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, ABBA4_PROJECTION_PLACEMENTS, ABBA_PROJECTION_FORMULATIONS, ABBA_STATE_EXTENSIONS, BM4Implicit, BM4Midpoint, ExplicitEuler, RK4
+from simulation import (
+	ABBA2Midpoint, ABBA2Implicit, ABBA4Implicit, ABBA4_PROJECTION_PLACEMENTS,
+	ABBA_PROJECTION_FORMULATIONS, ABBA_STATE_EXTENSIONS, BM4Implicit, BM4Midpoint, ExplicitEuler, RK4,
+)
 from methods import extended, classical
 
 
@@ -56,8 +59,6 @@ class PackageLayoutTests(unittest.TestCase):
 		self.assertIsNotNone(ABBA2Midpoint)
 		self.assertIsNotNone(ABBA2Implicit)
 		self.assertIsNotNone(ABBA4Implicit)
-		self.assertIsNotNone(ABBA4Implicit)
-		self.assertIsNotNone(ABBA6Implicit)
 		self.assertIsNotNone(BM4Implicit)
 		self.assertEqual(
 			ABBA4_PROJECTION_PLACEMENTS,
@@ -86,6 +87,19 @@ class PackageLayoutTests(unittest.TestCase):
 		):
 			with self.subTest(module=module):
 				self.assertIsNotNone(importlib.util.find_spec(module))
+
+	def test_removed_abba6_interfaces_are_absent(self) -> None:
+		import studies
+		from contracts.methods.extended import abba as records
+		for namespace, names in (
+			(simulation, ('ABBA6Implicit', 'ABBA6ImplicitIntegrationStep')),
+			(records, ('ABBA6ImplicitIntegrationStep',)),
+			(diagnostics, ('abba6_implicit_step_particle_jacobians',)),
+			(studies, ('ABBA6AccuracyConfig', 'ABBA6AccuracyResult', 'run_abba6_accuracy_study')),
+		):
+			for name in names:
+				self.assertFalse(hasattr(namespace, name), (namespace.__name__, name))
+		self.assertIsNone(importlib.util.find_spec('studies.abba6_accuracy'))
 
 	def test_public_exports_are_explicit_and_resolve(self) -> None:
 		for namespace in (simulation, methods, extended, classical, formulations, execution, diagnostics):
@@ -258,6 +272,7 @@ assert not any(name.split(".")[0] in ("jax", "modal", "integration")
 				"ABBA4Implicit1",
 				"ABBA4SingleProjectionImplicit1",
 				"ABBA6",
+				"ABBA6Implicit",
 				"ABBA_implicit2",
 				"ABBA4_implicit2",
 				"ABBA2SharedTimeExtendedImplicit",

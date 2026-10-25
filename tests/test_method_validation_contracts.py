@@ -18,7 +18,7 @@ from methods.adaptive.scipy import DOP853, Radau
 from methods.classical.gauss_legendre import GaussLegendre4
 from methods.classical.rk4 import RK4
 from methods.classical.sdirk import SDIRK4
-from methods.extended.abba import ABBA2Implicit, ABBA4Implicit, ABBA6Implicit
+from methods.extended.abba import ABBA2Implicit, ABBA4Implicit
 from methods.extended.bm4 import BM4Implicit, BM4Midpoint
 from methods.hbvm.order4 import HBVM42
 from states.history import States

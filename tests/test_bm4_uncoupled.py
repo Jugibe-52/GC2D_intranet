@@ -11,7 +11,7 @@ import numpy as np
 
 from methods.extended.maps import HarmonicCoupling
 from methods.extended.maps import GCDoubledMaps
-from methods.extended.core.composition import BM4, compose
+from methods.extended.core.composition import compose
 from methods.extended.core.projection import solve_projection
 from simulation import BM4Implicit, BM4Midpoint, SimulationRequest, simulate
 from tests.test_extended_family import problem
@@ -25,10 +25,10 @@ class UncoupledBM4Tests(unittest.TestCase):
 		h, t = .15, .3
 		request = SimulationRequest.uniform(t_span=(t, t + h),  sample_count=2)
 		old_maps = GCDoubledMaps(p.dynamics.vector_field, p.initial_state.size, coordinates=p.layout, coupling_frequency=0.0, jacobian=getattr(p.dynamics, 'particle_vector_field_jacobians', None))
-		trace = compose(old_maps, BM4, t, np.tile(p.initial_state, 2), h)
+		trace = compose(old_maps, BM4Midpoint.recipe, t, np.tile(p.initial_state, 2), h)
 		size = p.initial_state.size
 		references = (
-			solve_projection(old_maps, BM4, NewtonSolver(1e-13, 1e-12, 12, jacobian_method='analytic'),
+		 solve_projection(old_maps, BM4Midpoint.recipe, NewtonSolver(1e-13, 1e-12, 12, jacobian_method='analytic'),
 				'reduced_multiplier', t, p.initial_state, h).state,
 			(trace.state[:size] + trace.state[size:]) / 2,
 		)

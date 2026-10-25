@@ -22,22 +22,22 @@ from methods.classical.rk4 import RK4
 from methods.classical.gauss_legendre import GaussLegendre4, _StageEvaluation
 from methods.classical.sdirk import SDIRK4
 from methods.hbvm.order4 import HBVM42, _ResidualPayload
-from methods.extended.abba import ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, ABBA2Midpoint
+from methods.extended.abba import ABBA2Implicit, ABBA4Implicit, ABBA2Midpoint
 from methods.extended.bm4 import BM4Implicit, BM4Midpoint
 from methods.extended.palindromic import PalindromicImplicit, PalindromicMidpoint
-from methods.extended.core.records import CompositionTrace, MapStage, OperationStage
+from methods.extended.core.records import CompositionTrace, OperationStage
 
 
 # Register numerical payloads only at the optional execution boundary. Operation
-# names and grouping directions are static; stage values remain device arrays.
+# names are static; stage values remain device arrays.
 for _record, _metadata in ((_StageEvaluation, ()), (_ResidualPayload, ()),
-	(CompositionTrace, ()), (MapStage, ('direct',)), (OperationStage, ('operation',))):
+	(CompositionTrace, ()), (OperationStage, ('operation',))):
 	jax.tree_util.register_dataclass(_record,
 		data_fields=[item.name for item in fields(_record) if item.name not in _metadata],
 		meta_fields=list(_metadata))
 
 _SUPPORTED_FIXED = (ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42,
-	ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, ABBA2Midpoint, BM4Implicit,
+	ABBA2Implicit, ABBA4Implicit, ABBA2Midpoint, BM4Implicit,
 	BM4Midpoint, PalindromicImplicit, PalindromicMidpoint)
 
 

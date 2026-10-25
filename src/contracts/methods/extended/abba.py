@@ -60,9 +60,4 @@ class ABBA4ImplicitIntegrationStep(ABBAImplicitCompositionIntegrationStep):
 	"""Three unprojected ABBA pairs and their one outer projection."""
 
 
-@dataclass(frozen=True, slots=True)
-class ABBA6ImplicitIntegrationStep(ABBAImplicitCompositionIntegrationStep):
-	"""Seven unprojected ABBA pairs and their one outer projection."""
-
-
-__all__ = ['ABBA2ImplicitIntegrationStep', 'UnprojectedABBAIntegrationStep', 'ABBAImplicitCompositionIntegrationStep', 'ABBA4ImplicitIntegrationStep', 'ABBA6ImplicitIntegrationStep']
+__all__ = ['ABBA2ImplicitIntegrationStep', 'UnprojectedABBAIntegrationStep', 'ABBAImplicitCompositionIntegrationStep', 'ABBA4ImplicitIntegrationStep']

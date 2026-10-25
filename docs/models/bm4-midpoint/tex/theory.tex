@@ -26,7 +26,7 @@ rotates the copy difference and requires an independent coupling object.
 Both BM4 presets omit $C$.
 
 In chronological order, standard ABBA2 is
-$A_{h/2},B_{h/2},T_{h/2},T_{h/2},B_{h/2},A_{h/2}$.
+$A_{h/2},B_{h/2},T_h,B_{h/2},A_{h/2}$.
 The distinct symmetric variant
 $T_{h/2},A_{h/2},B_{h/2},B_{h/2},A_{h/2},T_{h/2}$
 evaluates every spatial shear at the midpoint time. Both exhibit second
@@ -34,11 +34,12 @@ order on the tested nonautonomous rotation. Arbitrary palindromes do not
 inherit fourth or sixth order, and an arithmetic projection need not be
 reversible or symplectic.
 
-\texttt{Composition.from\_half} reflects a supplied half sequence.
+\texttt{Composition} denotes an explicit tuple of operations.
+Consecutive time translations combine as $T_a T_b=T_{a+b}$.
 The generic \texttt{PalindromicImplicit} and \texttt{PalindromicMidpoint}
 methods select one exterior Hairer projection or a final arithmetic mean.
-The standard signed ABBA/BM4 recipes, grouped observations and passive
-momentum normalization remain unchanged. NumPy and JAX execute the same
+The signed spatial flows and passive momentum normalization are retained;
+observers reconstruct their groups from elementary traces without replay. NumPy and JAX execute the same
 explicit operations and differentiate their retained shear inputs.
 See \path{docs/models/extended/simulation/palindromic-operations.md}.
 
@@ -172,10 +173,11 @@ passive energy quadrature, and existing observation records. Newton and Broyden
 share the spatial projection equations; the energy observer accumulates only the
 accepted trace, with the existing factor $1/2$ for physical $\kappa$.
 Adjoint stages evaluate at the start of their signed substep, direct stages at
-its end. The coefficients remain unchanged. ABBA4, ABBA6 and BM4 each
-use one outer projection around their complete unprojected compositions.
-ABBA6 therefore differs from historical results with seven projected pairs. This internal family name does not enable the retired full
-time/momentum projection.
+its end. The coefficients remain unchanged. ABBA2Implicit, ABBA4Implicit
+and BM4Implicit each use one outer projection around their complete tuples,
+and directly inherit \texttt{ProjectedPalindromicMethod}. ABBA6 is removed;
+its saved results retain their historical labels. The internal family name
+does not enable the retired full time/momentum projection.
 
 The implementation architecture and current diagrams are documented in
 \path{docs/models/extended/simulation/extended-simulation-architecture.md}.

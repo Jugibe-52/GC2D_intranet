@@ -34,19 +34,6 @@ class OperationStage:
 
 
 @dataclass(frozen=True, slots=True)
-class MapStage:
-    """One signed direct/adjoint stage and the two physical shear inputs."""
-
-    start_time: float
-    time: float
-    duration: Any
-    direct: bool
-    state_before: BackendArray
-    state_after: BackendArray
-    quadrature_points: tuple[QuadraturePoint, ...]
-
-
-@dataclass(frozen=True, slots=True)
 class CompositionTrace:
     """Numerical trace reused by projection, differentiation and passive energy."""
 
@@ -54,7 +41,6 @@ class CompositionTrace:
     duration: Any
     state_before: BackendArray
     state: BackendArray
-    stages: tuple[MapStage, ...]
     operations: tuple[OperationStage, ...]
     time: float
 
@@ -118,8 +104,8 @@ def step_statistics(result: ProjectedMapResult, *, include_substeps: bool) -> di
 		"projection_multiplier_norms": multiplier_norm,
 	}
 	if include_substeps:
-		# Preserve the published one-column histories for ABBA4 and ABBA6.
-		# Their unprojected stage pairs do not represent additional solves.
+		# Preserve the published one-column histories for ABBA4.
+		# Its unprojected stage pairs do not represent additional solves.
 		metrics.update({
 			"substep_nonlinear_iterations": xp.asarray([stats.iterations], dtype=int),
 			"substep_residual_evaluations": xp.asarray([stats.residual_evaluations], dtype=int),

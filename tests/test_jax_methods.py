@@ -14,9 +14,8 @@ from problem import InitialValueProblem
 from request import SimulationRequest
 
 from methods import (
-    ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42,
-    ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, ABBA2Midpoint,
-    BM4Implicit, BM4Midpoint, DOP853, Radau,
+	ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42, ABBA2Implicit, ABBA4Implicit, ABBA2Midpoint,
+	BM4Implicit, BM4Midpoint, DOP853, Radau,
 )
 from potential.potential import Potential
 from simulation.runner import simulate
@@ -72,7 +71,7 @@ class JaxMethodTests(unittest.TestCase):
 
     def test_all_fixed_methods_with_energy_and_irregular_output(self):
         for cls in (ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42,
-                    ABBA2Midpoint, BM4Midpoint, ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, BM4Implicit):
+                    ABBA2Midpoint, BM4Midpoint, ABBA2Implicit, ABBA4Implicit,  BM4Implicit):
             with self.subTest(method=cls.__name__):
                 self.compare(cls())
 
@@ -89,10 +88,8 @@ class JaxMethodTests(unittest.TestCase):
         for method in (
             ABBA2Implicit(projection_formulation='simultaneous_state_multiplier'),
             ABBA4Implicit(projection_formulation='simultaneous_state_multiplier'),
-            ABBA6Implicit(projection_formulation='simultaneous_state_multiplier'),
             ABBA2Implicit(solver=BroydenSolver(jacobian_method='analytic')),
             ABBA4Implicit(solver=BroydenSolver(jacobian_method='analytic'), projection_formulation='simultaneous_state_multiplier'),
-            ABBA6Implicit(solver=BroydenSolver(jacobian_method='analytic')),
             BM4Implicit(solver=BroydenSolver(jacobian_method='analytic')),
             BM4Implicit(solver=NewtonSolver(jacobian_method='finite_difference')),
             BM4Implicit(),
@@ -100,7 +97,7 @@ class JaxMethodTests(unittest.TestCase):
             with self.subTest(method=method):
                 result = self.compare(method)
                 self.assertIn('projection_multiplier_norms', result.diagnostics)
-                if isinstance(method, (ABBA4Implicit, ABBA6Implicit)):
+                if isinstance(method, (ABBA4Implicit,)):
                     self.assertEqual(result.diagnostics['substep_nonlinear_iterations'].shape[1], 1)
 
     def test_sparse_output_independence_and_repeat_run_isolation(self):
@@ -165,7 +162,7 @@ class JaxMethodTests(unittest.TestCase):
                 simulate(self.gc, Radau(), self.request, options=execution)
             self.skipTest('No JAX GPU available; hybrid unavailability is explicit')
         for cls in (ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42,
-                    ABBA2Midpoint, BM4Midpoint, ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, BM4Implicit, DOP853, Radau):
+                    ABBA2Midpoint, BM4Midpoint, ABBA2Implicit, ABBA4Implicit,  BM4Implicit, DOP853, Radau):
             self.compare(cls(), execution=execution)
 
 

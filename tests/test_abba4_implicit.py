@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 
+from methods.extended.abba import _ABBA4_COEFFICIENTS
 from dynamics import GuidingCenterDynamics
 from solvers import BroydenSolver, NewtonSolver
 from dataclasses import replace
@@ -25,7 +26,7 @@ from simulation import (
 	SimulationRequest,
 	simulate,
 )
-from methods.extended.core.composition import _ABBA4_COEFFICIENTS
+
 from tests._extended_reference.abba_outer import _solve_abba4_single_projection_step as _solve_abba4_step
 from studies import (
 	ABBA4ImplicitAccuracyConfig,

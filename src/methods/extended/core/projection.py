@@ -28,6 +28,7 @@ def solve_projection(
     maps: GCDoubledMaps, recipe: Composition, solver: AlgebraicSolver,
     formulation: ProjectionChoice, t: float, state: BackendArray, h: float, *,
     jacobian_method: ResolvedJacobianMethod | None = None, observe: bool = False,
+    composition_name: str = 'custom',
 ) -> ProjectedMapResult:
     """Assemble one exterior projection; the solver owns iteration and controls."""
     xp: ModuleType = array_namespace(state)
@@ -38,7 +39,7 @@ def solve_projection(
     size = value.size
     equations: ProjectionFormulation = resolve_projection(formulation)
     tolerance: float = solver.tolerance(value)
-    context = f'{recipe.name} {equations.name} at t={t} with step={h}'
+    context = f'{composition_name} {equations.name} at t={t} with step={h}'
     derivative = jacobian_method or ('analytic' if solver.jacobian_method == 'auto' and maps.jacobian is not None
                                     else 'finite_difference' if solver.jacobian_method == 'auto'
                                     else solver.jacobian_method)

@@ -13,9 +13,9 @@ from diagnostics import AdaptiveTrajectoryObserver
 from diagnostics.methods.energy import EnergyObserver
 
 from simulation import (
-    DOP853, Radau, ABBA2Implicit, ABBA2Midpoint, ABBA4Implicit, ABBA6Implicit,
-    BM4Implicit, BM4Midpoint, ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42,
-    InitialValueProblem, SimulationRequest, simulate,
+	DOP853, Radau, ABBA2Implicit, ABBA2Midpoint, ABBA4Implicit, BM4Implicit, BM4Midpoint,
+	ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42, InitialValueProblem, SimulationRequest,
+	simulate,
 )
 from methods.base import IntegrationMethod
 from execution import Execution
@@ -90,7 +90,7 @@ class AdaptiveIntegrationTests(unittest.TestCase):
 
     def test_every_method_exposes_preparation_without_integrating(self):
         for cls in (DOP853, Radau, ABBA2Implicit, ABBA2Midpoint, ABBA4Implicit,
-                    ABBA6Implicit, BM4Implicit, BM4Midpoint, ExplicitEuler, RK4,
+                     BM4Implicit, BM4Midpoint, ExplicitEuler, RK4,
                     GaussLegendre4, SDIRK4, HBVM42):
             self.assertIs(cls.new_run, IntegrationMethod.new_run)
             self.assertFalse(hasattr(cls, "integrate"))

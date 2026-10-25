@@ -9,10 +9,11 @@ import argparse, json
 import numpy as np
 from potential import Potential
 from dynamics import GuidingCenterDynamics, FullCyclotronDynamics
-from simulation import (InitialValueProblem, SimulationRequest, simulate, ExplicitEuler, RK4,
-    GaussLegendre4, SDIRK4, HBVM42, DOP853, Radau, ABBA2Midpoint, ABBA2Implicit,
-    ABBA4Implicit, ABBA6Implicit, BM4Implicit, BM4Midpoint, NewtonSolver, BroydenSolver,
-    ReducedProjection, SimultaneousProjection)
+from simulation import (
+	InitialValueProblem, SimulationRequest, simulate, ExplicitEuler, RK4, GaussLegendre4, SDIRK4,
+	HBVM42, DOP853, Radau, ABBA2Midpoint, ABBA2Implicit, ABBA4Implicit, BM4Implicit, BM4Midpoint,
+	NewtonSolver, BroydenSolver, ReducedProjection, SimultaneousProjection,
+)
 from execution.options import ExecutionOptions
 from diagnostics.methods.energy import EnergyObserver
 
@@ -32,7 +33,7 @@ for model, dynamics, initial in models:
         cases = [(cls.__name__, cls(**options)) for cls in (ExplicitEuler,RK4,GaussLegendre4,SDIRK4,HBVM42)]
         cases += [(cls.__name__, cls(max_step=.02)) for cls in (DOP853,Radau)]
         if model == 'gc':
-            cases += [(cls.__name__, cls(**options)) for cls in (ABBA2Midpoint,BM4Midpoint,ABBA6Implicit)]
+            cases += [(cls.__name__, cls(**options)) for cls in (ABBA2Midpoint,BM4Midpoint,)]
             for cls in (ABBA2Implicit,ABBA4Implicit,BM4Implicit):
                 for solver in (NewtonSolver(absolute_tolerance=1e-12,relative_tolerance=1e-11,max_iterations=40,jacobian_method="analytic"),
                                BroydenSolver(absolute_tolerance=1e-12,relative_tolerance=1e-11,max_iterations=40,jacobian_method="analytic")):

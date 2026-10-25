@@ -13,9 +13,8 @@ ABBA and BM4 share the numerical implementation in
 [`src/methods/extended/`](../../../../src/methods/extended/).
 `extended` names the implementation family. Generic PalindromicImplicit and
 PalindromicMidpoint methods accept explicit compositions for experiments.
-The public method names and exports from `simulation`, `methods`, and
-`methods.extended` remain available. ABBA6 now uses one outer projection,
-matching ABBA4; its numerical map and observation structure change accordingly.
+The five remaining preset names are exported from `simulation`, `methods`,
+and `methods.extended`. ABBA6 has been removed from the current API.
 The canonical package is `methods.extended`; `formulations`, `execution`,
 and `contracts` are sibling packages. Old `simulation.methods.*`,
 `methods.abba.*`, and `methods.bm4.*` routes have been removed. Explicit public
@@ -51,7 +50,7 @@ observation and integration use the same convergence threshold.
 |---|---|
 | `extended/palindromic.py` | Common method inheritance, preparation, implicit/midpoint advancement and quadrature description |
 | `extended/core/operations.py` | Immutable A/B/T/C operation coefficients |
-| `extended/core/composition.py` | Complete validated operation palindromes and their chronological execution |
+| `extended/core/composition.py` | Tuple type, recipe validation and chronological execution |
 | `extended/core/projection.py` | Bind a composition, projection equations and algebraic solver |
 | `methods/projection.py` | Reduced and simultaneous residuals, Jacobians, guesses and reconstruction |
 | `solvers/nonlinear.py` | Shared Newton/Broyden convergence, iteration limits and counters |
@@ -85,9 +84,12 @@ extended/
     records.py
 ```
 
-ABBA4 and ABBA6 inherit the same preparation, advancement and placement
-validation. Only their immutable recipes and formal orders differ. Coefficients
-and recipes live together in `core/composition.py`. ABBA-specific observation
+ABBA2Implicit, ABBA4Implicit and BM4Implicit directly inherit
+ProjectedPalindromicMethod, sharing preparation, solver validation and advancement.
+There are no intermediate ABBA base classes; concrete classes retain their
+recipes, public controls, metadata and observation formats. Coefficients
+live in `extended/abba.py` and `extended/bm4.py`; recipes are tuple literals
+on the method classes, shared by variants without dataclass fields. ABBA-specific observation
 views stay outside the numerical core. Public exports are explicit; retired
 `order*_implicit`, `order2_midpoint`, `bm4_midpoint`, `abba_steps`, and composition
 adapter modules are not recreated as compatibility routes.
@@ -98,23 +100,24 @@ adapter modules are not recreated as compatibility routes.
 |---|---|---|
 | `ABBA2Implicit` | Adjoint/direct pair with weights `(1/2, 1/2)` | One reduced or simultaneous Hairer solve |
 | `ABBA4Implicit` | Three continuous ABBA pairs: `(gamma, delta, gamma)` | One reduced or simultaneous solve around all six stages |
-| `ABBA6Implicit` | Seven continuous signed ABBA pairs with Yoshida weights | One reduced or simultaneous solve around all fourteen stages |
 | `BM4Implicit` | Twelve alternating stages with mirrored BM4 weights | One reduced Hairer solve |
 | `ABBA2Midpoint` | One ABBA pair | One arithmetic mean |
 | `BM4Midpoint` | Complete twelve-stage BM4 recipe | One arithmetic mean |
 
 `ABBA4Implicit` is the fourth-order public configuration. ABBA uses uncoupled maps. Both BM4 variants also use uncoupled maps. HarmonicCoupling remains an independent C operation for future compositions.
 
-The preset recipes expand each adjoint group into A,B,T and each direct group
-into T,B,A, all with the original signed weight. The executor traverses those
-explicit operations; only T changes the clock. This preserves endpoint times
-and negative substeps without a parity-based clock rule. Reflected operations
-and unit totals for A, B and T are checked separately. Higher orders still
-require their additional order conditions.
+The preset recipes are explicit tuples of A/B/T operations. Consecutive time
+translations are combined; the executor traverses the written sequence and only
+T changes the clock. Preparation checks reflected operations and unit A/B/T
+totals once. The public Composition name is a tuple type alias; recipe names
+belong to the method configuration. Higher orders still require their additional
+order conditions. The numerical trace retains elementary operations only;
+observation adapters reconstruct the established groups from spatial shears.
+See [tuple construction and migration](palindromic-operations.md).
 
-Projection placement is part of method identity. ABBA6 intentionally changes
-from seven projected pairs to one projection around fourteen stages. Historical
-ABBA6 trajectories and timings must not be relabeled as results of the new map.
+Projection placement is part of method identity. ABBA4 applies one projection
+around its complete tuple, not three projected ABBA2 steps. ABBA6 is removed;
+historical trajectories and timings retain their original method labels.
 An arithmetic mean does not imply exact symplecticity or reversibility.
 
 ## State, projection and derivatives
@@ -141,7 +144,7 @@ Implicit ABBA steps, like BM4 steps, place one `ProjectedMapResult` directly in
 accepted composition trace. The redundant private `core.records.StepResult`
 and its projection tuple have been removed. Observers and reverse-step diagnostics
 consume the projection record directly. Published diagnostic names and shapes,
-including the one-column ABBA4/ABBA6 solve histories, remain unchanged.
+including the one-column ABBA4 solve histories, remain unchanged.
 
 Only the converged residual's trace is used for accepted energy quadrature.
 `Delta kappa = (1/2) sum_j s_j (-partial_t H)(t_j, z_j)` sums individual
@@ -155,16 +158,16 @@ and all public observers receive independent physical snapshots. Numerical
 traces do not allocate public events when no observer is requested. Shadow steps
 for off-grid output remain independent and do not emit main-step observations.
 Per-particle energy histories align with saved times; nonlinear work arrays align
-with accepted main steps. ABBA6 reports `nonlinear_solves_per_step=1`, `implicit_substeps_per_step=1`,
-`unprojected_abba_maps_per_step=7`, `composition_stage_count=14`, and
-`base_composition="unprojected_abba6_yoshida"`. Its `substep_nonlinear_*` and
+with accepted main steps. ABBA4 reports `nonlinear_solves_per_step=1`, `implicit_substeps_per_step=1`,
+`unprojected_abba_maps_per_step=3`, `composition_stage_count=6`, and
+`base_composition="unprojected_abba4_triple_jump"`. Its `substep_nonlinear_*` and
 `substep_projection_multiplier_norms` histories have shape `(steps, 1)`.
-`ABBA4ImplicitIntegrationStep` and `ABBA6ImplicitIntegrationStep` share the
+`ABBA4ImplicitIntegrationStep` implements the
 `ABBAImplicitCompositionIntegrationStep` contract: one outer multiplier and
-respectively three or seven `UnprojectedABBAIntegrationStep` records. Reduced
+three `UnprojectedABBAIntegrationStep` records. Reduced
 and simultaneous roots both expose the same physical observation domain.
-The ABBA6 exact-tangent function and reversibility observer differentiate this
-single outer root; they do not multiply seven projected physical Jacobians.
+The ABBA4 exact-tangent function and reversibility observer differentiate this
+single outer root; they do not multiply three projected physical Jacobians.
 
 ## Parallel study potential snapshots
 
@@ -197,11 +200,10 @@ identity, coefficient validation, projection placement, endpoint shear
 agreement, signed nonautonomous reversibility, analytic tangents, and passive
 tracking/observation without extra spatial work. Existing method tests retain
 convergence order, projection equations, observer compatibility, energy balance,
-vectorized particles and sampling contracts. `tests/test_abba6.py` additionally
-checks sixth-order convergence for nonlinear nonautonomous dynamics with both
-root formulations and Newton/Broyden, signed reversal, the outer constraint,
-analytic versus finite-difference tangents and symplecticity. The ABBA6 change
-is intentional; the other methods preserve their numerical maps.
+vectorized particles and sampling contracts. Direct common inheritance and
+absence of the removed interfaces are checked explicitly. A captured
+five-preset reference checks unchanged states, energy and observation records;
+see the [implementation results](../../../../specs/changes/2026-10-25-common-implicit-compositions/results.md).
 
 ## Complete integration executor
 

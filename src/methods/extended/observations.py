@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from contracts.methods.maps import DirectAdjointMaps
 from contracts.methods.observation import IntegrationStage
-from methods.extended.core.composition import StageMap
 from dataclasses import dataclass
 from collections.abc import Callable
 from typing import Any, Literal, TypeAlias
@@ -12,18 +11,15 @@ from typing import Any, Literal, TypeAlias
 import numpy as np
 from contracts.arrays import BackendArray
 
-from contracts.methods.extended.abba import (
-	ABBA2ImplicitIntegrationStep,
-	ABBA4ImplicitIntegrationStep,
-	ABBA6ImplicitIntegrationStep,
-	UnprojectedABBAIntegrationStep,
-)
+from contracts.methods.extended.abba import ABBA2ImplicitIntegrationStep, ABBA4ImplicitIntegrationStep, UnprojectedABBAIntegrationStep
 from contracts.methods.observation import IntegrationStep
 from methods.extended.configuration import ProjectionFormulation
 from methods.extended.core.records import (
-	CompositionTrace, ProjectedMapResult,
+	CompositionTrace, OperationStage, ProjectedMapResult,
 )
 from contracts.methods.extended.core.records import ProjectedMap
+
+StageMap: TypeAlias = Callable[[float, float, BackendArray], BackendArray]
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,8 +45,14 @@ class PhysicalBaseMapTrace:
 
 def abba_pairs(trace: CompositionTrace) -> tuple[PhysicalBaseMapTrace, ...]:
     """Group accepted uncoupled stages for ABBA observers without numerical replay."""
-    pairs = []
-    for first, last in zip(trace.stages[::2], trace.stages[1::2], strict=True):
+    pairs: list[PhysicalBaseMapTrace] = []
+    shears: tuple[OperationStage, ...] = tuple(op for op in trace.operations if op.source is not None)
+    first: OperationStage
+    second: OperationStage
+    third: OperationStage
+    last: OperationStage
+    for first, second, third, last in zip(shears[::4], shears[1::4], shears[2::4], shears[3::4], strict=True):
+        assert (first.operation, second.operation, third.operation, last.operation) == ('A', 'B', 'B', 'A')
         size = first.state_before.size // 2
         u0: np.ndarray
         v0: np.ndarray
@@ -58,8 +60,8 @@ def abba_pairs(trace: CompositionTrace) -> tuple[PhysicalBaseMapTrace, ...]:
         uf: np.ndarray
         vf: np.ndarray
         uf, vf = np.asarray(last.state_after[:size]), np.asarray(last.state_after[size:])
-        stages: _ABBAStages = _ABBAStages(u0, v0, np.asarray(first.quadrature_points[1][2]), vf, uf, uf - vf)
-        pairs.append(PhysicalBaseMapTrace(first.start_time, first.duration + last.duration, stages))
+        stages: _ABBAStages = _ABBAStages(u0, v0, np.asarray(second.source), vf, uf, uf - vf)
+        pairs.append(PhysicalBaseMapTrace(first.time, first.duration + last.duration, stages))
     return tuple(pairs)
 
 
@@ -84,16 +86,15 @@ def bind_event_builder(
 	method_name: str,
 	formulation: ProjectionFormulation,
 	*,
-	order: Literal[2, 4, 6],
+	order: Literal[2, 4],
 	coefficients: tuple[float, ...],
 	project: ProjectedMap,
 ) -> EventBuilder:
-	"""Choose the public event adapter once, outside the integration loop."""
+	"""Bind the public event adapter to the accepted projection map."""
 	def physical_single(
 		projection: ProjectedMapResult, step_index: int
 	) -> ABBA2ImplicitIntegrationStep:
 		trace = projection.trace
-		assert isinstance(trace, CompositionTrace) and len(trace.stages) // 2 == 1
 		stages = abba_pairs(trace)[0].stages
 
 		def map_state(candidate: np.ndarray) -> np.ndarray:
@@ -139,8 +140,7 @@ def bind_event_builder(
 			)
 			for m in abba_pairs(trace)
 		)
-		event_type = ABBA4ImplicitIntegrationStep if order == 4 else ABBA6ImplicitIntegrationStep
-		return event_type(
+		return ABBA4ImplicitIntegrationStep(
 			**fields, multiplier=np.asarray(result.multiplier.copy()),
 			composition_coefficients=np.asarray(coefficients), substeps=substeps,
 		)
@@ -161,20 +161,25 @@ def stage_events(
     direct: Callable[[float, float, BackendArray], BackendArray]
     adjoint: Callable[[float, float, BackendArray], BackendArray]
     direct, adjoint = stage_maps or (prepared.direct_map, prepared.adjoint_map)
-    for index, stage in enumerate(trace.stages):
-        mapper = direct if stage.direct else adjoint
-        flow: Literal['flow', 'adjoint_flow'] = 'flow' if stage.direct else 'adjoint_flow'
+    shears: tuple[OperationStage, ...] = tuple(op for op in trace.operations if op.source is not None)
+    index: int
+    first: OperationStage
+    last: OperationStage
+    for index, (first, last) in enumerate(zip(shears[::2], shears[1::2], strict=True)):
+        # BM4 observations retain one direct/adjoint group per two shears.
+        mapper = direct if first.operation == 'B' else adjoint
+        flow: Literal['flow', 'adjoint_flow'] = 'flow' if first.operation == 'B' else 'adjoint_flow'
 
         def map_state(candidate: np.ndarray, _map: StageMap = mapper,
-                      _duration: float = stage.duration, _time: float = stage.time) -> np.ndarray:
+                      _duration: float = first.duration, _time: float = first.time) -> np.ndarray:
             """Freeze the signed stage for delayed diagnostic evaluation."""
             return np.asarray(_map(_duration, _time, candidate))
 
         events.append(IntegrationStage(
             dynamics_name='', formulation_name=formulation_name,
             method_name=method_name, flow_name=flow, step_index=step_index,
-            stage_index=index, time=stage.time, duration=stage.duration,
-            state_before=np.asarray(stage.state_before.copy()), state_after=stage.state_after.copy(),
+            stage_index=index, time=first.time, duration=first.duration,
+            state_before=np.asarray(first.state_before.copy()), state_after=last.state_after.copy(),
             map_state=map_state,
         ))
     return tuple(events)

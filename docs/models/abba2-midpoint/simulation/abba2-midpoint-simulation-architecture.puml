@@ -2,7 +2,7 @@
 digraph architecture {
   graph [rankdir=TB, bgcolor="#f8fafc"];
   node [shape=box, style="rounded,filled", fontname="DejaVu Sans"];
-  recipe [label="Composition recipe\nA/2, B/2, T/2, T/2, B/2, A/2\nNo harmonic coupling", fillcolor="#fff0d9"];
+  recipe [label="Composition recipe\nA/2, B/2, T, B/2, A/2\nNo harmonic coupling", fillcolor="#fff0d9"];
   method [label="ABBA2Midpoint\nExports: simulation / methods.extended\nFixed step belongs to the method", fillcolor="#e5ecfa"];
   driver [label="Simulation + execution\nSelect device and prepare components\nAccepted intervals, samples and collection", fillcolor="#e5ecfa"];
   state [label="DoubleFormulation\nPhysical size only; lift / join / split\nTemporary copies; no time or momentum", fillcolor="#e5ecfa"];

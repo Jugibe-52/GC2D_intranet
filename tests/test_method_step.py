@@ -11,13 +11,12 @@ from diagnostics.methods.energy import EnergyObserver
 from execution._host import _fixed_schedule
 from potential import Potential
 from simulation import (
-	InitialValueProblem, SimulationRequest, simulate, ExplicitEuler, RK4,
-	GaussLegendre4, SDIRK4, HBVM42, ABBA2Implicit, ABBA4Implicit, ABBA6Implicit,
-	ABBA2Midpoint, BM4Implicit, BM4Midpoint, DOP853, Radau,
+	InitialValueProblem, SimulationRequest, simulate, ExplicitEuler, RK4, GaussLegendre4, SDIRK4,
+	HBVM42, ABBA2Implicit, ABBA4Implicit, ABBA2Midpoint, BM4Implicit, BM4Midpoint, DOP853, Radau,
 )
 
 FIXED = (ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42,
-		 ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, ABBA2Midpoint, BM4Implicit, BM4Midpoint)
+		 ABBA2Implicit, ABBA4Implicit, ABBA2Midpoint, BM4Implicit, BM4Midpoint)
 
 
 class TimeField:

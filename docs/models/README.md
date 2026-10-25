@@ -1,8 +1,8 @@
 # Numerical model documentation
 
-All 13 methods share executor-owned orchestration, method-specific preparation
+All 12 methods share executor-owned orchestration, method-specific preparation
 and the [integration contract](../simulation/integration-architecture.md).
-Eleven methods use fixed control; DOP853 and Radau supply adaptive control.
+Ten methods use fixed control; DOP853 and Radau supply adaptive control.
 Every model retains its own numerical theory and detailed simulation diagram.
 Physical dynamics and potential contracts live under [dynamics](../dynamics/).
 `Execution_Modal` can execute a complete CPU integration remotely and return its
@@ -18,7 +18,6 @@ Execution injects `f(t, z)` and optional derivatives into every method. Classica
 | `ABBA2Implicit` | [source](abba2-implicit/tex/theory.tex) · [PDF](abba2-implicit/tex/theory.pdf) | [runtime guide](abba2-implicit/simulation/abba2-implicit-simulation-architecture.md) | Fixed; one implicit projected ABBA map |
 | `ABBA2Midpoint` | [source](abba2-midpoint/tex/theory.tex) · [PDF](abba2-midpoint/tex/theory.pdf) | [runtime guide](abba2-midpoint/simulation/abba2-midpoint-simulation-architecture.md) | Fixed; one ABBA map and arithmetic mean |
 | `ABBA4Implicit` | [source](abba4-implicit/tex/theory.tex) · [PDF](abba4-implicit/tex/theory.pdf) | [runtime guide](abba4-implicit/simulation/abba4-implicit-simulation-architecture.md) | Fixed; three unprojected factors, one outer projection |
-| `ABBA6Implicit` | [source](abba6-implicit/tex/theory.tex) · [PDF](abba6-implicit/tex/theory.pdf) | [runtime guide](abba6-implicit/simulation/abba6-implicit-simulation-architecture.md) | Fixed; seven projected factors |
 | `ExplicitEuler` | [source](explicit-euler/tex/theory.tex) · [PDF](explicit-euler/tex/theory.pdf) | [runtime guide](explicit-euler/simulation/explicit-euler-simulation-architecture.md) | Fixed; first-order method |
 | `RK4` | [source](rk4/tex/theory.tex) · [PDF](rk4/tex/theory.pdf) | [runtime guide](rk4/simulation/rk4-simulation-architecture.md) | Fixed; 4th-order method |
 | `GaussLegendre4` | [source](gauss-legendre4/tex/theory.tex) · [PDF](gauss-legendre4/tex/theory.pdf) | [runtime guide](gauss-legendre4/simulation/gauss-legendre4-simulation-architecture.md) | Fixed; 4th-order method |
@@ -28,13 +27,13 @@ Execution injects `f(t, z)` and optional derivatives into every method. Classica
 | `Radau` | [source](radau/tex/theory.tex) · [PDF](radau/tex/theory.pdf) | [runtime guide](radau/simulation/radau-simulation-architecture.md) | Adaptive; SciPy session and dense output |
 
 The [ABBA family guide](abba/simulation/abba-numerical-architecture.md) and its
-[theory](abba/tex/theory.tex) describe four public classes and **26 normalized
-configurations**. ABBA4 has one outer-projection implementation and 8 state,
-formulation and solver configurations. The energy-enabled comparison uses four.
-Use `ABBA4Implicit` for the current outer-projection method. Its accepted
-observation record is `ABBA4ImplicitIntegrationStep`. Retired factories and
-full-projection study interfaces are removed; see the
-[API migration guide](../simulation/api-migration.md).
+[theory](abba/tex/theory.tex) describe three public classes and **18 normalized
+configurations**: two midpoint variants and sixteen implicit combinations of
+ABBA2/ABBA4, projection formulation, solver and optional energy observation.
+ABBA4 retains one outer projection and the `ABBA4ImplicitIntegrationStep` record.
+ABBA6 and its dedicated study are removed; its [theory](abba6-implicit/tex/theory.tex)
+and [runtime guide](abba6-implicit/simulation/abba6-implicit-simulation-architecture.md)
+remain historical references. See the [API migration guide](../simulation/api-migration.md).
 
 The per-map ABBA4 projection implementation has been removed. Historical
 per-map theory companions and proposed diagrams are labeled accordingly and

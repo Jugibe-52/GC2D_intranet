@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from methods.extended.abba import ABBA2Implicit, ABBA4Implicit
 from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import dataclass, replace
@@ -21,16 +22,10 @@ from solvers.nonlinear import NewtonSolver, BroydenSolver, AlgebraicSolver
 from methods.extended.configuration import _validate_projection_formulation
 from methods.extended.observations import bind_event_builder
 from methods.extended.maps import GCDoubledMaps
-
-from methods.extended.core.composition import ABBA2, ABBA4, ABBA6
 from methods.extended.core.projection import solve_projection
-from contracts.methods.extended.abba import ABBA6ImplicitIntegrationStep
 
 from diagnostics.methods.jacobians import implicit_function_step_jacobian
-from diagnostics.methods.trajectory_symplecticity.jacobians import (
-	abba4_implicit_step_particle_jacobians,
-	abba6_implicit_step_particle_jacobians,
-)
+from diagnostics.methods.trajectory_symplecticity.jacobians import abba4_implicit_step_particle_jacobians
 
 
 if TYPE_CHECKING:
@@ -39,7 +34,7 @@ if TYPE_CHECKING:
 	from methods.extended.core.records import ProjectedMapResult
 
 
-_ObservedStep = ABBA2ImplicitIntegrationStep | ABBA4ImplicitIntegrationStep | ABBA6ImplicitIntegrationStep
+_ObservedStep = ABBA2ImplicitIntegrationStep | ABBA4ImplicitIntegrationStep
 
 
 def _dense_component_major_jacobian(blocks: np.ndarray) -> np.ndarray:
@@ -59,8 +54,6 @@ def _dense_component_major_jacobian(blocks: np.ndarray) -> np.ndarray:
 
 def _complete_step_jacobian(step: _ObservedStep) -> np.ndarray:
 	"""Return the exact complete-map tangent for ABBA2 or an outer-projected composition."""
-	if isinstance(step, ABBA6ImplicitIntegrationStep):
-		return _dense_component_major_jacobian(abba6_implicit_step_particle_jacobians(step))
 	if isinstance(step, ABBA4ImplicitIntegrationStep):
 		return _dense_component_major_jacobian(
 			abba4_implicit_step_particle_jacobians(step)
@@ -125,7 +118,7 @@ def _finite_vector(value: np.ndarray, shape: tuple[int, ...], name: str) -> np.n
 
 
 def _validated_reversibility_states(
-	step: ABBA2ImplicitIntegrationStep | ABBA4ImplicitIntegrationStep | ABBA6ImplicitIntegrationStep,
+	step: ABBA2ImplicitIntegrationStep | ABBA4ImplicitIntegrationStep,
 ) -> tuple[GuidingCenterJacobianSystem, np.ndarray, np.ndarray]:
 	"""Read finite planar states and consistent times for one sampled ABBA step."""
 	dynamics = step.dynamics
@@ -212,33 +205,30 @@ class ImplicitABBAReversibilityObserver:
 		if step.formulation_name not in ABBA_PROJECTION_FORMULATIONS:
 			raise TypeError("The observed ABBA step has an unknown formulation.")
 		formulation: Literal['reduced_multiplier'] | Literal['simultaneous_state_multiplier'] = _validate_projection_formulation(step.formulation_name)
-		recipe: Composition = ABBA2
-		order: Literal[2, 4, 6] = 2
+		recipe: Composition = ABBA2Implicit.recipe
+		order: Literal[2, 4] = 2
 		if isinstance(step, ABBA4ImplicitIntegrationStep):
-			recipe, order = ABBA4, 4
-		elif isinstance(step, ABBA6ImplicitIntegrationStep):
-			recipe, order = ABBA6, 6
+			recipe, order = ABBA4Implicit.recipe, 4
 		maps: GCDoubledMaps = GCDoubledMaps(dynamics.vector_field, np.asarray(step.state_after).size,
 			coordinates=GuidingCenterDynamics.coordinates, jacobian=dynamics.particle_vector_field_jacobians,
 			jacobian_structure='particle', coupling_frequency=None)
 		project: partial[ProjectedMapResult] = partial(solve_projection, maps, recipe, self.solver, formulation)
 		result: ProjectedMapResult = project(step.time, np.asarray(step.state_after), -step.duration)
 		builder: Callable[[float, float, int, np.ndarray, ProjectedMapResult], IntegrationStep] = bind_event_builder(step.method_name, formulation, order=order,
-			coefficients=tuple(2 * c for c in recipe.coefficients[::2]), project=project)
+			coefficients=tuple(op.coefficient for op in recipe if op.name == 'T'), project=project)
 		event: IntegrationStep = builder(step.time, -step.duration, step.step_index, np.asarray(step.state_after), result)
-		assert isinstance(event, (ABBA2ImplicitIntegrationStep, ABBA4ImplicitIntegrationStep,
-			ABBA6ImplicitIntegrationStep))
+		assert isinstance(event, (ABBA2ImplicitIntegrationStep, ABBA4ImplicitIntegrationStep))
 		return replace(event, time=float(step.start_time), dynamics=dynamics, dynamics_name=type(dynamics).__name__)
 
 	def __call__(self, step: IntegrationStep) -> None:
 		"""Observe one consecutive accepted implicit-ABBA step."""
 		if not isinstance(
 			step,
-			(ABBA2ImplicitIntegrationStep, ABBA4ImplicitIntegrationStep, ABBA6ImplicitIntegrationStep),
+			(ABBA2ImplicitIntegrationStep, ABBA4ImplicitIntegrationStep),
 		):
 			raise TypeError(
 				"ImplicitABBAReversibilityObserver requires "
-				"ABBA2, ABBA4 or ABBA6 integration-step data."
+				"ABBA2 or ABBA4 integration-step data."
 			)
 		if step.step_index != self._expected_step:
 			raise ValueError("Implicit ABBA steps must be observed consecutively.")
@@ -256,7 +246,7 @@ class ImplicitABBAReversibilityObserver:
 		shape = state_before.shape
 
 		forward_jacobian: np.ndarray = _complete_step_jacobian(step)
-		reverse_step: ABBA2ImplicitIntegrationStep | ABBA4ImplicitIntegrationStep | ABBA6ImplicitIntegrationStep = self._solve_reverse_step(step, dynamics)
+		reverse_step: ABBA2ImplicitIntegrationStep | ABBA4ImplicitIntegrationStep = self._solve_reverse_step(step, dynamics)
 		backward_jacobian: np.ndarray = _complete_step_jacobian(reverse_step)
 		backward_state: np.ndarray = _finite_vector(
 			np.asarray(reverse_step.state_after),

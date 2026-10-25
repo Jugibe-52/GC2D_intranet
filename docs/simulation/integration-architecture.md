@@ -1,6 +1,6 @@
 # Integration, physical states and temporary workspaces
 
-All 13 public methods use executor-owned preparation through `IntegrationMethod.new_run`.
+All 12 public methods use executor-owned preparation through `IntegrationMethod.new_run`.
 Execution selects the host or device driver. Dynamics defines physics and coordinate roles; formulation
 prepares temporary copies; the method defines numerical operations; execution controls
 accepted intervals and collects output.

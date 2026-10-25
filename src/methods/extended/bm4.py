@@ -8,17 +8,44 @@ import numpy as np
 from contracts.methods.extended.bm4 import ImplicitBM4IntegrationStep
 from contracts.states.history import DiagnosticValue
 from contracts.methods.step import StepInfo, StepResult
-from request import SimulationRequest
 from solvers.nonlinear import AlgebraicSolver, NewtonSolver
 from methods.extended.configuration import StateExtension
-from methods.extended.core.composition import BM4, Composition
+from methods.projection import ProjectionChoice
+from methods.extended.core.operations import A, B, T
 from methods.extended.core.records import ProjectedMapResult
 from methods.extended.observations import stage_events
-from methods.base import FixedStepMethod
 from methods.extended.palindromic import ProjectedPalindromicMethod, MidpointPalindromicMethod
 
 if TYPE_CHECKING:
 	from contracts.methods.observation import IntegrationStage
+
+
+_A1: float = 0.0792036964311957
+_A2: float = 0.1303114101821663
+_A3: float = 0.2228614958676077
+_A4: float = -0.3667132690474257
+_A5: float = 0.3246481886897062
+_A6: float = 0.1096884778767498
+
+
+@dataclass(slots=True)
+class BM4Midpoint(MidpointPalindromicMethod):
+	"""Uncoupled fourth-order BM4 palindrome with one final arithmetic mean."""
+
+	state_extension: StateExtension = 'physical'
+	progress: bool = False
+	composition_name = 'BM4'
+	recipe = (
+		A(_A1), B(_A1), T(_A1+_A2), B(_A2), A(_A2),
+		A(_A3), B(_A3), T(_A3+_A4), B(_A4), A(_A4),
+		A(_A5), B(_A5), T(_A5+_A6), B(_A6), A(_A6),
+		A(_A6), B(_A6), T(_A6+_A5), B(_A5), A(_A5),
+		A(_A4), B(_A4), T(_A4+_A3), B(_A3), A(_A3),
+		A(_A2), B(_A2), T(_A2+_A1), B(_A1), A(_A1),
+	)
+
+	def _preset_metadata(self) -> dict[str, DiagnosticValue]:
+		return {'coupling_frequency': 0.0, 'composition_stage_count': 12}
 
 
 @dataclass(slots=True)
@@ -30,17 +57,13 @@ class BM4Implicit(ProjectedPalindromicMethod):
 	Broyden retains its initial reduced Jacobian 4I independently of derivative policy.
 	"""
 
-	recipe: Composition = field(default=BM4, init=False)
+	composition_name = 'BM4'
+	recipe = BM4Midpoint.recipe
 	solver: AlgebraicSolver = field(default_factory=lambda: NewtonSolver(jacobian_method='analytic'), kw_only=True)
 	progress: bool = False
 
-	def __post_init__(self) -> None:
-		FixedStepMethod.__post_init__(self)
-		self._validate_solver_controls()
-
-	def initialize(self, request: SimulationRequest) -> None:
-		self._prepare_projection(request, 'reduced_multiplier')
-		self.metadata = {**self._projection_metadata('reduced_multiplier'),
+	def _projection_metadata(self, projection: ProjectionChoice) -> dict[str, DiagnosticValue]:
+		return {**ProjectedPalindromicMethod._projection_metadata(self, projection),
 			'projection_solver_formulation': 'bm4_implicit_reduced'}
 
 	def build_observation(self, info: StepInfo, step: StepResult[ProjectedMapResult]) -> ImplicitBM4IntegrationStep:
@@ -62,18 +85,6 @@ class BM4Implicit(ProjectedPalindromicMethod):
 			projection_multiplier_norm=float(step.statistics['projection_multiplier_norms']), coupling_frequency=0.,
 			multiplier=np.asarray(result.multiplier.copy()), base_stages=base_stages,
 		)
-
-
-@dataclass(slots=True)
-class BM4Midpoint(MidpointPalindromicMethod):
-	"""Uncoupled fourth-order BM4 palindrome with one final arithmetic mean."""
-
-	state_extension: StateExtension = 'physical'
-	progress: bool = False
-	recipe: Composition = field(default=BM4, init=False)
-
-	def _preset_metadata(self) -> dict[str, DiagnosticValue]:
-		return {'coupling_frequency': 0.0, 'composition_stage_count': 12}
 
 
 __all__ = ['BM4Implicit', 'BM4Midpoint']

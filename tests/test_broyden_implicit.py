@@ -15,13 +15,13 @@ import numpy as np
 from dynamics import GuidingCenterDynamics
 
 from potential import Potential
-from simulation import ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, ABBA_PROJECTION_FORMULATIONS, InitialValueProblem, SimulationRequest, simulate
+from simulation import ABBA2Implicit, ABBA4Implicit, ABBA_PROJECTION_FORMULATIONS, InitialValueProblem, SimulationRequest, simulate
 
 
 _IMPLICIT_METHODS = (
 	ABBA2Implicit,
 	ABBA4Implicit,
-	ABBA6Implicit,
+
 )
 _ENERGY_STRATEGIES = (
 	("physical", False),

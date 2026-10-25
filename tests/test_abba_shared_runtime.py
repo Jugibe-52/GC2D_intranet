@@ -16,7 +16,7 @@ import numpy as np
 from dynamics import GuidingCenterDynamics
 
 from potential import Potential
-from simulation import ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, InitialValueProblem, SimulationRequest, simulate
+from simulation import ABBA2Implicit, ABBA4Implicit, InitialValueProblem, SimulationRequest, simulate
 from solvers.nonlinear import _solve_newton
 from methods.extended.core.records import CompositionTrace, ProjectedMapResult
 from contracts.methods.step import StepInfo
@@ -45,7 +45,6 @@ class SharedABBARuntimeTests(unittest.TestCase):
 			(
 				(ABBA2Implicit, 1),
 				(ABBA4Implicit, 3),
-				(ABBA6Implicit, 7),
 			),
 		):
 			with self.subTest(method=method_type.__name__, formulation=formulation,
@@ -57,7 +56,7 @@ class SharedABBARuntimeTests(unittest.TestCase):
 				result = step.details
 				self.assertIsInstance(result, ProjectedMapResult)
 				self.assertIsInstance(result.trace, CompositionTrace)
-				self.assertEqual(len(result.trace.stages), 2 * maps)
+				self.assertEqual(sum(op.source is not None for op in result.trace.operations), 4 * maps)
 				self.assertLessEqual(result.stats.residual_norm, result.stats.tolerance)
 				np.testing.assert_array_equal(result.state_before, state)
 				np.testing.assert_array_equal(

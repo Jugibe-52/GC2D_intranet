@@ -48,11 +48,8 @@ from diagnostics.studies.parallel_bm4_recurrence_npz import (
 	write_parallel_bm4_recurrence_npz,
 )
 from diagnostics.methods.trajectory_symplecticity.jacobians import (
-	abba4_implicit_step_particle_jacobians,
-	abba6_implicit_step_particle_jacobians,
-	bm4_implicit_step_particle_jacobians,
-	coupled_bm4_stage_particle_jacobians,
-	abba2_implicit_step_particle_jacobians,
+	abba4_implicit_step_particle_jacobians, bm4_implicit_step_particle_jacobians,
+	coupled_bm4_stage_particle_jacobians, abba2_implicit_step_particle_jacobians,
 	abba2_midpoint_step_particle_jacobians,
 )
 from diagnostics.methods.trajectory_symplecticity.observer import (
@@ -98,7 +95,6 @@ __all__ = [
 	"AdaptiveTrajectoryObserver",
 	"EnergyObserver",
 	"abba4_implicit_step_particle_jacobians",
-	"abba6_implicit_step_particle_jacobians",
 	"IMPLICIT_ABBA_JACOBIAN_METHODS",
 	"ImplicitABBAJacobianMethod",
 	"ImplicitABBAJacobianObserver",

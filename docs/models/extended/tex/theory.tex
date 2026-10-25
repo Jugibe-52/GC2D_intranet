@@ -34,7 +34,7 @@ rotates the copy difference and requires an independent coupling object.
 Both BM4 presets omit $C$.
 
 In chronological order, standard ABBA2 is
-$A_{h/2},B_{h/2},T_{h/2},T_{h/2},B_{h/2},A_{h/2}$.
+$A_{h/2},B_{h/2},T_h,B_{h/2},A_{h/2}$.
 The distinct symmetric variant
 $T_{h/2},A_{h/2},B_{h/2},B_{h/2},A_{h/2},T_{h/2}$
 evaluates every spatial shear at the midpoint time. Both exhibit second
@@ -42,11 +42,12 @@ order on the tested nonautonomous rotation. Arbitrary palindromes do not
 inherit fourth or sixth order, and an arithmetic projection need not be
 reversible or symplectic.
 
-\texttt{Composition.from\_half} reflects a supplied half sequence.
+\texttt{Composition} denotes an explicit tuple of operations.
+Consecutive time translations combine as $T_a T_b=T_{a+b}$.
 The generic \texttt{PalindromicImplicit} and \texttt{PalindromicMidpoint}
 methods select one exterior Hairer projection or a final arithmetic mean.
-The standard signed ABBA/BM4 recipes, grouped observations and passive
-momentum normalization remain unchanged. NumPy and JAX execute the same
+The signed spatial flows and passive momentum normalization are retained;
+observers reconstruct their groups from elementary traces without replay. NumPy and JAX execute the same
 explicit operations and differentiate their retained shear inputs.
 See \path{docs/models/extended/simulation/palindromic-operations.md}.
 
@@ -54,9 +55,9 @@ See \path{docs/models/extended/simulation/palindromic-operations.md}.
 \section{Scope and public methods}
 The directory \path{src/methods/extended/} contains the common
 implementation of ABBA, BM4 and generic palindromic methods. It introduces no public
-method named Extended. Public class names and exports from \texttt{simulation} are retained. ABBA6
-now uses the same single outer projection as ABBA4. Its observed substeps
-become unprojected pairs and its work arrays have one column per step.
+method named Extended. ABBA2Implicit, ABBA4Implicit and BM4Implicit directly
+inherit \texttt{ProjectedPalindromicMethod}. ABBA6 has been removed; its
+retained theory and saved results describe historical implementations.
 Internal imports use the defining modules. Old ABBA and BM4 import adapters
 and historical \texttt{simulation.methods} routes have been removed.
 
@@ -72,8 +73,8 @@ for nonautonomous dynamics. A recipe with $2r$ stages is
 \]
 In execution order the stages alternate adjoint, direct. The weights obey
 $b_j=b_{2r+1-j}$ and $\sum_j b_j=1$. Reflection exchanges each map with its
-adjoint. The direct/adjoint builder checks these weights and expands them into
-elementary operations. The resulting recipe checks reflected operation pairs
+adjoint. The recipes explicitly list the elementary operations and combine
+consecutive time translations. Run preparation checks reflected operation pairs
 and unit A, B and T totals; higher-order conditions remain necessary.
 
 With stage clock $\tau$ and signed duration $s=b_jh$, the adjoint evaluates at
@@ -93,10 +94,9 @@ ABBA4 uses three unprojected ABBA pairs scaled by
 Its six direct/adjoint weights are
 $(\gamma/2,\gamma/2,\delta/2,\delta/2,\gamma/2,\gamma/2)$.
 BM4 retains its twelve mirrored weights and its own fourth-order recipe.
-ABBA6 uses seven \emph{unprojected} ABBA2 pairs with the Yoshida weights.
-Each weight is repeated twice after division by two, producing fourteen
-direct/adjoint stages. One symmetric projection encloses the complete
-composition. This deliberately replaces the former seven-projection map.
+ABBA4 declares the complete operation tuple, just as ABBA2 does. Its single
+projection surrounds all three unprojected pairs; it is not a sequence of
+three separately projected ABBA2 steps.
 
 \section{One common spatial projection equation}
 Write $m=2N$, $Ez=(z,z)$, $G=[I,-I]$ and $N_0=G^{\mathsf T}$. The reduced
@@ -109,8 +109,8 @@ $P=\tfrac12[I,I]$, the accepted state is
 \[
  z_+=P\bigl(\Psi_h(Ez+N_0\mu)+N_0\mu\bigr).
 \]
-The same equation applies to ABBA2, the complete ABBA4 and ABBA6
-compositions, and BM4; only $\Psi_h$ changes. All have one nonlinear solve
+The same equation applies to ABBA2, the complete ABBA4 composition,
+and BM4; only $\Psi_h$ changes. All have one nonlinear solve
 per complete step.
 
 The simultaneous ABBA formulation solves for $(u_+,v_+,\mu)\in\R^{3m}$:
@@ -160,8 +160,7 @@ physical source state of each individual shear. The shared quadrature is
 \[
  \Delta\kappa=\frac12\sum_j s_j\,[-\partial_tH(t_j,z_j)].
 \]
-There are four shear points for ABBA2, twelve for ABBA4, 28 for ABBA6,
-and 24 for BM4. The factor $1/2$ converts summed doubled momentum to the
+There are four shear points for ABBA2, twelve for ABBA4 and 24 for BM4. The factor $1/2$ converts summed doubled momentum to the
 physical variable $\kappa$. Spatial harmonic coupling does not change this
 passive accumulator. Energy derivatives are evaluated only after the spatial
 root converges, from its retained trace; trial roots do not evaluate energy.
@@ -185,8 +184,10 @@ ordinary implicit execution is
  \;\longrightarrow\;\texttt{compose}
  \;\longrightarrow\;\texttt{A/B/T/C}.
 \]
-All ABBA and BM4 presets inherit their advance from the shared palindromic
-classes; the recipe selects their elementary operations.
+ABBA2Implicit, ABBA4Implicit and BM4Implicit share direct preparation and
+advancement through \texttt{ProjectedPalindromicMethod}; no intermediate ABBA
+class remains. Midpoint variants share \texttt{MidpointPalindromicMethod}.
+Each recipe selects its elementary operations.
 Public configurations live in \texttt{abba.py} and \texttt{bm4.py}; common
 numerical operations live in \texttt{core/}, and optional event conversion
 lives in \texttt{observations.py}. The general
@@ -198,8 +199,8 @@ accepted traces without repeating the spatial composition.
 Current diagrams and module responsibilities are documented in
 \path{docs/models/extended/simulation/extended-simulation-architecture.md}.
 Tests verify public identity, coefficient and projection controls, signed
-nonautonomous maps, exact tangents and passive tracking. ABBA6 tests also
-verify sixth-order convergence on a nonlinear nonautonomous field with both
-root formulations and solvers. Historical ABBA6 results with seven separate
-projections represent a different map and must be recomputed for comparisons.
+nonautonomous maps, exact tangents and passive tracking. Tests also check
+direct common inheritance and the absence of retired ABBA6 interfaces.
+The five remaining presets preserve their numerical maps and observations.
+Historical ABBA6 results retain their original method and projection labels.
 \end{document}

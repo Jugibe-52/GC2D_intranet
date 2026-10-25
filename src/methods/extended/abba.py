@@ -9,101 +9,90 @@ from contracts.methods.observation import IntegrationStep
 from contracts.states.history import DiagnosticValue
 from contracts.methods.step import StepInfo, StepResult
 from methods.projection import ProjectionChoice
-from request import SimulationRequest
 from solvers.nonlinear import AlgebraicSolver, NewtonSolver
 from methods.extended.configuration import (
 	ProjectionPlacement, StateExtension,
 	_validate_projection_formulation, _validate_projection_placement, _validate_state_extension,
 )
-from methods.extended.core.composition import ABBA2, ABBA4, ABBA6, Composition
+from methods.extended.core.operations import A, B, T
 from methods.extended.core.records import ProjectedMapResult
 from methods.extended.observations import EventBuilder, bind_event_builder
-from methods.base import FixedStepMethod
 from methods.extended.palindromic import ProjectedPalindromicMethod, MidpointPalindromicMethod
 
 
+_CUBE_ROOT_TWO: float = float(np.cbrt(2.0))
+_GAMMA: float = 1.0 / (2.0 - _CUBE_ROOT_TWO)
+_DELTA: float = -_CUBE_ROOT_TWO / (2.0 - _CUBE_ROOT_TWO)
+_ABBA4_COEFFICIENTS: np.ndarray = np.asarray((_GAMMA, _DELTA, _GAMMA))
+
+
 @dataclass(slots=True)
-class _ABBAImplicitMethod(ProjectedPalindromicMethod):
-	"""Project one complete palindromic recipe; concrete methods select its order."""
+class ABBA2Implicit(ProjectedPalindromicMethod):
+	"""Second-order ABBA pair with one symmetric spatial projection."""
 
 	solver: AlgebraicSolver = field(default_factory=lambda: NewtonSolver(jacobian_method='analytic'), kw_only=True)
 	projection_formulation: ProjectionChoice = 'reduced_multiplier'
 	state_extension: StateExtension = 'physical'
 	progress: bool = False
-	order: ClassVar[Literal[2, 4, 6]]
-	build_event: EventBuilder | None = field(init=False, repr=False, compare=False)
+	order: ClassVar[Literal[2, 4]] = 2
+	_probe_analytic = True
+	composition_name = 'ABBA2'
+	recipe = (A(.5), B(.5), T(1.), B(.5), A(.5))
 
 	def __post_init__(self) -> None:
-		FixedStepMethod.__post_init__(self)
-		self._validate_solver_controls()
-		_validate_projection_formulation(self.projection_formulation)
+		ProjectedPalindromicMethod.__post_init__(self)
 		self.state_extension = _validate_state_extension(self.state_extension)
 
-	def initialize(self, request: SimulationRequest) -> None:
-		"""Bind the complete recipe to one reduced or simultaneous projection."""
-		self._prepare_projection(request, self.projection_formulation, probe_analytic=True)
-		# Equal adjoint/direct weights describe unprojected pairs, not extra solves.
-		coefficients: tuple[float, ...] = tuple(2 * c for c in self.recipe.coefficients[::2])
-		self.build_event = (bind_event_builder(self.method_name,
-			_validate_projection_formulation(self.projection_formulation), order=self.order,
-			coefficients=coefficients, project=self.project) if self.observe else None)
-		metadata: dict[str, DiagnosticValue] = {
-			**self._projection_metadata(self.projection_formulation),
-			'state_extension': self.state_extension,
-			'composition_stage_count': len(self.recipe.coefficients),
-		}
-		if self.order != 2:
-			metadata.update({
-				'implicit_substeps_per_step': 1,
-				'composition_coefficients': np.asarray(coefficients),
-				'unprojected_abba_maps_per_step': len(coefficients),
-				'unprojected_abba_maps_per_residual_evaluation': len(coefficients),
-				'base_composition': 'unprojected_abba4_triple_jump' if self.order == 4 else 'unprojected_abba6_yoshida',
-			})
-		self.metadata = metadata
-
-	def _publish_substeps(self) -> bool:
-		return self.order != 2
+	def _projection_metadata(self, projection: ProjectionChoice) -> dict[str, DiagnosticValue]:
+		return {**ProjectedPalindromicMethod._projection_metadata(self, projection),
+			'state_extension': self.state_extension, 'composition_stage_count': 2}
 
 	def build_observation(self, info: StepInfo, step: StepResult[ProjectedMapResult]) -> IntegrationStep:
-		"""Expose physical snapshots from the accepted projection trace."""
-		assert self.build_event is not None
-		return self.build_event(info.time, info.duration, info.index, info.state_before, step.details)
+		"""Expose the accepted four shears only when observation is requested."""
+		build: EventBuilder = bind_event_builder(self.method_name, _validate_projection_formulation(self.projection_formulation),
+			order=2, coefficients=(1.,), project=self.project)
+		return build(info.time, info.duration, info.index, info.state_before, step.details)
 
 
 @dataclass(slots=True)
-class ABBA2Implicit(_ABBAImplicitMethod):
-	"""Second-order ABBA pair with one symmetric spatial projection."""
-
-	order: ClassVar[Literal[2, 4, 6]] = 2
-	recipe: Composition = field(default=ABBA2, init=False)
-
-
-@dataclass(slots=True)
-class _ComposedABBAImplicit(_ABBAImplicitMethod):
-	"""Shared placement selector for higher-order ABBA compositions."""
-
-	projection_placement: ProjectionPlacement = 'around_complete_composition'
-
-	def __post_init__(self) -> None:
-		_ABBAImplicitMethod.__post_init__(self)
-		self.projection_placement = _validate_projection_placement(self.projection_placement)
-
-
-@dataclass(slots=True)
-class ABBA4Implicit(_ComposedABBAImplicit):
+class ABBA4Implicit(ProjectedPalindromicMethod):
 	"""Fourth-order triple jump with one projection around all six stages."""
 
-	order: ClassVar[Literal[2, 4, 6]] = 4
-	recipe: Composition = field(default=ABBA4, init=False)
+	solver: AlgebraicSolver = field(default_factory=lambda: NewtonSolver(jacobian_method='analytic'), kw_only=True)
+	projection_formulation: ProjectionChoice = 'reduced_multiplier'
+	state_extension: StateExtension = 'physical'
+	progress: bool = False
+	projection_placement: ProjectionPlacement = 'around_complete_composition'
+	order: ClassVar[Literal[2, 4]] = 4
+	_probe_analytic = True
+	composition_name = 'ABBA4'
+	recipe = (
+		A(_GAMMA/2), B(_GAMMA/2), T(_GAMMA), B(_GAMMA/2), A(_GAMMA/2),
+		A(_DELTA/2), B(_DELTA/2), T(_DELTA), B(_DELTA/2), A(_DELTA/2),
+		A(_GAMMA/2), B(_GAMMA/2), T(_GAMMA), B(_GAMMA/2), A(_GAMMA/2),
+	)
 
+	def __post_init__(self) -> None:
+		ProjectedPalindromicMethod.__post_init__(self)
+		self.state_extension = _validate_state_extension(self.state_extension)
+		self.projection_placement = _validate_projection_placement(self.projection_placement)
 
-@dataclass(slots=True)
-class ABBA6Implicit(_ComposedABBAImplicit):
-	"""Sixth-order Yoshida recipe with one projection around fourteen stages."""
+	def _projection_metadata(self, projection: ProjectionChoice) -> dict[str, DiagnosticValue]:
+		return {**ProjectedPalindromicMethod._projection_metadata(self, projection),
+			'state_extension': self.state_extension, 'composition_stage_count': 6,
+			'implicit_substeps_per_step': 1, 'composition_coefficients': _ABBA4_COEFFICIENTS,
+			'unprojected_abba_maps_per_step': 3,
+			'unprojected_abba_maps_per_residual_evaluation': 3,
+			'base_composition': 'unprojected_abba4_triple_jump'}
 
-	order: ClassVar[Literal[2, 4, 6]] = 6
-	recipe: Composition = field(default=ABBA6, init=False)
+	def _publish_substeps(self) -> bool:
+		return True
+
+	def build_observation(self, info: StepInfo, step: StepResult[ProjectedMapResult]) -> IntegrationStep:
+		"""Retain the three unprojected pairs and the single accepted multiplier."""
+		build: EventBuilder = bind_event_builder(self.method_name, _validate_projection_formulation(self.projection_formulation),
+			order=4, coefficients=(_GAMMA, _DELTA, _GAMMA), project=self.project)
+		return build(info.time, info.duration, info.index, info.state_before, step.details)
 
 
 @dataclass(slots=True)
@@ -112,7 +101,8 @@ class ABBA2Midpoint(MidpointPalindromicMethod):
 
 	state_extension: StateExtension = 'physical'
 	progress: bool = False
-	recipe: Composition = field(default=ABBA2, init=False)
+	composition_name = 'ABBA2'
+	recipe = ABBA2Implicit.recipe
 
 
-__all__ = ['ABBA2Implicit', 'ABBA4Implicit', 'ABBA6Implicit', 'ABBA2Midpoint']
+__all__ = ['ABBA2Implicit', 'ABBA4Implicit', 'ABBA2Midpoint']
