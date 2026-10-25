@@ -7,5 +7,5 @@
   immutable snapshots, explicit custom layouts and NumPy/JAX agreement.
 - [x] Compare final trajectories and diagnostics to the original baseline and
   load the pre-change archives; update permanent docs and Spanish copies.
-- [ ] Run source mypy, the full headless suite, both examples, distribution build,
+- [x] Run source mypy, the full headless suite, both examples, distribution build,
   whitespace checks and final SDD validation; record actual results and limits.

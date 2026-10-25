@@ -36,12 +36,16 @@ All commands use `.venv/bin/python` (Python 3.11.10) from the repository root.
   `test_extensible_architecture`, `test_function_methods`,
   `test_shared_array_dynamics` and `test_package_layout`. This includes JAX
   tracing, backend agreement, immutable snapshots and generic component axes.
-- The full headless suite is running. It exposed two error-contract regressions
-  in `test_abba` and `test_initial_solvers_formulations`; both were corrected.
-  Repeating those complete modules plus `test_states` and
-  `test_physical_workspaces` passed all 47 tests in 23.057 seconds, including the
-  added external-snapshot validation. The full process had imported the earlier
-  code before those corrections; its final result remains to be recorded.
+- `MPLBACKEND=Agg .venv/bin/python -m unittest discover -s tests -v` completed
+  708 tests in 735.834 seconds: 703 passed, three GPU tests were skipped, and two
+  error-contract regressions were reported in `test_abba` and
+  `test_initial_solvers_formulations`. The process had imported the earlier code
+  before the corrections; its exit status was 1, not a full-suite success.
+- Both regressions were corrected. Repeating the complete affected modules with
+  `MPLBACKEND=Agg .venv/bin/python -m unittest tests.test_abba tests.test_initial_solvers_formulations tests.test_states tests.test_physical_workspaces -q`
+  passed all 47 tests in 23.057 seconds, including external-snapshot validation.
+  No known failures remain. The entire suite was not repeated after these
+  error-path corrections; the other successful checks are reused unchanged.
 - `python -m mypy src` passed for all 306 source files, including the corrections.
 - Both examples passed: `examples/gc_orbit.py` completed 20 steps;
   `examples/projected_abba.py` completed four with one Newton correction each.
@@ -54,8 +58,10 @@ All commands use `.venv/bin/python` (Python 3.11.10) from the repository root.
   contain no retired coordinate identifiers. Tests mention removed fields only
   to verify their absence. `git diff --check` passed.
 
-Logs for this execution use `/tmp/gc2d-fixed-coordinates-*`. Final suite results
-and SDD validation are pending; file presence does not establish completion.
+Logs for this execution use `/tmp/gc2d-fixed-coordinates-*`. The final wheel's
+291 bundled Python sources match the working sources exactly. Final
+`python scripts/check_sdd.py` passed: 118 records and 22 requirements. The
+accepted implementation is complete, with the validation limits stated above.
 
 ## Numerical and archive comparison
 
