@@ -1,6 +1,5 @@
 """Physical coordinate identity and independently owned auxiliary snapshots."""
 from dynamics import GuidingCenterDynamics
-from dataclasses import FrozenInstanceError
 import pickle
 from pathlib import Path
 import subprocess
@@ -8,7 +7,8 @@ import sys
 import tempfile
 import unittest
 import numpy as np
-from dynamics.coordinates import PhysicalCoordinates
+from dynamics.coordinates import PhysicalCoordinates, GCCoordinates, FCCoordinates, describe_coordinates
+from tests.coordinate_fixtures import ThreeCoordinates, FiveCoordinates, UnclassifiedCoordinates, ReorderedCoordinates
 from dynamics.fc import FullCyclotronDynamics
 from execution.state import IntegrationState
 from diagnostics.methods.energy import EnergyObserver, momentum_increment
@@ -19,13 +19,70 @@ from tests.test_method_integration import _problem
 
 class ExternalThreeComponentSystem:
 	state_dimension = 3
-	coordinates = PhysicalCoordinates(('q', 'r', 'v'), ('q', 'r'))
+	coordinates = ThreeCoordinates()
 
 	def vector_field(self, t, state):
 		return np.ones_like(state)
 
 
 class PhysicalWorkspaceTests(unittest.TestCase):
+	def test_fixed_coordinates_have_no_configurable_fields(self) -> None:
+		from dataclasses import is_dataclass
+		with self.assertRaises(TypeError):
+			PhysicalCoordinates()
+		for cls, dimension in ((GCCoordinates, 2), (FCCoordinates, 4)):
+			layout = cls()
+			self.assertEqual(layout.state_dimension, dimension)
+			self.assertFalse(is_dataclass(layout))
+			self.assertFalse(hasattr(layout, '__dict__'))
+			for field in ('component_names', 'position_names', 'velocity_names', 'position_indices', 'velocity_indices'):
+				self.assertFalse(hasattr(layout, field))
+				with self.assertRaises(TypeError):
+					cls(**{field: ()})
+			with self.assertRaises(TypeError):
+				cls(dimension)
+			with self.assertRaises(AttributeError):
+				layout.state_dimension = 7
+			self.assertEqual(pickle.loads(pickle.dumps(layout)), layout)
+
+	def test_fixed_roles_and_plain_component_views(self) -> None:
+		for layout in (GCCoordinates(), FCCoordinates()):
+			state = np.arange(layout.state_dimension * 2.)
+			parts = layout.split(state)
+			self.assertIs(type(parts), tuple)
+			self.assertTrue(all(np.shares_memory(part, state) for part in parts))
+			np.testing.assert_array_equal(layout.pack_components(*parts), state)
+			np.testing.assert_array_equal(layout.positions(state), parts[:2])
+			if isinstance(layout, FCCoordinates):
+				np.testing.assert_array_equal(layout.velocities(state), parts[2:])
+			else:
+				with self.assertRaisesRegex(ValueError, 'velocity'):
+					layout.velocities(state)
+
+	def test_external_snapshot_must_explicitly_preserve_its_convention(self) -> None:
+		from tests.test_state_ownership import _ExternalGCLayout
+		source = _ExternalGCLayout()
+		owned = describe_coordinates(source)
+		self.assertIs(type(owned), GCCoordinates)
+		source.state_dimension = 3
+		with self.assertRaisesRegex(ValueError, 'preserve'):
+			describe_coordinates(source)
+		self.assertEqual(owned.state_dimension, 2)
+		source.state_dimension = 2
+		source.snapshot = lambda: source
+		with self.assertRaisesRegex(TypeError, 'NumPy PhysicalCoordinates'):
+			describe_coordinates(source)
+
+	def test_method_guards_require_explicit_gc_or_fc_conventions(self) -> None:
+		from methods.extended.maps import GCDoubledMaps
+		from methods.splitting import FCSplitMaps
+		for layout in (UnclassifiedCoordinates(), ReorderedCoordinates(), FCCoordinates()):
+			with self.subTest(layout=type(layout)), self.assertRaises(TypeError):
+				GCDoubledMaps(lambda t, z: z, 2, coordinates=layout)
+		for layout in (GCCoordinates(), UnclassifiedCoordinates(), FiveCoordinates()):
+			with self.subTest(layout=type(layout)), self.assertRaises(TypeError):
+				FCSplitMaps(lambda t, z, h: z, lambda t, z, h: z, 4, coordinates=layout)
+
 	def test_external_coordinates_and_explicit_layout_do_not_infer_a_model(self):
 		for count in (1, 3):
 			dynamics = ExternalThreeComponentSystem()
@@ -33,8 +90,8 @@ class PhysicalWorkspaceTests(unittest.TestCase):
 			problem = InitialValueProblem(dynamics, initial)
 			result = simulate(problem, RK4(step=.02), SimulationRequest((.15, .255), np.array([.15, .153, .255])))
 			np.testing.assert_allclose(result.values, initial[:, None] + result.times - .15, rtol=0, atol=4e-15)
-			self.assertEqual(result.layout.component_names, ('q', 'r', 'v'))
-			self.assertIs(type(result.layout), PhysicalCoordinates)
+			self.assertEqual(result.layout.state_dimension, 3)
+			self.assertIs(type(result.layout), ThreeCoordinates)
 			self.assertEqual(result.diagnostics['accepted_internal_state_dimension'], initial.size)
 			class Undeclared:
 				state_dimension = 3
@@ -46,22 +103,22 @@ class PhysicalWorkspaceTests(unittest.TestCase):
 
 	def test_same_dimension_does_not_establish_coordinate_compatibility(self):
 		problem = _problem()
-		for layout in (PhysicalCoordinates(('y', 'x'), ('x', 'y')),
-		               PhysicalCoordinates(('x', 'y'), (), ('x', 'y'))):
+		for layout in (ReorderedCoordinates(),
+		               UnclassifiedCoordinates()):
 			with self.assertRaises(TypeError):
 				InitialValueProblem(problem.dynamics, problem.initial_state, layout=layout)
 			with self.assertRaises(TypeError):
 				InitialValueProblem(problem.dynamics, InitialConditions(problem.initial_state, layout=layout))
-		with self.assertRaises(FrozenInstanceError): problem.layout.component_names = ('y', 'x')
+		with self.assertRaises(AttributeError): problem.layout.state_dimension = 7
 
 	def test_role_accessors_and_sample_axes_are_generic(self):
-		layout = PhysicalCoordinates(('b', 'a', 'w', 'u', 's'), ('a', 'b'), ('u', 'w'))
+		layout = FiveCoordinates()
 		physical = np.arange(5 * 3 * 2 * 4).reshape(15, 2, 4)
 		components = layout.split(physical)
-		np.testing.assert_array_equal(layout.positions(physical)[0], components.a)
-		np.testing.assert_array_equal(layout.velocities(physical)[0], components.u)
+		np.testing.assert_array_equal(layout.positions(physical)[0], components[1])
+		np.testing.assert_array_equal(layout.velocities(physical)[0], components[3])
 		np.testing.assert_array_equal(layout.pack_components(*components), physical)
-		np.testing.assert_array_equal(pickle.loads(pickle.dumps(components)).a, components.a)
+		np.testing.assert_array_equal(pickle.loads(pickle.dumps(components))[1], components[1])
 
 	def test_archive_load_needs_no_dynamics_or_field_construction(self):
 		from diagnostics.io.persistence import save_solution

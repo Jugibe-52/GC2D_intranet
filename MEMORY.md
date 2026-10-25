@@ -169,9 +169,9 @@ the evaluation backend, including scalar/NumPy inputs. Inherited `electric_field
 calls `self.evaluate`, including omitted coordinates. `evaluate_grid` stays
 NumPy-only and rejects JAX time. `load`, `random` and `gyroaverage` preserve the
 class. There is no `execution=` keyword or separate prepared/evaluator class.
-`PhysicalCoordinates` selects NumPy; `JaxPhysicalCoordinates` in
-`dynamics.jax_coordinates` only sets `array_namespace: ClassVar[ModuleType]`
-to `jnp` instead of `np`: no property or input inspection per operation. Import
+`GCCoordinates` and `FCCoordinates` use NumPy. Their `JaxGCCoordinates` and
+`JaxFCCoordinates` subclasses in `dynamics.jax_coordinates` only set
+`array_namespace: ClassVar[ModuleType]` to `jnp`: no backend property or input inspection. Import
 JAX classes from their explicit modules; base dynamics imports never load JAX.
 Shared GC/FC equations use `self.coordinates` and that namespace. The classes
 `JaxGuidingCenterDynamics` and `JaxFullCyclotronDynamics` in
@@ -213,7 +213,7 @@ cases remain explicit. See `docs/studies/poincare-automation.md`.
 
 ## Current state and saved physical states
 
-`dynamics.coordinates.PhysicalCoordinates` stores immutable component names and position/velocity roles. Dynamics declare `coordinates`; otherwise an explicit layout is required. Never infer GC/FC from dimension. InitialConditions and States own structural data and arrays; InitialValueProblem associates them with dynamics. Validate coordinate order and roles, not size alone.
+`PhysicalCoordinates` is a stateless abstract base; `GCCoordinates()` and `FCCoordinates()` fix dimensions and accessors without constructor fields, names or role indices. `split()` returns a plain tuple; CoordinateValues and JaxPhysicalCoordinates are removed. StateLayout.snapshot() explicitly supplies an immutable NumPy coordinate implementation. InitialConditions and States own arrays and snapshots; InitialValueProblem compares snapshot classes/equality, never inferring models from dimension. Custom conventions derive from the base; GC/FC subclasses keep the same physical convention. Methods may import shared coordinate types for guards, never physical equations or dynamics objects.
 `DoubleFormulation(physical_size)` alone builds temporary copies with lift/join_copies/split_copies, preserving NumPy/JAX and shifted projection candidates. It retains only size; SingleFormulation is removed.
 Accepted IntegrationState stores one physical Z (d*N) and scalar time. StepResult carries optional numerical StageQuadrature or an accepted interpolant, never momentum. Only sampling snapshots may carry transient quadrature. Never persist equal duplicate copies between steps.
 EnergyObserver from diagnostics owns separate physical kappa (N), initially zero or explicitly supplied. Execution binds H and -partial_t H, accepts each main step once and records saved auxiliaries; states.energy combines supplied H and kappa. GC weights include one half with reduction_scale=2 to preserve the original summed-map arithmetic and overflow guard. Adaptive quadrature uses eight Gauss nodes; saved-time sparsity never changes accepted accumulation.

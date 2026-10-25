@@ -123,9 +123,9 @@ persistence; see the [Modal executor guide](../../../simulation/modal-execution.
 
 ## Initial-state ownership
 
-Dynamics declare immutable `PhysicalCoordinates(component_names, position_names=(), velocity_names=())` from `dynamics.coordinates`. GC declares `(x,y)`; FC declares `(x,y,vx,vy)`. Position and velocity roles are explicit. `PhysicalCoordinates` selects NumPy; `JaxPhysicalCoordinates` from `dynamics.jax_coordinates` inherits the same structure and selects JAX through `array_namespace`. The structural protocol is `contracts.dynamics.coordinates.StateLayout`; external implementations require no inheritance.
+Dynamics declare `GCCoordinates()` for fixed `(x, y)` blocks or `FCCoordinates()` for fixed `(x, y, vx, vy)` blocks, from `dynamics.coordinates`. `PhysicalCoordinates` is a stateless base with common array operations; dimensions are fixed properties and no names or role-index fields are configured. `split()` returns an ordinary tuple. `JaxGCCoordinates` and `JaxFCCoordinates`, from `dynamics.jax_coordinates`, inherit their respective operations and only select `jnp` through `array_namespace`.
 
-`InitialValueProblem` takes the dynamics declaration or requires an explicit layout. It never infers a physical model from dimension 2 or 4. It checks dimension, component order and position/velocity roles, even for equally sized arrays. Initial conditions and results retain an immutable structural description and owned arrays, without retaining live dynamics or a potential. Generic packing, component views and role access support `(d*N,*samples)`, `(d,N,*samples)` and `(N,*samples)` using the explicitly selected array library. Only `JaxPhysicalCoordinates` supports JAX tracing; saved layouts remain structural NumPy snapshots. Incomplete blocks are rejected.
+`InitialValueProblem` takes the dynamics declaration or requires an explicit layout. It never infers a model from dimension. `StateLayout.snapshot()` explicitly supplies an immutable NumPy convention; `describe_coordinates` validates that snapshot and its dimension. Compatibility compares the snapshot class and equality, even for equally sized arrays. Initial conditions and results own their arrays and conventions without retaining live dynamics or a potential. Custom conventions derive from `PhysicalCoordinates` and implement fixed operations instead of role tables; external adapters may supply these snapshots without inheritance. Packing and views preserve `(d*N,*samples)`, `(d,N,*samples)` and `(N,*samples)`. The respective JAX classes support tracing; incomplete blocks are rejected.
 
 Built-in dynamics keep physical parameters immutable. A new problem is required for revised initial values. Saved numerical archives retain existing GC/FC schemas and can be interpreted without constructing dynamics or loading a field.
 
@@ -143,14 +143,14 @@ See [JAX execution](../../../simulation/jax-execution.md).
 `Potential.evaluate` uses NumPy/SciPy; `JaxPotential` inherits its representation
 and overrides only `evaluate` with JAX. Simulation preparation constructs
 `JaxGuidingCenterDynamics` or `JaxFullCyclotronDynamics` from
-`dynamics.jax_dynamics`; these subclasses only declare `JaxPhysicalCoordinates`
+`dynamics.jax_dynamics`; these subclasses only declare `JaxGCCoordinates` or `JaxFCCoordinates`
 and inherit all physical methods. It supplies JAX potentials sharing the existing
 splines, including the
 gyroaveraged field, without refitting or mutating the source dynamics. Inherited
 electric fields follow the potential class; `evaluate_grid` remains NumPy-only. See the
 [shared potential contract](../../../dynamics/jax-potential-evaluation.md).
 
-Dynamics declare immutable `PhysicalCoordinates(component_names, position_names=(), velocity_names=())` from `dynamics.coordinates`. GC declares `(x,y)`; FC declares `(x,y,vx,vy)`. Position and velocity roles are explicit. `PhysicalCoordinates` selects NumPy; `JaxPhysicalCoordinates` from `dynamics.jax_coordinates` inherits the same structure and selects JAX through `array_namespace`. The structural protocol is `contracts.dynamics.coordinates.StateLayout`; external implementations require no inheritance.
+Dynamics declare `GCCoordinates()` for fixed `(x, y)` blocks or `FCCoordinates()` for fixed `(x, y, vx, vy)` blocks, from `dynamics.coordinates`. `PhysicalCoordinates` is a stateless base with common array operations; dimensions are fixed properties and no names or role-index fields are configured. `split()` returns an ordinary tuple. `JaxGCCoordinates` and `JaxFCCoordinates`, from `dynamics.jax_coordinates`, inherit their respective operations and only select `jnp` through `array_namespace`.
 
 ## Initial data and numerical components
 

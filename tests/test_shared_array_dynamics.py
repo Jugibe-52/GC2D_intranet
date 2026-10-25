@@ -11,14 +11,14 @@ import numpy as np
 
 from dynamics.fc import FullCyclotronDynamics
 from dynamics.gc import GuidingCenterDynamics
-from dynamics.coordinates import PhysicalCoordinates, describe_coordinates
+from dynamics.coordinates import PhysicalCoordinates, GCCoordinates, FCCoordinates, describe_coordinates
 from potential.grid import Grid
 from potential.potential import Potential
 from potential.jax_potential import JaxPotential
 
 
 if importlib.util.find_spec("jax"):
-	from dynamics.jax_coordinates import JaxPhysicalCoordinates
+	from dynamics.jax_coordinates import JaxGCCoordinates, JaxFCCoordinates
 	from dynamics.jax_dynamics import JaxFullCyclotronDynamics, JaxGuidingCenterDynamics
 	from execution._jax import prepare_dynamics
 
@@ -64,10 +64,11 @@ class SharedArrayDynamicsTests(unittest.TestCase):
 
 	def test_coordinate_class_selects_backend_and_preserves_sample_axes(self) -> None:
 		self.assertIs(PhysicalCoordinates.__dict__['array_namespace'], np)
-		self.assertIs(JaxPhysicalCoordinates.__dict__['array_namespace'], self.jnp)
+		self.assertIs(JaxGCCoordinates.__dict__['array_namespace'], self.jnp)
+		self.assertIs(JaxFCCoordinates.__dict__['array_namespace'], self.jnp)
 		for layout in (GuidingCenterDynamics.coordinates, FullCyclotronDynamics.coordinates,
 				JaxGuidingCenterDynamics.coordinates, JaxFullCyclotronDynamics.coordinates):
-			array_type = self.jax.Array if isinstance(layout, JaxPhysicalCoordinates) else np.ndarray
+			array_type = self.jax.Array if isinstance(layout, (JaxGCCoordinates, JaxFCCoordinates)) else np.ndarray
 			state = np.arange(layout.state_dimension * 12.0).reshape(-1, 3, 2)
 			for value in (state, self.jnp.asarray(state)):
 				with self.subTest(layout=type(layout).__name__, backend=type(value).__name__):
@@ -79,13 +80,13 @@ class SharedArrayDynamicsTests(unittest.TestCase):
 					self.assertIsInstance(packed, array_type)
 					np.testing.assert_array_equal(packed, state)
 					np.testing.assert_array_equal(layout.from_blocks(blocks), state)
-			if isinstance(layout, JaxPhysicalCoordinates):
+			if isinstance(layout, (JaxGCCoordinates, JaxFCCoordinates)):
 				compiled = self.jax.jit(lambda value: layout.pack_components(*layout.split(value)))
 				np.testing.assert_array_equal(compiled(self.jnp.asarray(state)), state)
 			mixed = list(layout.split(state))
 			mixed[-1] = self.jnp.asarray(mixed[-1])
 			self.assertIsInstance(layout.pack_components(*mixed), array_type)
-			self.assertIs(type(describe_coordinates(layout)), PhysicalCoordinates)
+			self.assertIs(type(describe_coordinates(layout)), GCCoordinates if isinstance(layout, GCCoordinates) else FCCoordinates)
 			self.assertEqual(pickle.loads(pickle.dumps(layout)), layout)
 
 	def test_layout_rejects_invalid_shapes_during_tracing(self) -> None:
@@ -95,6 +96,24 @@ class SharedArrayDynamicsTests(unittest.TestCase):
 				self.jax.jit(layout.as_blocks)(state)
 		with self.assertRaisesRegex(ValueError, "same shape"):
 			self.jax.jit(layout.pack_components)(self.jnp.ones(2), self.jnp.ones(3))
+
+	def test_fixed_jax_classes_only_select_the_array_library(self) -> None:
+		for cls, host in ((JaxGCCoordinates, GCCoordinates), (JaxFCCoordinates, FCCoordinates)):
+			layout = cls()
+			for name in ('split', 'positions', 'velocities', 'pack_components', 'snapshot'):
+				self.assertIs(getattr(cls, name), getattr(host, name))
+			self.assertFalse(hasattr(layout, '__dict__'))
+			with self.assertRaises(TypeError):
+				cls(2)
+			state = self.jnp.arange(layout.state_dimension * 12.).reshape(-1, 3, 2)
+			parts = self.jax.jit(layout.split)(state)
+			self.assertIs(type(parts), tuple)
+			self.assertTrue(all(isinstance(part, self.jax.Array) for part in parts))
+			np.testing.assert_array_equal(self.jax.jit(layout.positions)(state), parts[:2])
+			if host is FCCoordinates:
+				np.testing.assert_array_equal(self.jax.jit(layout.velocities)(state), parts[2:])
+			np.testing.assert_array_equal(self.jax.jit(layout.pack_components)(*parts), state)
+			self.assertEqual(describe_coordinates(layout), host())
 
 	def test_numpy_jax_and_mixed_time_agree_for_both_dynamics(self) -> None:
 		for dynamics in (self.gc, self.fc):

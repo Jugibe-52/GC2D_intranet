@@ -160,7 +160,7 @@ persistence; see the [Modal executor guide](../../../simulation/modal-execution.
 `Potential.evaluate` uses NumPy/SciPy; `JaxPotential` inherits its representation
 and overrides only `evaluate` with JAX. Simulation preparation constructs
 `JaxGuidingCenterDynamics` or `JaxFullCyclotronDynamics` from
-`dynamics.jax_dynamics`; these subclasses only declare `JaxPhysicalCoordinates`
+`dynamics.jax_dynamics`; these subclasses only declare `JaxGCCoordinates` or `JaxFCCoordinates`
 and inherit all physical methods. It supplies JAX potentials sharing the existing
 splines, including the
 gyroaveraged field, without refitting or mutating the source dynamics. Inherited

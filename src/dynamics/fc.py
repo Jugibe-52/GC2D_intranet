@@ -9,7 +9,7 @@ import numpy as np
 
 from potential.potential import Potential
 
-from dynamics.coordinates import PhysicalCoordinates
+from dynamics.coordinates import FCCoordinates
 from ._equations import fc_velocity, fc_hamiltonian
 
 
@@ -35,7 +35,7 @@ def _validated_parameters(potential: Potential, rho: float, eta: float) -> tuple
 class FullCyclotronDynamics:
 	"""FC equations for fixed physical parameters and declared coordinates."""
 
-	coordinates: ClassVar[PhysicalCoordinates] = PhysicalCoordinates(('x', 'y', 'vx', 'vy'), ('x', 'y'), ('vx', 'vy'))
+	coordinates: ClassVar[FCCoordinates] = FCCoordinates()
 	state_dimension: ClassVar[int] = 4
 
 	potential: Potential

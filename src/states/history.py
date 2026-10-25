@@ -259,9 +259,11 @@ class States:
 		return self._layout.positions(self.values)
 
 	def velocities(self) -> tuple[np.ndarray, np.ndarray]:
-		if not self._layout.velocity_names:
-			raise TypeError('This layout does not define velocity components.')
-		return self._layout.velocities(self.values)
+		try:
+			return self._layout.velocities(self.values)
+		except ValueError as error:
+			# Preserve the result accessor's error for conventions without velocities.
+			raise TypeError(str(error)) from error
 
 	def select(self, indices: Any) -> States:
 		"""Select increasing samples, retaining their original times and layout.

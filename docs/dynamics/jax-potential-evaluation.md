@@ -128,7 +128,7 @@ and periodic seams. Traced time works even when both coordinates are NumPy array
 `GuidingCenterDynamics` and `FullCyclotronDynamics` own the physical equations
 and use `PhysicalCoordinates` for NumPy operations. Their explicit subclasses
 `JaxGuidingCenterDynamics` and `JaxFullCyclotronDynamics` declare only
-`JaxPhysicalCoordinates`; every constructor, vector field, Hamiltonian,
+`JaxGCCoordinates` or `JaxFCCoordinates`; every constructor, vector field, Hamiltonian,
 passive momentum derivative, GC Jacobian and FC split flow is inherited.
 The coordinate class supplies the array namespace; physical formulas stay in
 the dynamics. Direct compiled evaluation pairs a JAX dynamics class with

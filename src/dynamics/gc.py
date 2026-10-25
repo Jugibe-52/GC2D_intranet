@@ -9,7 +9,7 @@ import numpy as np
 
 from potential.potential import Potential
 
-from dynamics.coordinates import PhysicalCoordinates
+from dynamics.coordinates import GCCoordinates
 from ._equations import gc_velocity
 
 
@@ -35,7 +35,7 @@ def _validated_parameters(potential: Potential, rho: float, B: float) -> tuple[f
 class GuidingCenterDynamics:
 	"""GC equations over a fixed gyroaveraged potential and declared coordinates."""
 
-	coordinates: ClassVar[PhysicalCoordinates] = PhysicalCoordinates(('x', 'y'), ('x', 'y'), ())
+	coordinates: ClassVar[GCCoordinates] = GCCoordinates()
 	state_dimension: ClassVar[int] = 2
 
 	potential: Potential

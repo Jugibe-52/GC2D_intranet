@@ -7,6 +7,7 @@ from dataclasses import replace
 from diagnostics.states.geometry import calculate_area
 from states import generators as state_generators
 from dynamics.fc import FullCyclotronDynamics
+from dynamics.coordinates import GCCoordinates
 from dynamics.gc import GuidingCenterDynamics
 
 import unittest
@@ -90,9 +91,9 @@ class _ExternalParticleLayout:
 	"""Minimal planar layout proving structural third-party composition."""
 
 	state_dimension = 2
-	component_names = ('x', 'y')
-	position_names = ('x', 'y')
-	velocity_names = ()
+
+	def snapshot(self) -> GCCoordinates:
+		return GCCoordinates()
 
 	def validate_packed_state_layout(self, state: np.ndarray) -> np.ndarray:
 		value = np.asarray(state)

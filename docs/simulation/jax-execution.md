@@ -55,7 +55,7 @@ All routes return the same immutable NumPy `States`, with component-major
 physical states and canonical energy histories. Initial field preparation,
 gyroaveraging and spline fitting stay on CPU. `Potential` owns the canonical
 splines. Preparation creates `JaxGuidingCenterDynamics` or
-`JaxFullCyclotronDynamics` with `JaxPhysicalCoordinates` and `JaxPotential`,
+`JaxFullCyclotronDynamics` with `JaxGCCoordinates` or `JaxFCCoordinates` and `JaxPotential`,
 sharing those knots and coefficients without refitting, repeating gyroaveraging
 or mutating the source. The subclasses only declare coordinates; all physical
 methods are inherited. Built-in GC dynamics are supported by every

@@ -81,7 +81,7 @@ class InitialConditions:
 		return self.layout.positions(self.values)
 
 	def velocities(self) -> tuple[np.ndarray, np.ndarray]:
-		"""Return named velocity components; GC has no stored velocities."""
+		"""Return declared velocity components; GC has no stored velocities."""
 		return self._layout.velocities(self.values)
 
 	def __reduce__(self) -> tuple[Any, tuple[Any, ...]]:

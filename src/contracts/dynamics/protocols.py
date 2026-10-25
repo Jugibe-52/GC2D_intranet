@@ -12,7 +12,7 @@ class DynamicalSystem(Protocol):
 	Array inputs and outputs follow the implementation's declared backend.
 	Built-in dynamics use their coordinate and potential classes for array and
 	field operations. JAX execution prepares the explicit JAX subclasses with
-	JaxPhysicalCoordinates and JaxPotential before tracing.
+	JaxGCCoordinates or JaxFCCoordinates and JaxPotential before tracing.
 	"""
 
 	state_dimension: ClassVar[int]

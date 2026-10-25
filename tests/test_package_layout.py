@@ -295,7 +295,9 @@ assert not any(name.split(".")[0] in ("jax", "modal", "integration")
 				for node in ast.walk(ast.parse(path.read_text())):
 					if isinstance(node, ast.ImportFrom):
 						module = node.module or ''
-						self.assertFalse(module.startswith('dynamics.') or module == 'contracts.dynamics.protocols', str(path))
+						# Fixed coordinate types carry array conventions, never physical equations.
+						self.assertFalse((module.startswith('dynamics.') and module != 'dynamics.coordinates')
+							or module == 'contracts.dynamics.protocols', str(path))
 						if package == 'methods':
 							self.assertFalse(module.startswith('diagnostics'), str(path))
 						else:

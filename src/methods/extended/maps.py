@@ -9,6 +9,7 @@ from functools import lru_cache
 from typing import Literal
 import numpy as np
 from contracts.dynamics.coordinates import StateLayout
+from dynamics.coordinates import GCCoordinates
 from contracts.methods.maps import Projection
 from contracts.methods.functions import JacobianStructure, VectorField
 from formulations.state import DoubleFormulation
@@ -113,10 +114,9 @@ class GCDoubledMaps:
 		"""Validate physical roles and bind spatial work without retaining a problem."""
 		if not callable(self.f) or (self.jacobian is not None and not callable(self.jacobian)):
 			raise TypeError('Supply a field function and an optional Jacobian function.')
-		layout = self.coordinates
-		if (layout.state_dimension != 2 or tuple(layout.component_names) != ('x', 'y')
-				or tuple(layout.position_names) != ('x', 'y') or tuple(layout.velocity_names)):
-			raise TypeError('GC doubled maps require declared (x, y) position coordinates.')
+		layout: StateLayout = self.coordinates.snapshot()
+		if type(layout) is not GCCoordinates:
+			raise TypeError('GC physical maps require GCCoordinates position coordinates.')
 		if self.jacobian_structure not in ('dense', 'particle'):
 			raise ValueError('Jacobian structure must be dense or particle.')
 		representation: DoubleFormulation = DoubleFormulation(self.physical_size)

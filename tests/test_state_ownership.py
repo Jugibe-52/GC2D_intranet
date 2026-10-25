@@ -16,7 +16,7 @@ from problem import InitialValueProblem
 from request import SimulationRequest
 from dynamics.fc import FullCyclotronDynamics
 from dynamics.gc import GuidingCenterDynamics
-from dynamics.coordinates import CoordinateValues, PhysicalCoordinates
+from dynamics.coordinates import PhysicalCoordinates, GCCoordinates, FCCoordinates
 from methods.splitting import FCSplitMaps
 from methods.extended.maps import GCDoubledMaps
 from formulations.state import DoubleFormulation
@@ -54,16 +54,16 @@ class _ExternalLayout:
 
 class _ExternalGCLayout(_ExternalLayout):
 	state_dimension = 2
-	component_names = ('x', 'y')
-	position_names = ('x', 'y')
-	velocity_names = ()
+
+	def snapshot(self) -> GCCoordinates:
+		return GCCoordinates()
 
 
 class _ExternalFCLayout(_ExternalLayout):
 	state_dimension = 4
-	component_names = ('x', 'y', 'vx', 'vy')
-	position_names = ('x', 'y')
-	velocity_names = ('vx', 'vy')
+
+	def snapshot(self) -> FCCoordinates:
+		return FCCoordinates()
 
 
 class _ExternalConfiguration:
@@ -116,8 +116,8 @@ class StateOwnershipTests(unittest.TestCase):
 		returned = problem.initial_state
 		returned[:] = -100.0
 		exposed_layout = problem.layout
-		with self.assertRaises(FrozenInstanceError):
-			exposed_layout.component_names = ('y', 'x')
+		with self.assertRaises(AttributeError):
+			exposed_layout.state_dimension = 7
 
 		self.assertFalse(np.shares_memory(problem.initial_state, source.state))
 		np.testing.assert_array_equal(problem.initial_state, state)
@@ -150,8 +150,8 @@ class StateOwnershipTests(unittest.TestCase):
 		np.testing.assert_array_equal(solution.initial_state, state)
 		np.testing.assert_array_equal(solution.positions()[0], solution.states[:1])
 		returned_layout = solution.layout
-		with self.assertRaises(FrozenInstanceError):
-			returned_layout.position_names = ('y', 'x')
+		with self.assertRaises(AttributeError):
+			returned_layout.state_dimension = 7
 		np.testing.assert_array_equal(solution.positions()[0], solution.states[:1])
 
 	def test_saved_solution_uses_initial_snapshot_after_source_changes(self) -> None:

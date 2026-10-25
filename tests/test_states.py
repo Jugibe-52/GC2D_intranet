@@ -4,7 +4,7 @@ import importlib.util
 import pickle
 import unittest
 import numpy as np
-from dynamics.coordinates import CoordinateValues, PhysicalCoordinates
+from dynamics.coordinates import PhysicalCoordinates
 from dynamics.gc import GuidingCenterDynamics
 from dynamics.fc import FullCyclotronDynamics
 from states import States
@@ -21,24 +21,24 @@ class StateTests(unittest.TestCase):
 		values = np.array([1., 2., 3., 4.]); layout = _ExternalGCLayout()
 		state = States.prepare(np.array([.3,.7]), values, layout=layout)
 		state.record(.3, values)
-		values[:] = -1; layout.component_names = ('y', 'x')
+		values[:] = -1; layout.state_dimension = 7
 		exposed = state.values
 		with self.assertRaises(ValueError): exposed[:] = 0
 		state.record(.7, np.array([2.,3.,4.,5.]))
 		self.assertIs(state.finalize(), state)
 		np.testing.assert_array_equal(state.values[:,0], [1,2,3,4])
-		with self.assertRaises(FrozenInstanceError): state.layout.component_names = ('y', 'x')
+		with self.assertRaises(AttributeError): state.layout.state_dimension = 7
 		np.testing.assert_array_equal(state.positions()[0][:,0], [1,2])
 		self.assertEqual(state.particle_count, 2)
 		with self.assertRaises(RuntimeError): state.record(.7, values)
 		with self.assertRaises(RuntimeError): state.finalize()
 
 	def test_one_class_supports_both_models_and_pickle(self) -> None:
-		for layout, component_type in [(GuidingCenterDynamics.coordinates, CoordinateValues), (FullCyclotronDynamics.coordinates, CoordinateValues)]:
+		for layout in (GuidingCenterDynamics.coordinates, FullCyclotronDynamics.coordinates):
 			values = layout.pack_components(*(np.arange(3.)+i for i in range(layout.state_dimension)))
 			state = States(np.array([5.]), values[:,None], layout=layout, initial_state=values)
 			self.assertIs(type(state), States)
-			self.assertIsInstance(state.components(), component_type)
+			self.assertIs(type(state.components()), tuple)
 			restored = pickle.loads(pickle.dumps(state))
 			np.testing.assert_array_equal(restored.values, state.values)
 			self.assertFalse(restored.values.flags.writeable)

@@ -56,7 +56,7 @@ p, r = problem(), SimulationRequest.uniform(t_span=(0., .01))
 simulate(p, RK4(), r, options=ExecutionOptions())
 assert "jax" not in sys.modules
 try:
-    from dynamics.jax_coordinates import JaxPhysicalCoordinates
+    from dynamics.jax_coordinates import JaxGCCoordinates, JaxFCCoordinates
 except ImportError as error:
     assert "optional" in str(error)
 else:

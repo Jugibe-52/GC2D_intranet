@@ -30,16 +30,16 @@ Evaluating a Hamiltonian directly remains possible without enabling tracking.
 `GuidingCenterDynamics` and `FullCyclotronDynamics` use NumPy coordinates and
 normally a `Potential`. `JaxGuidingCenterDynamics` and `JaxFullCyclotronDynamics`
 from `dynamics.jax_dynamics` inherit all physical methods and constructors,
-declaring only `JaxPhysicalCoordinates`. Import these classes from their explicit
+declaring only `JaxGCCoordinates` or `JaxFCCoordinates`. Import these classes from their explicit
 module; the base `dynamics` package does not load JAX. Direct compiled or
 differentiated calls also require `JaxPotential`.
 
 `PhysicalCoordinates` declares `array_namespace: ClassVar[ModuleType] = np`;
-`JaxPhysicalCoordinates` declares the same attribute with `jnp`. These are fixed
+`JaxGCCoordinates` and `JaxFCCoordinates` declare the same attribute with `jnp`. These are fixed
 module references, selected at class definition, without a property or runtime
 input inspection. Importing `dynamics.jax_coordinates` explicitly loads optional
 JAX; its inherited array operations do not import or choose a library.
-Conversion, packing, shape validation and named component access share the same
+Conversion, packing, shape validation and component access by index share the same
 implementation. Dynamics access `self.coordinates`; GC Jacobian stacking and
 FC rotation use that coordinate namespace, while the physical equations remain
 in the dynamics. Backend choice no longer depends on input array types.
@@ -70,9 +70,9 @@ component order. See the [potential contract](jax-potential-evaluation.md).
 
 ## Physical layouts and problem ownership
 
-Dynamics declare immutable `PhysicalCoordinates(component_names, position_names=(), velocity_names=())` from `dynamics.coordinates`. GC declares `(x,y)`; FC declares `(x,y,vx,vy)`. Position and velocity roles are explicit. `PhysicalCoordinates` selects NumPy; `JaxPhysicalCoordinates` from `dynamics.jax_coordinates` inherits the same structure and selects JAX through `array_namespace`. The structural protocol is `contracts.dynamics.coordinates.StateLayout`; external implementations require no inheritance.
+Dynamics declare `GCCoordinates()` for fixed `(x, y)` blocks or `FCCoordinates()` for fixed `(x, y, vx, vy)` blocks, from `dynamics.coordinates`. `PhysicalCoordinates` is a stateless base with common array operations; dimensions are fixed properties and no names or role-index fields are configured. `split()` returns an ordinary tuple. `JaxGCCoordinates` and `JaxFCCoordinates`, from `dynamics.jax_coordinates`, inherit their respective operations and only select `jnp` through `array_namespace`.
 
-`InitialValueProblem` takes the dynamics declaration or requires an explicit layout. It never infers a physical model from dimension 2 or 4. It checks dimension, component order and position/velocity roles, even for equally sized arrays. Initial conditions and results retain an immutable structural description and owned arrays, without retaining live dynamics or a potential. Generic packing, component views and role access support `(d*N,*samples)`, `(d,N,*samples)` and `(N,*samples)` using the explicitly selected array library. Only `JaxPhysicalCoordinates` supports JAX tracing; saved layouts remain structural NumPy snapshots. Incomplete blocks are rejected.
+`InitialValueProblem` takes the dynamics declaration or requires an explicit layout. It never infers a model from dimension. `StateLayout.snapshot()` explicitly supplies an immutable NumPy convention; `describe_coordinates` validates that snapshot and its dimension. Compatibility compares the snapshot class and equality, even for equally sized arrays. Initial conditions and results own their arrays and conventions without retaining live dynamics or a potential. Custom conventions derive from `PhysicalCoordinates` and implement fixed operations instead of role tables; external adapters may supply these snapshots without inheritance. Packing and views preserve `(d*N,*samples)`, `(d,N,*samples)` and `(N,*samples)`. The respective JAX classes support tracing; incomplete blocks are rejected.
 
 Built-in dynamics keep physical parameters immutable. A new problem is required for revised initial values. Saved numerical archives retain existing GC/FC schemas and can be interpreted without constructing dynamics or loading a field.
 

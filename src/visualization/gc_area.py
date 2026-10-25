@@ -34,7 +34,7 @@ from ._gc_area_validation import (
 
 
 if TYPE_CHECKING:
-	from dynamics.coordinates import CoordinateValues, PhysicalCoordinates
+	from dynamics.coordinates import PhysicalCoordinates
 	from matplotlib.axes import Axes
 	from matplotlib.collections import QuadMesh
 	from matplotlib.figure import Figure
@@ -345,7 +345,7 @@ def animate_gc_area(
 
 	# Every component block has shape (boundary vertices, saved times). Periodic
 	# wrapping is applied independently so each numerical contour remains legible.
-	component_series: tuple[CoordinateValues, ...] = tuple(GuidingCenterDynamics.coordinates.split(states) for states in state_series)
+	component_series: tuple[tuple[np.ndarray, ...], ...] = tuple(GuidingCenterDynamics.coordinates.split(states) for states in state_series)
 	period = potential.grid.period
 	xmin = potential.grid.xmin
 	ymin = potential.grid.ymin

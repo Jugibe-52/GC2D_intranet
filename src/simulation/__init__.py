@@ -2,7 +2,7 @@
 
 from formulations.state import DoubleFormulation
 from contracts.dynamics.coordinates import StateLayout
-from dynamics.coordinates import PhysicalCoordinates
+from dynamics.coordinates import PhysicalCoordinates, GCCoordinates, FCCoordinates
 from methods.extended.maps import GCDoubledMaps, HarmonicCoupling, gc_coupling_matrix
 from methods.splitting import FCSplitMaps
 from methods import (
@@ -81,7 +81,7 @@ from solvers.nonlinear import NewtonSolver, BroydenSolver
 from methods.projection import ReducedProjection, SimultaneousProjection
 
 __all__ = [
-	"PhysicalCoordinates", "GCDoubledMaps", "FCSplitMaps", "HarmonicCoupling",
+	"PhysicalCoordinates", "GCCoordinates", "FCCoordinates", "GCDoubledMaps", "FCSplitMaps", "HarmonicCoupling",
 	'PalindromicMethod', 'PalindromicImplicit', 'PalindromicMidpoint', 'Composition', 'Operation', 'A', 'B', 'T', 'C',
 	"InitialConditions", "NewtonSolver", "BroydenSolver", "ReducedProjection", "SimultaneousProjection",
 	"DoubleFormulation",

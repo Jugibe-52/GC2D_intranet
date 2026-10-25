@@ -11,19 +11,21 @@ except ImportError as exc:
 		"Install with: python -m pip install -e '.[jax]'"
 	) from exc
 
-from dynamics.coordinates import PhysicalCoordinates
+from dynamics.coordinates import GCCoordinates, FCCoordinates
 
 
-class JaxPhysicalCoordinates(PhysicalCoordinates):
-	"""Reuse immutable physical layouts with JAX conversion and packing.
-
-	Import this module explicitly to load optional JAX. The array module is
-	fixed at class definition; names, roles and component operations are inherited.
-	"""
+class JaxGCCoordinates(GCCoordinates):
+	"""Fixed GC coordinates using JAX for all inherited array operations."""
 
 	__slots__ = ()
-
 	array_namespace: ClassVar[ModuleType] = jnp
 
 
-__all__ = ["JaxPhysicalCoordinates"]
+class JaxFCCoordinates(FCCoordinates):
+	"""Fixed FC coordinates using JAX for all inherited array operations."""
+
+	__slots__ = ()
+	array_namespace: ClassVar[ModuleType] = jnp
+
+
+__all__ = ["JaxGCCoordinates", "JaxFCCoordinates"]

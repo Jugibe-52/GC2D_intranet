@@ -154,11 +154,11 @@ are checked by `tests/test_package_layout.py`.
 mixed arrays, nested sequences and tracers, without device selection or eager
 JAX imports for generic formulation operations. Physical coordinate operations
 instead select an explicit library: `PhysicalCoordinates` uses NumPy and
-`dynamics.jax_coordinates.JaxPhysicalCoordinates` overrides only the
+`JaxGCCoordinates` and `JaxFCCoordinates` from `dynamics.jax_coordinates` override only the
 `array_namespace: ClassVar[ModuleType]` attribute with `jnp` instead of `np`.
 The module is selected at class definition, without a property or per-operation
 input inspection. JAX classes are imported from their explicit modules; base
-imports stay independent of JAX. Shared validation, names, roles and shapes
+imports stay independent of JAX. Shared validation, fixed conventions and shapes
 are unchanged.
 
 `dynamics.jax_dynamics.JaxGuidingCenterDynamics` and `JaxFullCyclotronDynamics`

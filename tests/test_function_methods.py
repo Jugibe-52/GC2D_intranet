@@ -5,7 +5,7 @@ import numpy as np
 from scipy.linalg import expm
 
 from contracts.methods.step import StepInfo
-from dynamics.coordinates import PhysicalCoordinates
+from tests.coordinate_fixtures import ThreeCoordinates
 from methods.classical.euler import ExplicitEuler
 from methods.classical.rk4 import RK4
 from methods.classical.gauss_legendre import GaussLegendre4
@@ -19,7 +19,7 @@ from states.initial import InitialConditions
 
 class FunctionMethodTests(unittest.TestCase):
 	def setUp(self):
-		self.initial = InitialConditions([1., -.2, .4], layout=PhysicalCoordinates(('a', 'b', 'c')))
+		self.initial = InitialConditions([1., -.2, .4], layout=ThreeCoordinates())
 		self.request = SimulationRequest((.15, .17), np.array([.15, .17]))
 		self.matrix = np.array([[-.4, .2, .1], [.3, -.5, .2], [-.1, .2, -.3]])
 

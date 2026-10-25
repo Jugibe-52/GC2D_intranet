@@ -6,6 +6,7 @@ from numbers import Integral
 from typing import Any
 import numpy as np
 from contracts.dynamics.coordinates import StateLayout
+from dynamics.coordinates import FCCoordinates
 from contracts.methods.maps import Projection
 
 
@@ -22,10 +23,9 @@ class FCSplitMaps:
 	coordinates: StateLayout
 
 	def __post_init__(self) -> None:
-		if (self.coordinates.component_names != ('x', 'y', 'vx', 'vy')
-				or self.coordinates.position_names != ('x', 'y')
-				or self.coordinates.velocity_names != ('vx', 'vy')):
-			raise TypeError('FC split maps require declared (x, y, vx, vy) coordinates.')
+		layout: StateLayout = self.coordinates.snapshot()
+		if type(layout) is not FCCoordinates:
+			raise TypeError('FCCoordinates are required for these physical maps.')
 		if isinstance(self.physical_size, bool) or not isinstance(self.physical_size, Integral) or self.physical_size <= 0 or self.physical_size % 4:
 			raise ValueError('FC maps require complete physical particle blocks.')
 		if not callable(self.cyclotron_flow) or not callable(self.electric_kick):

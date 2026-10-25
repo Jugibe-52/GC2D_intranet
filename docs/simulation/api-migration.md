@@ -207,9 +207,9 @@ their recorded grids.
 
 ## Physical coordinates and retired paths (2026-10-24)
 
-Dynamics declare immutable `PhysicalCoordinates(component_names, position_names=(), velocity_names=())` from `dynamics.coordinates`. GC declares `(x,y)`; FC declares `(x,y,vx,vy)`. Position and velocity roles are explicit. The structural protocol is `contracts.dynamics.coordinates.StateLayout`; external implementations require no inheritance.
+Dynamics declare `GCCoordinates()` for fixed `(x, y)` blocks or `FCCoordinates()` for fixed `(x, y, vx, vy)` blocks, from `dynamics.coordinates`. `PhysicalCoordinates` is a stateless base with common array operations; dimensions are fixed properties and no names or role-index fields are configured. `split()` returns an ordinary tuple. `JaxGCCoordinates` and `JaxFCCoordinates`, from `dynamics.jax_coordinates`, inherit their respective operations and only select `jnp` through `array_namespace`.
 
-`InitialValueProblem` takes the dynamics declaration or requires an explicit layout. It never infers a physical model from dimension 2 or 4. It checks dimension, component order and position/velocity roles, even for equally sized arrays. Initial conditions and results retain an immutable structural description and owned arrays, without retaining live dynamics or a potential. Generic packing, component views and role access support `(d*N,*samples)`, `(d,N,*samples)` and `(N,*samples)` using the explicitly selected array library. Only `JaxPhysicalCoordinates` supports JAX tracing; saved layouts remain structural NumPy snapshots. Incomplete blocks are rejected.
+`InitialValueProblem` takes the dynamics declaration or requires an explicit layout. It never infers a model from dimension. `StateLayout.snapshot()` explicitly supplies an immutable NumPy convention; `describe_coordinates` validates that snapshot and its dimension. Compatibility compares the snapshot class and equality, even for equally sized arrays. Initial conditions and results own their arrays and conventions without retaining live dynamics or a potential. Custom conventions derive from `PhysicalCoordinates` and implement fixed operations instead of role tables; external adapters may supply these snapshots without inheritance. Packing and views preserve `(d*N,*samples)`, `(d,N,*samples)` and `(N,*samples)`. The respective JAX classes support tracing; incomplete blocks are rejected.
 
 Built-in dynamics keep physical parameters immutable. A new problem is required for revised initial values. Saved numerical archives retain existing GC/FC schemas and can be interpreted without constructing dynamics or loading a field.
 
@@ -235,8 +235,8 @@ Methods retain only the supplied field, optional derivative and independent nume
 ## Explicit JAX physical coordinates (2026-10-25)
 
 `PhysicalCoordinates` now consistently uses NumPy. For direct JIT, vmap or
-automatic differentiation, use `dynamics.jax_coordinates.JaxPhysicalCoordinates`.
-The same shapes, names, roles and validation are inherited. `describe_coordinates`
+automatic differentiation, use `JaxGCCoordinates` and `JaxFCCoordinates` from `dynamics.jax_coordinates`.
+The same shapes, fixed conventions and validation are inherited. `describe_coordinates`
 continues producing a structural NumPy snapshot for initial conditions and results.
 
 Direct compiled GC/FC calls use `JaxGuidingCenterDynamics` or
@@ -248,3 +248,44 @@ are no longer the compiled interface. Normal `simulate` calls need no changes:
 without refitting splines or modifying the original objects. The old internal
 `dynamics._jax.JaxDynamics` route remains removed. Saved numerical archives and
 physical equations do not change. See the [examples](../dynamics/protocols.md).
+
+
+## Fixed GC/FC coordinate classes (2026-10-25)
+
+Replace configurable `PhysicalCoordinates(...)` with `GCCoordinates()` or
+`FCCoordinates()`. The respective JAX implementations are `JaxGCCoordinates()`
+and `JaxFCCoordinates()`; `JaxPhysicalCoordinates` is removed without an alias.
+
+```python
+from dynamics.coordinates import GCCoordinates, FCCoordinates
+from dynamics.jax_coordinates import JaxGCCoordinates, JaxFCCoordinates
+
+gc = GCCoordinates()
+fc = FCCoordinates()
+jax_gc = JaxGCCoordinates()
+jax_fc = JaxFCCoordinates()
+```
+
+The fixed orders are `(x, y)` and `(x, y, vx, vy)`. There are no constructor
+fields for dimension, names or indices. Dimension remains a read-only property.
+`PhysicalCoordinates` is an abstract, stateless base. Its common operations remain
+`split`, `pack_components`, `as_blocks`, `from_blocks` and `particle_count`.
+GC and FC implement positions directly; only FC supplies stored velocities.
+
+`CoordinateValues` and the three name fields are removed. The interim
+`position_indices` and `velocity_indices` fields are also removed. Use ordinary
+tuple unpacking or indexing instead of attributes such as `components.x`.
+
+The structural `StateLayout` contract now includes `snapshot()`, returning an
+immutable NumPy `PhysicalCoordinates` implementation. GC/FC snapshots preserve
+their explicit class, including from their JAX subclasses. External adapters
+provide that convention explicitly; custom coordinate classes implement their
+fixed dimension and accessors and use distinct snapshot classes for distinct
+conventions. Derive different physical conventions directly from the base;
+GC/FC subclasses inherit the same physical meaning and snapshot behavior.
+Methods may import shared coordinate types to validate their inputs, but never
+physical dynamics equations or objects.
+
+Existing GC/FC numerical archives retain their labels and schemas. Recreate old
+configured-object pickles; current coordinate, initial-condition, problem and
+result objects still support serialization. No saved arrays or units change.
