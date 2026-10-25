@@ -46,7 +46,7 @@ class CompiledStepContractTests(unittest.TestCase):
 
 	def prepare_kernel(self, run):
 		from execution._jax import resolve_device
-		from methods._jax_dispatch import prepare_step
+		from execution._jax_step import prepare_step
 		return prepare_step(run, resolve_device(self.execution))
 
 	def test_coordinator_accepts_an_independent_prepared_map(self) -> None:
@@ -66,7 +66,7 @@ class CompiledStepContractTests(unittest.TestCase):
 
 		run = self.prepare_run(RK4(step=0.1))
 		with patch.object(RK4, "new_run", return_value=run):
-			with patch("methods._jax_dispatch.prepare_step", return_value=ConstantDrift(self.jax.devices("cpu")[0])):
+			with patch("execution._jax_step.prepare_step", return_value=ConstantDrift(self.jax.devices("cpu")[0])):
 				data = Execution().run(self.problem, RK4(step=0.1), self.request, options=self.execution)
 		expected = self.problem.initial_state[:, None] + np.array([2., -1.])[:, None] * data.t
 		np.testing.assert_allclose(data.states, expected, rtol=0., atol=1e-15)
@@ -113,7 +113,7 @@ class CompiledStepContractTests(unittest.TestCase):
 			self.assertEqual(run._status, "running")
 			raise RuntimeError("Compiled step unavailable")
 		with patch.object(RK4, "new_run", return_value=run):
-			with patch("methods._jax_dispatch.prepare_step", side_effect=fail_preparation) as compile_step:
+			with patch("execution._jax_step.prepare_step", side_effect=fail_preparation) as compile_step:
 				with patch.object(States, "prepare") as allocate:
 					with self.assertRaisesRegex(RuntimeError, "Compiled step unavailable"):
 						Execution().run(self.problem, method, self.request, options=self.execution)
@@ -126,7 +126,7 @@ class CompiledStepContractTests(unittest.TestCase):
 		self.assertTrue(Execution().run(self.problem, method, self.request, options=self.execution).complete)
 
 	def test_prepared_controls_do_not_follow_mutable_method_options(self) -> None:
-		from methods._jax_dispatch import prepare_step
+		from execution._jax_step import prepare_step
 
 		run = self.prepare_run(GaussLegendre4(step=0.1))
 		kernel = self.prepare_kernel(run)
@@ -140,14 +140,14 @@ class CompiledStepContractTests(unittest.TestCase):
 	def test_runs_reuse_prepared_dynamics_and_bounded_compilation(self) -> None:
 		from execution._jax import prepare_dynamics
 		from execution._jax_fixed import _compiled_integrator
-		from methods._jax_dispatch import PreparedJaxStep, prepare_step
+		from execution._jax_step import PreparedStep, prepare_step
 
 		_compiled_integrator.cache_clear()
 		self.addCleanup(_compiled_integrator.cache_clear)
 		run = self.prepare_run(RK4(step=0.1))
 		kernel = self.prepare_kernel(run)
-		self.assertIsInstance(kernel, PreparedJaxStep)
-		assert isinstance(kernel, PreparedJaxStep)
+		self.assertIsInstance(kernel, PreparedStep)
+		assert isinstance(kernel, PreparedStep)
 		self.assertEqual(kernel.f, prepare_dynamics(self.problem.dynamics).vector_field)
 		self.assertFalse(hasattr(kernel, "dynamics"))
 		compiled = _compiled_integrator(kernel, None, None)
@@ -163,7 +163,7 @@ class CompiledStepContractTests(unittest.TestCase):
 		self.assertIsNot(_compiled_integrator(kernel, None, None), compiled)
 
 	def test_device_index_is_validated_before_compilation(self) -> None:
-		from methods._jax_dispatch import prepare_step
+		from execution._jax_step import prepare_step
 
 		execution = ExecutionOptions(backend="jax", device_index=len(self.jax.devices("cpu")))
 		run = self.prepare_run(RK4(step=0.1))

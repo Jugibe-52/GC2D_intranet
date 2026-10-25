@@ -115,11 +115,12 @@ callback. See the [shared callback and particle-solve contract](../../extended/s
 
 ## Compiled fixed-step contract
 
-Fixed-step methods inherit `IntegrationMethod` and declare `jax_mode="device_resident"`.
-The executor resolves the device and prepares the dynamics; a numerical family
-adapter binds the method's controls into `contracts.methods.compiled.CompiledStep`.
-The executor starts the shared `execution/_jax_fixed.py` loop, which knows no
-concrete numerical method. Each method retains its compiled stages and statistics.
+Fixed-step methods use the same `advance` implementation with NumPy or JAX
+arrays. They contain no JAX imports, backend declaration or alternate stages.
+Execution owns compatibility checks and device selection; `execution._jax_step`
+binds an isolated prepared method to `contracts.methods.compiled.CompiledStep`.
+Potential, dynamics and solvers own their internal `_as_jax()` preparation.
+The shared `execution/_jax_fixed.py` loop handles scheduling and sampling.
 See [JAX execution](../../../simulation/jax-execution.md).
 
 ## Potential evaluation boundary

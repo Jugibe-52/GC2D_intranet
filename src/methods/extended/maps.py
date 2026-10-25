@@ -5,26 +5,31 @@
 
 from __future__ import annotations
 from dataclasses import dataclass, field
-from functools import lru_cache
 from typing import Literal
 import numpy as np
+from typing import cast
+from contracts.arrays import BackendArray
+from types import ModuleType
+from contracts.arrays import array_namespace, checked_finite
 from contracts.dynamics.coordinates import StateLayout
 from dynamics.coordinates import GCCoordinates
 from contracts.methods.maps import Projection
 from contracts.methods.functions import JacobianStructure, VectorField
 from formulations.state import DoubleFormulation
 
-def spatial_shear(f: VectorField, time: float, target: np.ndarray,
-                  source: np.ndarray, duration: float) -> np.ndarray:
+def spatial_shear(f: VectorField, time: float, target: BackendArray,
+                  source: BackendArray, duration: float) -> BackendArray:
 	"""Update one spatial copy using the field at the other copy.
 
 	Both arrays use the same component-major physical layout. The method supplies
 	the signed duration and actual evaluation time; no auxiliary participates.
 	"""
-	derivative: np.ndarray = np.asarray(f(time, source), dtype=float)
-	if derivative.shape != source.shape or not np.all(np.isfinite(derivative)):
+	xp: ModuleType = array_namespace(source)
+	derivative: BackendArray = xp.asarray(f(time, source), dtype=float)
+	derivative = checked_finite(derivative, "The vector field changed shape or became non-finite.", ValueError)
+	if derivative.shape != source.shape:
 		raise ValueError("The vector field changed shape or became non-finite.")
-	return np.asarray(target + duration * derivative)
+	return cast(BackendArray, xp.asarray(target + duration * derivative))
 
 
 _COUPLING_BASE: 'np.ndarray' = np.asarray(
@@ -41,25 +46,25 @@ _COUPLING_SIN: 'np.ndarray' = np.asarray(
 )
 
 
-@lru_cache(maxsize=256)
-def _coupling_matrix(duration: float, frequency: float) -> np.ndarray:
+def _coupling_matrix(duration: float, frequency: float) -> BackendArray:
 	"""Return exact harmonic mixing for both duplicated GC copies."""
-	return np.asarray(
+	xp: ModuleType = array_namespace(duration)
+	return cast(BackendArray, xp.asarray(
 		(
 			_COUPLING_BASE
-			+ np.cos(2 * frequency * duration) * _COUPLING_COS
-			+ np.sin(2 * frequency * duration) * _COUPLING_SIN
+			+ xp.cos(2 * frequency * duration) * _COUPLING_COS
+			+ xp.sin(2 * frequency * duration) * _COUPLING_SIN
 		)
 		/ 2
-	)
+	))
 
 
-def gc_coupling_matrix(duration: float, frequency: float) -> np.ndarray:
+def gc_coupling_matrix(duration: float, frequency: float) -> BackendArray:
 	"""Return a safe copy of the exact doubled-GC coupling matrix."""
-	step: float = float(duration)
-	rate: float = float(frequency)
-	if not np.isfinite(step):
-		raise ValueError("`duration` must be finite.")
+	xp: ModuleType = array_namespace(duration)
+	step: float = duration
+	rate: float = frequency
+	step = checked_finite(step, "`duration` must be finite.")
 	if not np.isfinite(rate) or rate < 0.0:
 		raise ValueError("`frequency` must be finite and non-negative.")
 	return _coupling_matrix(step, rate).copy()
@@ -84,15 +89,16 @@ class HarmonicCoupling:
 			raise ValueError("`frequency` must be finite and non-negative.")
 		object.__setattr__(self, "frequency", rate)
 
-	def apply(self, state: np.ndarray, duration: float) -> np.ndarray:
+	def apply(self, state: BackendArray, duration: float) -> BackendArray:
 		"""Return the exact signed C flow without modifying the input array."""
-		value: np.ndarray = np.asarray(state, dtype=float)
-		if value.ndim != 1 or value.size == 0 or value.size % 4 or not np.all(np.isfinite(value)):
+		xp: ModuleType = array_namespace(state)
+		value: BackendArray = xp.asarray(state, dtype=float)
+		value = checked_finite(value, "C requires a finite doubled planar vector of length 4*N.", ValueError)
+		if value.ndim != 1 or value.size == 0 or value.size % 4:
 			raise ValueError("C requires a finite doubled planar vector of length 4*N.")
-		step: float = float(duration)
-		if not np.isfinite(step):
-			raise ValueError("`duration` must be finite.")
-		return np.asarray((_coupling_matrix(step, self.frequency) @ value.reshape(4, -1)).reshape(-1))
+		step: float = duration
+		step = checked_finite(step, "`duration` must be finite.")
+		return cast(BackendArray, xp.asarray((_coupling_matrix(step, self.frequency) @ value.reshape(4, -1)).reshape(-1)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,24 +134,25 @@ class GCDoubledMaps:
 		object.__setattr__(self, 'coupling_frequency', None if coupling is None else coupling.frequency)
 		object.__setattr__(self, 'particle_count', self.physical_size // layout.state_dimension)
 
-	def direct_map(self, duration: float, t: float, state: np.ndarray) -> np.ndarray:
+	def direct_map(self, duration: float, t: float, state: BackendArray) -> BackendArray:
 		"""Apply B, A and optional C, retaining the established arithmetic order."""
-		updated: np.ndarray = self.apply_spatial('B', duration, t, state)
+		updated: BackendArray = self.apply_spatial('B', duration, t, state)
 		updated = self.apply_spatial('A', duration, t, updated)
 		return updated if self.coupling is None else self.apply_spatial('C', duration, t, updated)
 
-	def adjoint_map(self, duration: float, t: float, state: np.ndarray) -> np.ndarray:
+	def adjoint_map(self, duration: float, t: float, state: BackendArray) -> BackendArray:
 		"""Apply optional C, A and B in the adjoint order."""
-		current: np.ndarray = state if self.coupling is None else self.apply_spatial('C', duration, t, state)
+		current: BackendArray = state if self.coupling is None else self.apply_spatial('C', duration, t, state)
 		current = self.apply_spatial('A', duration, t, current)
 		return self.apply_spatial('B', duration, t, current)
 
 	def apply_spatial(
-		self, operation: Literal['A', 'B', 'C'], duration: float, t: float, state: np.ndarray,
-	) -> np.ndarray:
+		self, operation: Literal['A', 'B', 'C'], duration: float, t: float, state: BackendArray,
+	) -> BackendArray:
 		"""Apply one signed spatial flow; the caller owns time translations."""
-		first: np.ndarray
-		second: np.ndarray
+		xp: ModuleType = array_namespace(state)
+		first: BackendArray
+		second: BackendArray
 		first, second = self.state_formulation.split_copies(state)
 		if operation == 'C':
 			if self.coupling is None:
@@ -157,21 +164,23 @@ class GCDoubledMaps:
 			second = spatial_shear(self.f, t, second, first, duration)
 		else:
 			raise ValueError('A spatial operation must be A, B or C.')
-		return np.asarray(self.state_formulation.join_copies(first, second))
+		return cast(BackendArray, xp.asarray(self.state_formulation.join_copies(first, second)))
 
-	def project_internal_state(self, state: np.ndarray) -> np.ndarray:
+	def project_internal_state(self, state: BackendArray) -> BackendArray:
 		"""Embed the mean of both physical copies back onto the diagonal."""
+		xp: ModuleType = array_namespace(state)
 		if not self.supports_stage_projection:
 			raise TypeError('These prepared maps do not permit stage projection.')
-		mean: np.ndarray = self.project(state)[0]
-		return np.asarray(self.state_formulation.join_copies(mean, mean))
+		mean: BackendArray = self.project(state)[0]
+		return cast(BackendArray, xp.asarray(self.state_formulation.join_copies(mean, mean)))
 
-	def project(self, internal_history: np.ndarray) -> Projection:
+	def project(self, internal_history: BackendArray) -> Projection:
 		"""Recover the physical mean without auxiliary state or diagnostics."""
-		first: np.ndarray
-		second: np.ndarray
+		xp: ModuleType = array_namespace(internal_history)
+		first: BackendArray
+		second: BackendArray
 		first, second = self.state_formulation.split_copies(internal_history)
-		return np.asarray((first + second) / 2), {}
+		return xp.asarray((first + second) / 2), {}
 
 
 __all__ = ['GCDoubledMaps', 'HarmonicCoupling', 'gc_coupling_matrix']

@@ -3,6 +3,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 import numpy as np
+from typing import cast
+from contracts.arrays import BackendArray
+from solvers.linear import solve_linear
+from types import ModuleType
+from contracts.arrays import array_namespace, checked_finite
 
 from methods.extended.maps import GCDoubledMaps
 from solvers.linear import _solve_particle_systems
@@ -21,50 +26,49 @@ if TYPE_CHECKING:
 
 def solve_projection(
     maps: GCDoubledMaps, recipe: Composition, solver: AlgebraicSolver,
-    formulation: ProjectionChoice, t: float, state: np.ndarray, h: float, *,
+    formulation: ProjectionChoice, t: float, state: BackendArray, h: float, *,
     jacobian_method: ResolvedJacobianMethod | None = None, observe: bool = False,
 ) -> ProjectedMapResult:
     """Assemble one exterior projection; the solver owns iteration and controls."""
-    value: np.ndarray = np.asarray(state, dtype=float)
-    if value.ndim != 1 or value.size != maps.physical_size or not np.all(np.isfinite(value)):
+    xp: ModuleType = array_namespace(state)
+    value: BackendArray = xp.asarray(state, dtype=float)
+    value = checked_finite(value, 'The projection requires a finite packed physical state.', ValueError)
+    if value.ndim != 1 or value.size != maps.physical_size:
         raise ValueError('The projection requires a finite packed physical state.')
     size = value.size
     equations: ProjectionFormulation = resolve_projection(formulation)
     tolerance: float = solver.tolerance(value)
-    context = f'{recipe.name} {equations.name} at t={t:.16g} with step={h:.16g}'
+    context = f'{recipe.name} {equations.name} at t={t} with step={h}'
     derivative = jacobian_method or ('analytic' if solver.jacobian_method == 'auto' and maps.jacobian is not None
                                     else 'finite_difference' if solver.jacobian_method == 'auto'
                                     else solver.jacobian_method)
 
-    def evaluate(unknown: np.ndarray) -> tuple[np.ndarray, CompositionTrace]:
+    def evaluate(unknown: BackendArray) -> tuple[BackendArray, CompositionTrace]:
         """Evaluate a spatial residual and retain that exact map's trace."""
         mu: Any = equations.multiplier(unknown, size)
-        candidate: np.ndarray = maps.state_formulation.join_copies(value + mu, value - mu)
+        candidate: BackendArray = maps.state_formulation.join_copies(value + mu, value - mu)
         trace: CompositionTrace = compose(maps, recipe, t, candidate, h)
         residual: Any = equations.residual(unknown, trace.state, size)
         return residual, trace
 
-    def newton_update(unknown: np.ndarray, residual: np.ndarray, trace: CompositionTrace) -> np.ndarray:
+    def newton_update(unknown: BackendArray, residual: BackendArray, trace: CompositionTrace) -> BackendArray:
         """Assemble the residual Jacobian from its complete-map derivative."""
         if derivative == 'analytic':
-            base: np.ndarray = composition_jacobian(maps, trace)
+            base: BackendArray = composition_jacobian(maps, trace)
         else:
             base = centered_difference(lambda candidate: compose(maps, recipe, t, candidate, h).state,
                                        trace.state_before, relative_step=solver.jacobian_relative_step)
         if derivative == 'analytic' and maps.jacobian_structure == 'particle':
             matrix: Any = equations.particle_jacobian(base)
-            rhs: np.ndarray = residual.reshape(-1, maps.particle_count).T
-            correction: np.ndarray = _solve_particle_systems(matrix, rhs,
+            rhs: BackendArray = residual.reshape(-1, maps.particle_count).T
+            correction: BackendArray = _solve_particle_systems(matrix, rhs,
                 singular_message=f'The projection Jacobian is singular for {context}.').T.reshape(-1)
         else:
             matrix = equations.dense_jacobian(base, size)
-            try:
-                correction = np.linalg.solve(matrix, residual)
-            except np.linalg.LinAlgError as exc:
-                raise RuntimeError(f'The projection Jacobian is singular for {context}.') from exc
-        return np.asarray(unknown - correction)
+            correction = solve_linear(matrix, residual, singular_message=f'The projection Jacobian is singular for {context}.')
+        return cast(BackendArray, xp.asarray(unknown - correction))
 
-    def initial_map(candidate: np.ndarray) -> tuple[np.ndarray, CompositionTrace]:
+    def initial_map(candidate: BackendArray) -> tuple[BackendArray, CompositionTrace]:
         trace: CompositionTrace = compose(maps, recipe, t, candidate, h)
         return trace.state, trace
 
@@ -84,4 +88,4 @@ def solve_projection(
     physical: Any = equations.reconstruct(result.unknown, result.payload.state, size)
     return ProjectedMapResult(t, h, value.copy(), physical, mu.copy(),
         SolveStats(solver.name, result.iterations, result.residual_evaluations,
-            float(np.linalg.norm(result.residual, ord=np.inf)), tolerance), result.payload)
+            xp.linalg.norm(result.residual, ord=np.inf), tolerance, result.converged), result.payload)

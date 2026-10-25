@@ -50,7 +50,7 @@ class BM4Implicit(ProjectedPalindromicMethod):
 			step_index=info.index, formulation_name='GCDoubledMaps', method_name=self.method_name)
 
 		def map_state(candidate: np.ndarray) -> np.ndarray:
-			return self.project(info.time, candidate, info.duration).state
+			return np.asarray(self.project(info.time, candidate, info.duration).state)
 
 		return ImplicitBM4IntegrationStep(
 			dynamics_name='', method_name=self.method_name,
@@ -60,7 +60,7 @@ class BM4Implicit(ProjectedPalindromicMethod):
 			newton_iterations=result.iterations, residual_evaluations=result.residual_evaluations,
 			newton_residual_norm=result.residual_norm, newton_tolerance=result.stats.tolerance,
 			projection_multiplier_norm=float(step.statistics['projection_multiplier_norms']), coupling_frequency=0.,
-			multiplier=result.multiplier.copy(), base_stages=base_stages,
+			multiplier=np.asarray(result.multiplier.copy()), base_stages=base_stages,
 		)
 
 

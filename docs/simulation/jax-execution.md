@@ -65,19 +65,26 @@ subclasses are rejected rather than silently replacing their equations.
 
 ## Nonlinear and projection contracts
 
-The device kernels reuse the canonical Gauss/SDIRK/HBVM tableaux, ABBA/BM4
-composition coefficients and GC coupling matrices. RK4 shares its actual stage
-and quadrature function with the CPU implementation. A common device Newton
-controller handles convergence, iteration limits and HBVM backtracking.
+All fixed routes call the same numerical `advance` functions, including stage
+assembly, compositions, residuals and quadrature. The methods use array-preserving
+operations; they do not import JAX or choose devices. `JaxNewtonSolver` and
+`JaxBroydenSolver` inherit ordinary solver controls and expose the same solve
+inputs. Their iteration loops and linear algebra run on the selected device.
 
-Newton solves exploit independent particle blocks. Analytic GC Jacobians use
-the potential Hessian; finite differences use the configured centered increment.
-A finite-difference probe perturbs the same component in every independent
-particle simultaneously. It obtains the diagonal particle blocks without
-forming an O(N²) finite-difference matrix. HBVM's field-evaluation counters count
-these actual batched calls, so its finite-difference call counts can be lower
-than the CPU implementation's per-global-column probes. The result records
-`finite_difference_batching="independent_particle_columns"` for that selection.
+Analytic derivatives retain declared independent particle blocks; dense
+functions retain cross-particle terms. Centered differences differentiate the
+same complete field or map on both routes, probing every global coordinate.
+JAX vectorizes these probes, recorded as
+`finite_difference_batching="vectorized_global_columns"`. HBVM counts the same
+logical field evaluations on both routes: five predictor calls, four calls per
+residual and, for differences, `8 * state_size` calls per correction. This
+replaces the former JAX-only simultaneous particle-column approximation, whose
+counts were lower for multiple particles. The derivative target, increment,
+accepted residual and physical equations are unchanged.
+
+These complete finite-difference matrices require O(N²) storage. Analytic
+declared particle derivatives keep the small independent linear systems,
+including both Legendre coefficients per particle in HBVM.
 
 Convergence is still global across the batch: tolerances use the original
 physical-state infinity norm, and particles share the original residual stopping
@@ -102,17 +109,21 @@ not universal bitwise equality or identical adaptive step grids.
 
 ## Lifecycle, callbacks and measurement
 
-Fixed methods inherit `IntegrationMethod` and declare `jax_mode="device_resident"`;
-adaptive methods declare `"hybrid_scipy_controller"`. The executor resolves the
-device and prepares shared GC/FC dynamics, then calls a typed family adapter in
-`methods._jax_dispatch`. The adapter binds numerical kernels and immutable controls;
-explicit, classical implicit and composition methods have separate option types.
-The coordinate class explicitly selects NumPy or JAX, so compiled kernels use
-the same inherited field, energy and analytic-Jacobian equations as NumPy. Device preparation belongs
-to execution. Arithmetic projection carries no nonlinear controls. Kernel selection
-is complete before tracing, with explicit rejection of unsupported subclass overrides.
+Execution selects the device and delegates physical conversion to
+`Potential._as_jax()` and dynamics `_as_jax()`. These methods reuse explicit JAX
+classes, immutable samples, fitted splines and the effective GC potential.
+Bounded identity caches reuse prepared components without changing their sources.
+Ordinary solvers prepare their optional JAX counterparts through `_as_jax()`;
+all tolerances and strategies come from the original configuration.
 
-The compiled worker receives `contracts.methods.compiled.CompiledStep`, which binds a physical map, explicit functions and numerical controls on the resolved device. Its call returns `(state, quadrature, statistics, valid)`. Execution owns the optional energy accumulator independently: it evaluates rates with `vmap` and reduces signed weighted stages in their original order with `lax.scan`, preserving the quadrature reduction scale. No host callback or complete stage history is required. `execution._jax_fixed` owns scheduling, sampling, convergence checks and bulk physical export. `Execution.run` owns recorder allocation, run status and finalization. Prepared maps snapshot controls; exact-type adapters reject unsupported method overrides before tracing.
+`execution._jax_step.prepare_step` snapshots a supported fixed method, prepares
+its solver, binds its residual closures and packages its ordinary `advance`
+result. It contains no stage equations or per-family kernels. The shared
+`NumericalMethod` contract requires no backend declaration. Compatibility checks
+reject unknown overrides before compilation. The retired method-owned dispatch,
+options and alternate JAX-step modules have no aliases.
+
+The compiled worker receives `contracts.methods.compiled.CompiledStep`, which binds a physical map, explicit functions and numerical controls on the resolved device. Its call returns `(state, quadrature, statistics, valid)`. Execution owns the optional energy accumulator independently: it evaluates rates with `vmap` and reduces signed weighted stages in their original order with `lax.scan`, preserving the quadrature reduction scale. No host callback or complete stage history is required. `execution._jax_fixed` owns scheduling, sampling, convergence checks and bulk physical export. `Execution.run` owns recorder allocation, run status and finalization. Prepared maps snapshot controls; exact-type compatibility checks reject unsupported method overrides before tracing.
 
 `IntegrationMethod.new_run` receives prepared `f`, independent initial data and an optional Jacobian; it retains no dynamics object, ExecutionOptions or energy functions. Configured instances remain reusable. The fixed driver uses `lax.scan` for accepted steps and independent shortened maps for off-grid output. A shortened energy sample starts from the same accepted left accumulator and never changes it. Only requested states, auxiliary samples and small accepted-step statistics are retained. Bounded caches reuse compatible compiled functions; `JaxPotential` reuses concrete device coefficients without refitting splines or persisting traced constants.
 

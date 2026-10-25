@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable, TypeAlias
 import numpy as np
+from contracts.arrays import BackendArray
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,7 +24,7 @@ class AdaptiveIntegrationStep:
 	time: float
 	duration: float
 	state_before: np.ndarray
-	state_after: np.ndarray
+	state_after: BackendArray
 	dense_state: Callable[[float | np.ndarray], np.ndarray] = field(repr=False, compare=False)
 	function_evaluations: int
 	jacobian_evaluations: int

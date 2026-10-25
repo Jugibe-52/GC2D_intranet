@@ -479,7 +479,7 @@ def coupled_bm4_stage_particle_jacobians(
 	before: np.ndarray = _doubled_particle_blocks(state_before, particle_count)
 	after: np.ndarray = _doubled_particle_blocks(state_after, particle_count)
 	duration: float = float(stage.duration)
-	coupling: np.ndarray = gc_coupling_matrix(duration, coupling_frequency)
+	coupling: np.ndarray = np.asarray(gc_coupling_matrix(duration, coupling_frequency))
 	identity: np.ndarray = np.broadcast_to(np.eye(2), (particle_count, 2, 2))
 
 	if stage.flow_name == "flow":

@@ -5,10 +5,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Any
 from dataclasses import dataclass, field
 import math
 
 import numpy as np
+from contracts.arrays import BackendArray
+from types import ModuleType
+from contracts.arrays import array_namespace, checked_finite, scan_arrays, select_array_branch
 
 from methods.extended.maps import GCDoubledMaps
 from methods.extended.core.operations import Operation, A, B, T, C
@@ -109,48 +113,66 @@ ABBA6: 'Composition' = Composition.from_direct_adjoint('ABBA6', tuple(float(c / 
 _BM4_HALF = (0.0792036964311957, 0.1303114101821663, 0.2228614958676077,
              -0.3667132690474257, 0.3246481886897062, 0.1096884778767498)
 BM4: 'Composition' = Composition.from_direct_adjoint('BM4', _BM4_HALF + _BM4_HALF[::-1])
-StageMap = Callable[[float, float, np.ndarray], np.ndarray]
+StageMap = Callable[[float, float, BackendArray], BackendArray]
 
 
 def compose(maps: GCDoubledMaps, recipe: Composition, t: float,
-            state: np.ndarray, h: float) -> CompositionTrace:
+            state: BackendArray, h: float) -> CompositionTrace:
 	"""Execute each operation once; only T changes the clock.
 
 	Retained spatial sources serve analytic tangents and passive quadrature.
 	Existing grouped stage records are reconstructed without replaying maps.
 	"""
-	initial: np.ndarray = np.asarray(state, dtype=float)
-	if initial.ndim != 1 or not initial.size or not np.all(np.isfinite(initial)):
+	xp: ModuleType = array_namespace(state)
+	initial: BackendArray = xp.asarray(state, dtype=float)
+	initial = checked_finite(initial, 'The doubled composition state must be a finite vector.', ValueError)
+	if initial.ndim != 1 or not initial.size:
 		raise ValueError('The doubled composition state must be a finite vector.')
-	if not np.isfinite(t) or not np.isfinite(h):
-		raise ValueError('Composition time and duration must be finite.')
+	t = checked_finite(t, 'Composition time and duration must be finite.')
+	h = checked_finite(h, 'Composition time and duration must be finite.')
 	if recipe.has_coupling and maps.coupling is None:
 		raise ValueError('A composition containing C requires a HarmonicCoupling.')
-	current: np.ndarray
-	clock: float
-	current, clock = initial, float(t)
-	operations: list[OperationStage] = []
-	for operation in recipe.operations:
-		duration: float = float(operation.coefficient * h)
-		source: np.ndarray | None = None
-		if operation.name == 'T':
-			after: np.ndarray = current
-		else:
-			if operation.name in ('A', 'B'):
-				source = current[maps.physical_size:] if operation.name == 'A' else current[:maps.physical_size]
-			after = maps.apply_spatial(operation.name, duration, clock, current)
-		if after.shape != initial.shape or not np.all(np.isfinite(after)):
+	# Encode only the existing recipe's operation names; both array routes
+	# execute this same ordered recurrence and retain its accepted sources.
+	codes: np.ndarray = np.asarray([('A', 'B', 'T', 'C').index(op.name) for op in recipe.operations])
+	durations: BackendArray = h * xp.asarray([op.coefficient for op in recipe.operations])
+	def apply(carry: Any, operation: Any) -> tuple[Any, Any]:
+		current: BackendArray
+		clock: Any
+		code: Any
+		duration: Any
+		current, clock = carry
+		code, duration = operation
+		after: BackendArray = select_array_branch(code, (
+			lambda: maps.apply_spatial('A', duration, clock, current),
+			lambda: maps.apply_spatial('B', duration, clock, current),
+			lambda: current,
+			lambda: current if maps.coupling is None else maps.apply_spatial('C', duration, clock, current),
+		))
+		after = checked_finite(after, 'A composition operation changed shape or became non-finite.')
+		if after.shape != initial.shape:
 			raise ValueError('A composition operation changed shape or became non-finite.')
-		record: OperationStage = OperationStage(operation.name, clock, duration, current, after,
-		                        source)
-		operations.append(record)
-		current, clock = after, record.end_time
-		if not np.isfinite(clock):
-			raise ValueError('The composition clock became non-finite.')
+		next_time: Any = select_array_branch(code, (
+			lambda: clock, lambda: clock, lambda: clock + duration, lambda: clock))
+		next_time = checked_finite(next_time, 'The composition clock became non-finite.')
+		source: BackendArray = xp.where(code == 0, current[maps.physical_size:], current[:maps.physical_size])
+		return (after, next_time), (clock, current, after, source)
+	accepted: Any
+	history: Any
+	accepted, history = scan_arrays(apply, (initial, t), (codes, durations))
+	current: BackendArray
+	clock: Any
+	current, clock = accepted
+	operations: list[OperationStage] = []
+	for index, operation in enumerate(recipe.operations):
+		before: BackendArray = history[1][index]
+		after: BackendArray = before if operation.name == 'T' else history[2][index]
+		source: BackendArray | None = history[3][index] if operation.name in ('A', 'B') else None
+		operations.append(OperationStage(operation.name, history[0][index], durations[index], before, after, source))
 	stages: list[MapStage] = []
 	for index, coefficient in enumerate(recipe.coefficients):
 		group = operations[index * recipe._group_size:(index + 1) * recipe._group_size]
-		quadrature: tuple[tuple[float, float, np.ndarray], ...] = tuple((op.time, op.duration, op.source) for op in group if op.source is not None)
+		quadrature: tuple[tuple[float, float, BackendArray], ...] = tuple((op.time, op.duration, op.source) for op in group if op.source is not None)
 		stages.append(MapStage(group[0].time, quadrature[0][0], coefficient * h,
 		                       index % 2 == 1, group[0].state_before, group[-1].state_after, quadrature))
 	return CompositionTrace(t, h, initial, current, tuple(stages), tuple(operations), clock)

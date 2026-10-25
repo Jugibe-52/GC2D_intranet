@@ -58,15 +58,15 @@ gc_field = jax.jit(gc.vector_field)(0.2, np.array([0.4, 0.5]))
 fc_field = jax.jit(fc.vector_field)(0.2, np.array([0.4, 0.5, 0.1, -0.2]))
 ```
 
-JAX simulation preparation constructs the explicit JAX subclasses and binds
-JAX potentials sharing existing samples and fitted splines, including the GC
-effective field. It neither repeats gyroaveraging nor modifies the source.
-Preparing an already compatible JAX object reuses it. Exact built-in types are
-supported; arbitrary subclass overrides remain rejected. Device selection,
-bounded preparation/compilation caches and the SciPy adaptive host adapter
-remain in execution. Base NumPy imports never load optional JAX. Initial data
-and saved `States` keep structural NumPy coordinate snapshots and unchanged
-component order. See the [potential contract](jax-potential-evaluation.md).
+JAX simulation preparation calls the dynamics' internal `_as_jax()` method.
+GC/FC prepare their own explicit subclasses and delegate potential conversion to
+`Potential._as_jax()`, sharing samples, fitted splines and the GC effective field.
+They neither repeat gyroaveraging nor modify the source. Already compatible JAX
+objects are reused; unknown subclass overrides are rejected. Each component
+bounds its preparation cache. Device selection, compilation caches and the SciPy
+adaptive host adapter remain in execution. Base NumPy imports never load optional
+JAX. Initial data and saved `States` retain structural NumPy snapshots and
+unchanged component order. See the [potential contract](jax-potential-evaluation.md).
 
 ## Physical layouts and problem ownership
 

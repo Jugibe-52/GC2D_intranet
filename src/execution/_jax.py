@@ -12,8 +12,6 @@ from dynamics.gc import GuidingCenterDynamics
 from dynamics.jax_dynamics import JaxFullCyclotronDynamics, JaxGuidingCenterDynamics
 from contracts.dynamics.protocols import DynamicalSystem, HamiltonianSystem
 from contracts.methods.base import NumericalMethod
-from potential.potential import Potential
-from potential.jax_potential import JaxPotential
 
 
 if TYPE_CHECKING:
@@ -67,48 +65,9 @@ def require_builtin_dynamics(dynamics: DynamicalSystem) -> GuidingCenterDynamics
 	raise TypeError("JAX execution requires built-in GuidingCenterDynamics or FullCyclotronDynamics, or their explicit JAX classes.")
 
 
-def _jax_potential(potential: Potential) -> JaxPotential:
-	"""Share immutable physical data and fitted splines without rebuilding them."""
-	if type(potential) is JaxPotential:
-		return potential
-	if type(potential) is not Potential:
-		raise TypeError("JAX execution requires a built-in Potential or JaxPotential; subclass overrides are not compiled.")
-	# Bypass construction only for the known base representation. Keep device
-	# caches local while sharing read-only samples and already fitted splines.
-	prepared: JaxPotential = object.__new__(JaxPotential)
-	prepared.__dict__.update(potential.__dict__)
-	prepared._jax_buffers = {}
-	return prepared
-
-
 def prepare_dynamics(dynamics: DynamicalSystem) -> JaxGuidingCenterDynamics | JaxFullCyclotronDynamics:
-	"""Validate the physical type before entering the identity-based cache."""
-	return _prepare_dynamics(require_builtin_dynamics(dynamics))
-
-
-@lru_cache(maxsize=16)
-def _prepare_dynamics(
-	physical: GuidingCenterDynamics | FullCyclotronDynamics,
-) -> JaxGuidingCenterDynamics | JaxFullCyclotronDynamics:
-	"""Bind shared GC/FC equations to JAX potentials without mutating the source."""
-	potential: JaxPotential = _jax_potential(physical.potential)
-	# Only the supported representation is copied. Calling the GC constructor
-	# again would repeat gyroaveraging and fit the effective field a second time.
-	prepared: JaxGuidingCenterDynamics | JaxFullCyclotronDynamics
-	if isinstance(physical, GuidingCenterDynamics):
-		effective: JaxPotential = potential if physical.effective_potential is physical.potential else _jax_potential(physical.effective_potential)
-		if isinstance(physical, JaxGuidingCenterDynamics) and potential is physical.potential and effective is physical.effective_potential:
-			return physical
-		prepared = object.__new__(JaxGuidingCenterDynamics)
-		prepared.__dict__.update(physical.__dict__)
-		object.__setattr__(prepared, "effective_potential", effective)
-	else:
-		if isinstance(physical, JaxFullCyclotronDynamics) and potential is physical.potential:
-			return physical
-		prepared = object.__new__(JaxFullCyclotronDynamics)
-		prepared.__dict__.update(physical.__dict__)
-	object.__setattr__(prepared, "potential", potential)
-	return prepared
+	"""Delegate physical preparation to the supported component itself."""
+	return require_builtin_dynamics(dynamics)._as_jax()
 
 
 class _HostGC:
@@ -167,14 +126,11 @@ def prepare_environment(
 	Fixed maps retain device-native equations. Adaptive SciPy solvers receive
 	the same equations through an explicit, cached host boundary.
 	"""
-	mode = method.jax_mode
-	if mode not in ("device_resident", "hybrid_scipy_controller"):
-		raise NotImplementedError(f"{type(method).__name__} does not provide JAX execution.")
+	from execution._jax_step import execution_mode
+	mode = execution_mode(method)
 	device: Device = resolve_device(options)
 	prepared: GuidingCenterDynamics | FullCyclotronDynamics = prepare_dynamics(dynamics)
 	if mode == "hybrid_scipy_controller":
-		from methods._jax_dispatch import validate_hybrid_method
-		validate_hybrid_method(method)
 		return bind_host_dynamics(prepared, device), device
 	return prepared, device
 

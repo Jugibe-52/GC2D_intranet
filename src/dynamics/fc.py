@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any, ClassVar, TYPE_CHECKING
 
 import numpy as np
@@ -14,6 +15,7 @@ from ._equations import fc_velocity, fc_hamiltonian
 
 
 if TYPE_CHECKING:
+	from dynamics.jax_dynamics import JaxFullCyclotronDynamics
 	from contracts.arrays import BackendArray
 	from types import ModuleType
 
@@ -41,6 +43,20 @@ class FullCyclotronDynamics:
 	potential: Potential
 	rho: float
 	eta: float
+
+	@lru_cache(maxsize=16)
+	def _as_jax(self) -> JaxFullCyclotronDynamics:
+		"""Prepare physical components once without rebuilding or mutating them."""
+		from dynamics.jax_dynamics import JaxFullCyclotronDynamics
+		if type(self) not in (FullCyclotronDynamics, JaxFullCyclotronDynamics):
+			raise TypeError("JAX preparation requires built-in dynamics; subclass overrides are not compiled.")
+		potential: Potential = self.potential._as_jax()
+		if type(self) is JaxFullCyclotronDynamics and potential is self.potential:
+			return self
+		prepared: JaxFullCyclotronDynamics = object.__new__(JaxFullCyclotronDynamics)
+		prepared.__dict__.update(self.__dict__)
+		object.__setattr__(prepared, "potential", potential)
+		return prepared
 
 	def __init__(self, potential: Potential, *, rho: float, eta: float) -> None:
 		"""Create FC dynamics with finite, non-zero ``rho`` and ``eta``."""

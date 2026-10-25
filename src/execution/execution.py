@@ -18,6 +18,7 @@ from execution._host import run_steps
 from request import SimulationRequest
 from states.history import States
 from methods.base import IntegrationMethod
+from methods.adaptive.scipy import _AdaptiveMethod
 from contracts.methods.base import NumericalMethod
 
 
@@ -98,7 +99,8 @@ def _prepare_backend(
 	mode = "unsupported"
 	if options.backend == "jax":
 		from execution._jax import prepare_environment
-		mode = method.jax_mode
+		from execution._jax_step import execution_mode
+		mode = execution_mode(method)
 		prepared_dynamics, device = prepare_environment(dynamics, method, options)
 		metadata.update(execution_mode=mode, execution_device_kind=str(device.device_kind))
 		if mode == "hybrid_scipy_controller":
@@ -140,7 +142,7 @@ def _prepare_numerical_run(
 	structure: JacobianStructure = "dense"
 	# Adaptive defaults retain SciPy's own derivative approximation; fixed
 	# algorithms receive the available independent-particle derivative once.
-	if method.jax_mode != "hybrid_scipy_controller" and isinstance(prepared_dynamics, GuidingCenterJacobianSystem):
+	if not isinstance(method, _AdaptiveMethod) and isinstance(prepared_dynamics, GuidingCenterJacobianSystem):
 		jacobian, structure = prepared_dynamics.particle_vector_field_jacobians, "particle"
 	numerical_run: IntegrationMethod[Any] = method.new_run(
 		prepared_dynamics.vector_field, problem.initial_conditions, request,
@@ -153,7 +155,7 @@ def _prepare_numerical_run(
 	}
 	if track_energy:
 		metadata.update(energy_observer="EnergyObserver", energy_accumulator_owner="observer")
-	if method.jax_mode == "hybrid_scipy_controller":
+	if isinstance(method, _AdaptiveMethod):
 		metadata["energy_quadrature_nodes"] = 8 if track_energy else 0
 	if not isinstance(numerical_run, IntegrationMethod) or numerical_run._status != "ready":
 		raise TypeError("Method preparation must return a fresh ready IntegrationMethod.")
@@ -167,7 +169,7 @@ def _prepare_compiled_step(
 	"""Prepare a device-resident step or leave advancement to the host controller."""
 	if mode != "device_resident":
 		return None
-	from methods._jax_dispatch import prepare_step
+	from execution._jax_step import prepare_step
 	if (callbacks or numerical_run.progress
 			or getattr(getattr(numerical_run, "solver", None), "iteration_observer", None) is not None):
 		raise NotImplementedError(

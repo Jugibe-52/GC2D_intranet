@@ -10,6 +10,7 @@ from collections.abc import Callable
 from typing import Any, Literal, TypeAlias
 
 import numpy as np
+from contracts.arrays import BackendArray
 
 from contracts.methods.extended.abba import (
 	ABBA2ImplicitIntegrationStep,
@@ -53,11 +54,11 @@ def abba_pairs(trace: CompositionTrace) -> tuple[PhysicalBaseMapTrace, ...]:
         size = first.state_before.size // 2
         u0: np.ndarray
         v0: np.ndarray
-        u0, v0 = first.state_before[:size], first.state_before[size:]
+        u0, v0 = np.asarray(first.state_before[:size]), np.asarray(first.state_before[size:])
         uf: np.ndarray
         vf: np.ndarray
-        uf, vf = last.state_after[:size], last.state_after[size:]
-        stages: _ABBAStages = _ABBAStages(u0, v0, first.quadrature_points[1][2], vf, uf, uf - vf)
+        uf, vf = np.asarray(last.state_after[:size]), np.asarray(last.state_after[size:])
+        stages: _ABBAStages = _ABBAStages(u0, v0, np.asarray(first.quadrature_points[1][2]), vf, uf, uf - vf)
         pairs.append(PhysicalBaseMapTrace(first.start_time, first.duration + last.duration, stages))
     return tuple(pairs)
 
@@ -96,15 +97,15 @@ def bind_event_builder(
 		stages = abba_pairs(trace)[0].stages
 
 		def map_state(candidate: np.ndarray) -> np.ndarray:
-			return project(projection.start_time, candidate, projection.duration).state
+			return np.asarray(project(projection.start_time, candidate, projection.duration).state)
 
 		return ABBA2ImplicitIntegrationStep(
 			dynamics_name='', method_name=method_name,
 			step_index=step_index, start_time=projection.start_time,
 			time=projection.start_time + projection.duration, duration=projection.duration,
-			state_before=projection.state_before.copy(), state_after=projection.state.copy(),
+			state_before=np.asarray(projection.state_before.copy()), state_after=projection.state.copy(),
 			map_state=map_state, formulation_name=formulation,
-			multiplier=projection.multiplier.copy(),
+			multiplier=np.asarray(projection.multiplier.copy()),
 			u_initial=stages.u_initial.copy(), v_initial=stages.v_initial.copy(),
 			u_first=stages.u_first.copy(), v_final=stages.v_final.copy(),
 			u_final=stages.u_final.copy(), **_solve_fields(projection),
@@ -117,12 +118,12 @@ def bind_event_builder(
 			return physical_single(result, step_index)
 
 		def map_state(candidate: np.ndarray) -> np.ndarray:
-			return project(t, candidate, h).state
+			return np.asarray(project(t, candidate, h).state)
 
 		fields: dict[str, Any] = dict(
 			dynamics_name='', method_name=method_name,
 			step_index=step_index, start_time=t, time=t + h, duration=h,
-			state_before=state_before.copy(),
+			state_before=np.asarray(state_before.copy()),
 			state_after=result.state.copy(),
 			map_state=map_state,  formulation_name=formulation,
 			**_solve_fields(result),
@@ -140,7 +141,7 @@ def bind_event_builder(
 		)
 		event_type = ABBA4ImplicitIntegrationStep if order == 4 else ABBA6ImplicitIntegrationStep
 		return event_type(
-			**fields, multiplier=result.multiplier.copy(),
+			**fields, multiplier=np.asarray(result.multiplier.copy()),
 			composition_coefficients=np.asarray(coefficients), substeps=substeps,
 		)
 
@@ -157,8 +158,8 @@ def stage_events(
 ) -> tuple[IntegrationStage, ...]:
     """Copy accepted stage records without replaying the numerical composition."""
     events: list[IntegrationStage] = []
-    direct: Callable[[float, float, np.ndarray], np.ndarray]
-    adjoint: Callable[[float, float, np.ndarray], np.ndarray]
+    direct: Callable[[float, float, BackendArray], BackendArray]
+    adjoint: Callable[[float, float, BackendArray], BackendArray]
     direct, adjoint = stage_maps or (prepared.direct_map, prepared.adjoint_map)
     for index, stage in enumerate(trace.stages):
         mapper = direct if stage.direct else adjoint
@@ -167,13 +168,13 @@ def stage_events(
         def map_state(candidate: np.ndarray, _map: StageMap = mapper,
                       _duration: float = stage.duration, _time: float = stage.time) -> np.ndarray:
             """Freeze the signed stage for delayed diagnostic evaluation."""
-            return _map(_duration, _time, candidate)
+            return np.asarray(_map(_duration, _time, candidate))
 
         events.append(IntegrationStage(
             dynamics_name='', formulation_name=formulation_name,
             method_name=method_name, flow_name=flow, step_index=step_index,
             stage_index=index, time=stage.time, duration=stage.duration,
-            state_before=stage.state_before.copy(), state_after=stage.state_after.copy(),
+            state_before=np.asarray(stage.state_before.copy()), state_after=stage.state_after.copy(),
             map_state=map_state,
         ))
     return tuple(events)

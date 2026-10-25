@@ -4,14 +4,15 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar
 from contracts.methods.quadrature import QuadratureData
 
 import numpy as np
+from contracts.arrays import BackendArray
 
 
 Detail = TypeVar("Detail")
-StepValue = np.ndarray | float | int
+StepValue = BackendArray | float | int
 
 
 @dataclass(frozen=True, slots=True)
@@ -22,10 +23,11 @@ class StepResult(Generic[Detail]):
 	to that method and is never interpreted or retained by States.
 	"""
 
-	state: np.ndarray
+	state: BackendArray
 	statistics: Mapping[str, StepValue]
 	details: Detail
 	quadrature: QuadratureData | None = None
+	converged: Any = True
 
 
 @dataclass(frozen=True, slots=True)

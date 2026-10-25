@@ -82,3 +82,15 @@ installed project, NumPy, or plotting packages. Frozen study snapshots retain
 their historical source and are not migrated in place.
 
 Map and projection contracts belong to `contracts.methods`; `StateLayout` belongs to `contracts.dynamics.coordinates`.
+
+## Shared numerical arrays
+
+`NumericalMethod` requires numerical preparation, without a backend declaration.
+`StepResult` carries native physical arrays, work, quadrature and convergence.
+`contracts.arrays` selects compatible array operations and preserves finite-value
+guards while tracing; it does not choose a device or physical algorithm.
+Execution registers numerical payload records at its optional JAX boundary and
+compiles the same fixed `advance` function. Host observation adapters and saved
+results retain NumPy arrays. See [JAX execution](jax-execution.md).
+
+Native mapping, ordered folds and branch selection also share numerical functions without unrolling long compositions during compilation.

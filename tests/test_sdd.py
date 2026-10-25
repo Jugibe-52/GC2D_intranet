@@ -98,22 +98,25 @@ class SDDTests(unittest.TestCase):
 	def errors(self) -> str:
 		return "\n".join(Checker(self.root).run())
 
-	def test_retired_coordinates_resolve_only_in_history_to_existing_source(self) -> None:
-		self.change["sources"] = ["src/formulations/layout.py"]
-		self.save_change()
-		self.assertIn("missing or external file", self.errors())
-		destination = self.root / "src/dynamics/coordinates.py"
-		destination.parent.mkdir()
-		destination.write_text("# Current structural coordinate owner.\n")
-		self.assertEqual(self.errors(), "")
-		self.spec["sources"] = ["src/formulations/layout.py"]
-		self.save_spec()
-		self.assertIn("specs/current/sample.md: sources: missing", self.errors())
-		self.spec["sources"] = ["src/sample.py"]
-		self.save_spec()
-		self.change["sources"] = ["src/unknown.py"]
-		self.save_change()
-		self.assertIn("missing or external file", self.errors())
+	def test_retired_sources_resolve_only_in_history_to_existing_source(self) -> None:
+		for old, new in (("src/formulations/layout.py", "src/dynamics/coordinates.py"),
+		                 ("src/methods/_jax_dispatch.py", "src/execution/_jax_step.py")):
+			with self.subTest(source=old):
+				self.change["sources"] = [old]
+				self.save_change()
+				self.assertIn("missing or external file", self.errors())
+				destination = self.root / new
+				destination.parent.mkdir(exist_ok=True)
+				destination.write_text("# Current responsibility owner.\n")
+				self.assertEqual(self.errors(), "")
+				self.spec["sources"] = [old]
+				self.save_spec()
+				self.assertIn("specs/current/sample.md: sources: missing", self.errors())
+				self.spec["sources"] = ["src/sample.py"]
+				self.save_spec()
+				self.change["sources"] = ["src/unknown.py"]
+				self.save_change()
+				self.assertIn("missing or external file", self.errors())
 
 	def save_plain_change(self) -> Path:
 		"""Prepare a new change alongside an older one in the same repository."""

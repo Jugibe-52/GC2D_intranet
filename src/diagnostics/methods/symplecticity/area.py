@@ -197,7 +197,7 @@ class GCAreaSymplecticityObserver:
 			raise ValueError("Numerical steps must be observed consecutively.")
 
 		state_before: np.ndarray = self._validated_state(step.state_before)
-		state_after: np.ndarray = self._validated_state(step.state_after)
+		state_after: np.ndarray = self._validated_state(np.asarray(step.state_after))
 		if not self._initialized:
 			if not np.allclose(
 				state_before,

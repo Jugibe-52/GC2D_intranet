@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any, ClassVar, TYPE_CHECKING
 
 import numpy as np
@@ -14,6 +15,7 @@ from ._equations import gc_velocity
 
 
 if TYPE_CHECKING:
+	from dynamics.jax_dynamics import JaxGuidingCenterDynamics
 	from contracts.arrays import BackendArray
 	from types import ModuleType
 
@@ -42,6 +44,22 @@ class GuidingCenterDynamics:
 	rho: float
 	B: float
 	effective_potential: Potential
+
+	@lru_cache(maxsize=16)
+	def _as_jax(self) -> JaxGuidingCenterDynamics:
+		"""Prepare physical components once without rebuilding or mutating them."""
+		from dynamics.jax_dynamics import JaxGuidingCenterDynamics
+		if type(self) not in (GuidingCenterDynamics, JaxGuidingCenterDynamics):
+			raise TypeError("JAX preparation requires built-in dynamics; subclass overrides are not compiled.")
+		potential: Potential = self.potential._as_jax()
+		effective: Potential = self.effective_potential._as_jax()
+		if type(self) is JaxGuidingCenterDynamics and potential is self.potential and effective is self.effective_potential:
+			return self
+		prepared: JaxGuidingCenterDynamics = object.__new__(JaxGuidingCenterDynamics)
+		prepared.__dict__.update(self.__dict__)
+		object.__setattr__(prepared, "potential", potential)
+		object.__setattr__(prepared, "effective_potential", effective)
+		return prepared
 
 	def __init__(self, potential: Potential, *, rho: float = 0.0, B: float = 1.0) -> None:
 		"""Create GC dynamics for a runtime Larmor radius and signed magnetic field."""

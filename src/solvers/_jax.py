@@ -1,8 +1,6 @@
-"""Optional device-side nonlinear control and independent particle Jacobians."""
+"""Optional device-side nonlinear iteration with shared solver controls."""
 
-from typing import Any, Callable, NamedTuple, Literal
-from dataclasses import dataclass
-from solvers.nonlinear import NewtonSolver, BroydenSolver
+from typing import Any, Callable, NamedTuple
 
 import jax
 import jax.numpy as jnp
@@ -27,7 +25,8 @@ def infinity_norm(value: Any) -> Any:
 
 def newton(residual: Callable[..., Any], initial: Any, correction: Callable[..., Any],
            tolerance: Any, limit: int, *, norm: Callable[..., Any] = infinity_norm,
-           backtracking: bool = False, initial_evaluation: Any = None) -> Root:
+           backtracking: bool = False, initial_evaluation: Any = None,
+           update_returns_correction: bool = True) -> Root:
     """Full Newton with the CPU stopping rule and optional HBVM backtracking.
 
     Controls are global across the particle batch. Only linear algebra is
@@ -52,8 +51,9 @@ def newton(residual: Callable[..., Any], initial: Any, correction: Callable[...,
         iteration: jax.Array
         evaluations: jax.Array
         u, r, payload, iteration, evaluations = carry
-        delta: jax.Array = correction(u, r, payload)
-        candidate: jax.Array = u + delta
+        proposal: jax.Array = correction(u, r, payload)
+        delta: jax.Array = proposal if update_returns_correction else proposal - u
+        candidate: jax.Array = u + delta if update_returns_correction or backtracking else proposal
         new_r: jax.Array
         new_payload: Any
         new_r, new_payload = residual(candidate)
@@ -134,57 +134,12 @@ def broyden(residual: Callable[..., Any], initial: Any, matrix: Any,
     iterations: jax.Array
     valid: jax.Array
     u, r, p, _, iterations, valid = jax.lax.while_loop(
-        active, update, (initial, r, payload, matrix, jnp.array(0), jnp.all(jnp.isfinite(r))))
+        active, update, (initial, r, payload, matrix, jnp.array(0),
+                         jnp.all(jnp.isfinite(r)) & jnp.all(jnp.isfinite(initial))
+                         & jnp.all(jnp.isfinite(matrix))))
     size: jax.Array = infinity_norm(r)
     return Root(u, r, p, iterations, iterations + 1, size, valid & (size <= tolerance))
 
 
-def particle_finite_difference(function: Callable[..., Any], state: Any,
-                               components: int, relative_step: float) -> Any:
-    """Differentiate independent particle maps with simultaneous column probes.
-
-    Packed state is (components*N,). Each probe perturbs the same coordinate
-    of every particle; independence makes the resulting (N,d,d) blocks exact
-    counterparts of the CPU's full finite-difference matrix diagonal blocks.
-    """
-    blocks: jax.Array = state.reshape(components, -1)
-    columns = []
-    for column in range(components):
-        delta = relative_step * jnp.maximum(1., jnp.abs(blocks[column]))
-        perturbation: jax.Array = jnp.zeros_like(blocks).at[column].set(delta).reshape(-1)
-        derivative: jax.Array = (function(state + perturbation) - function(state - perturbation)).reshape(components, -1)
-        columns.append((derivative / (2 * delta)).T)
-    return jnp.stack(columns, axis=-1)
-
-
-def solve_particle_blocks(matrix: Any, residual: Any) -> Any:
-    """Solve (N,d,d) systems, retaining component-major residual packing."""
-    count = matrix.shape[0]
-    rhs = residual.reshape(-1, count).T
-    return jnp.linalg.solve(matrix, rhs[..., None])[..., 0].T.reshape(residual.shape)
-
 
 __all__: list[str] = []
-
-
-@dataclass(frozen=True)
-class NonlinearOptions:
-	"""Stopping and Jacobian controls for one physical nonlinear problem."""
-
-	atol: float
-	rtol: float
-	max_iterations: int
-	jacobian: Literal["analytic", "finite_difference"]
-	relative_step: float
-	solver: Literal["newton", "broyden"]
-	backtracking: bool
-
-	@classmethod
-	def from_solver(cls, solver: NewtonSolver | BroydenSolver, jacobian: Literal["analytic", "finite_difference"]) -> "NonlinearOptions":
-		"""Derive compiled controls without a second set of defaults or validation."""
-		return cls(solver.absolute_tolerance, solver.relative_tolerance, solver.max_iterations,
-			jacobian, solver.jacobian_relative_step, solver.name, solver.backtracking)
-
-	def tolerance(self, state: Any) -> Any:
-		"""Preserve the CPU's global physical-state infinity-norm scaling."""
-		return self.atol + self.rtol * jnp.maximum(1., jnp.max(jnp.abs(state)))

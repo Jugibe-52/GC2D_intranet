@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal, Protocol, TYPE_CHECKING, runtime_checkable
+from typing import Any, Protocol, TYPE_CHECKING, runtime_checkable
 from contracts.methods.functions import JacobianStructure, VectorField
 if TYPE_CHECKING:
 	from methods.base import IntegrationMethod
@@ -13,9 +13,6 @@ if TYPE_CHECKING:
 @runtime_checkable
 class NumericalMethod(Protocol):
 	"""Prepare an isolated numerical run without exposing physical dynamics."""
-
-	@property
-	def jax_mode(self) -> Literal["unsupported", "device_resident", "hybrid_scipy_controller"]: ...
 
 	def new_run(
 		self, f: VectorField, initial_conditions: InitialConditions, request: SimulationRequest,

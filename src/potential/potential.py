@@ -14,6 +14,8 @@ gyroaveraging independent of the evaluation time.
 
 from __future__ import annotations
 
+from functools import lru_cache
+
 from collections.abc import Sequence
 from os import PathLike
 from functools import cached_property
@@ -144,6 +146,19 @@ class Potential:
 	rate per mode. A missing mean is normalized to a zero array and missing modes
 	to an empty collection, giving every instance the same internal structure.
 	"""
+
+	@lru_cache(maxsize=16)
+	def _as_jax(self) -> "JaxPotential":
+		"""Share immutable samples and fitted splines, with an isolated device cache."""
+		from potential.jax_potential import JaxPotential
+		if type(self) is JaxPotential:
+			return self
+		if type(self) is not Potential:
+			raise TypeError("JAX preparation requires a built-in Potential; subclass overrides are not compiled.")
+		prepared: JaxPotential = object.__new__(JaxPotential)
+		prepared.__dict__.update(self.__dict__)
+		prepared._jax_buffers = {}
+		return prepared
 
 	def __init__(
 		self,
@@ -394,3 +409,6 @@ class Potential:
 
 
 __all__ = ["Potential"]
+
+if TYPE_CHECKING:
+	from potential.jax_potential import JaxPotential

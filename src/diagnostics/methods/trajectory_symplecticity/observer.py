@@ -216,7 +216,7 @@ class GCTrajectorySymplecticityObserver:
 	) -> tuple[np.ndarray, np.ndarray]:
 		"""Read finite physical states and require continuity with the previous step."""
 		state_before: np.ndarray = self._validated_state(step.state_before)
-		state_after: np.ndarray = self._validated_state(step.state_after)
+		state_after: np.ndarray = self._validated_state(np.asarray(step.state_after))
 		if not np.array_equal(state_before, self._last_state):
 			raise ValueError("Observed complete-step states are not continuous.")
 		if self._last_time is not None:

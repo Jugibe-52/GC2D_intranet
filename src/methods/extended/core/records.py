@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
+from contracts.arrays import BackendArray
+from types import ModuleType
+from contracts.arrays import array_namespace, checked_finite
 
 from solvers.nonlinear import SolveStats
 from contracts.methods.quadrature import StageQuadrature
 
-QuadraturePoint = tuple[float, float, np.ndarray]
+QuadraturePoint = tuple[float, float, BackendArray]
 from methods.extended.core.operations import OperationName
 
 
@@ -19,10 +23,10 @@ class OperationStage:
 
     operation: OperationName
     time: float
-    duration: float
-    state_before: np.ndarray
-    state_after: np.ndarray
-    source: np.ndarray | None
+    duration: Any
+    state_before: BackendArray
+    state_after: BackendArray
+    source: BackendArray | None
 
     @property
     def end_time(self) -> float:
@@ -35,10 +39,10 @@ class MapStage:
 
     start_time: float
     time: float
-    duration: float
+    duration: Any
     direct: bool
-    state_before: np.ndarray
-    state_after: np.ndarray
+    state_before: BackendArray
+    state_after: BackendArray
     quadrature_points: tuple[QuadraturePoint, ...]
 
 
@@ -47,9 +51,9 @@ class CompositionTrace:
     """Numerical trace reused by projection, differentiation and passive energy."""
 
     start_time: float
-    duration: float
-    state_before: np.ndarray
-    state: np.ndarray
+    duration: Any
+    state_before: BackendArray
+    state: BackendArray
     stages: tuple[MapStage, ...]
     operations: tuple[OperationStage, ...]
     time: float
@@ -73,19 +77,19 @@ class ProjectedMapResult:
     """One accepted projection, shared by ABBA and BM4."""
 
     start_time: float
-    duration: float
-    state_before: np.ndarray
-    state: np.ndarray
-    multiplier: np.ndarray
+    duration: Any
+    state_before: BackendArray
+    state: BackendArray
+    multiplier: BackendArray
     stats: SolveStats
     trace: CompositionTrace
 
     @property
-    def internal_input(self) -> np.ndarray:
+    def internal_input(self) -> BackendArray:
         return self.trace.state_before
 
     @property
-    def mapped(self) -> np.ndarray:
+    def mapped(self) -> BackendArray:
         return self.trace.state
 
     @property
@@ -101,11 +105,12 @@ class ProjectedMapResult:
         return self.stats.residual_norm
 
 
-def step_statistics(result: ProjectedMapResult, *, include_substeps: bool) -> dict[str, np.ndarray | float | int]:
+def step_statistics(result: ProjectedMapResult, *, include_substeps: bool) -> dict[str, BackendArray | float | int]:
 	"""Extract the single outer solve's metrics without building observer events."""
+	xp: ModuleType = array_namespace(result.state)
 	stats = result.stats
-	multiplier_norm: float = float(np.linalg.norm(result.multiplier, ord=np.inf))
-	metrics: dict[str, np.ndarray | float | int] = {
+	multiplier_norm: float = xp.linalg.norm(result.multiplier, ord=np.inf)
+	metrics: dict[str, BackendArray | float | int] = {
 		"nonlinear_iterations": stats.iterations,
 		"residual_evaluations": stats.residual_evaluations,
 		"nonlinear_residual_norms": stats.residual_norm,
@@ -116,11 +121,11 @@ def step_statistics(result: ProjectedMapResult, *, include_substeps: bool) -> di
 		# Preserve the published one-column histories for ABBA4 and ABBA6.
 		# Their unprojected stage pairs do not represent additional solves.
 		metrics.update({
-			"substep_nonlinear_iterations": np.asarray([stats.iterations], dtype=int),
-			"substep_residual_evaluations": np.asarray([stats.residual_evaluations], dtype=int),
-			"substep_nonlinear_residual_norms": np.asarray([stats.residual_norm], dtype=float),
-			"substep_nonlinear_tolerances": np.asarray([stats.tolerance], dtype=float),
-			"substep_projection_multiplier_norms": np.asarray([multiplier_norm]),
+			"substep_nonlinear_iterations": xp.asarray([stats.iterations], dtype=int),
+			"substep_residual_evaluations": xp.asarray([stats.residual_evaluations], dtype=int),
+			"substep_nonlinear_residual_norms": xp.asarray([stats.residual_norm], dtype=float),
+			"substep_nonlinear_tolerances": xp.asarray([stats.tolerance], dtype=float),
+			"substep_projection_multiplier_norms": xp.asarray([multiplier_norm]),
 		})
 	return metrics
 

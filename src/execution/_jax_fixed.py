@@ -160,7 +160,7 @@ def run_steps(method: "IntegrationMethod[Any]", kernel: CompiledStep,
     diagnostics.update(statistics)
     diagnostics.update(auxiliary)
     if kernel.finite_difference:
-        diagnostics['finite_difference_batching'] = 'independent_particle_columns'
+        diagnostics['finite_difference_batching'] = 'vectorized_global_columns'
     saved.record_history(history)
     return diagnostics
 

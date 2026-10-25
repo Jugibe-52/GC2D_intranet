@@ -210,7 +210,7 @@ class ProjectedSymplecticityAreaObserver:
 			raise ValueError("Projection stages must be observed consecutively in BM4 order.")
 
 		state_before: np.ndarray = self._validated_extended_state(stage.state_before)
-		state_after: np.ndarray = self._validated_extended_state(stage.state_after)
+		state_after: np.ndarray = self._validated_extended_state(np.asarray(stage.state_after))
 		if not self._initialized:
 			first = state_before[: self.physical_size]
 			second = state_before[self.physical_size :]

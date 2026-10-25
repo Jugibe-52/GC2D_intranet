@@ -186,3 +186,15 @@ Standalone `JaxPotential` retains its own evaluation guards, device coefficient
 cache and input placement rules. Numerical JIT kernels remain beside their
 algorithms. Physics modules do not import execution; the hybrid SciPy/JAX bridge
 belongs to `execution._jax`.
+
+## Component-owned preparation
+
+`Potential._as_jax()` returns a reusable `JaxPotential`, sharing read-only physical
+samples and fitted splines but owning a separate device-buffer cache. The GC/FC
+`_as_jax()` methods prepare their source potential and, for GC, the already
+normalized and gyroaveraged effective potential. They never rerun constructors,
+refit splines, repeat gyroaveraging or modify source objects. Explicit compatible
+JAX objects are reused. Preparation rejects unknown overrides and imports the
+optional implementation only when requested. Identity caches are bounded to
+16 entries; no traced array is retained. Execution selects devices and checks
+precision before requesting these prepared components.

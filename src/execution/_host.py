@@ -141,7 +141,7 @@ class FixedStepController(Generic[Detail]):
 		for index, (time, end, duration) in enumerate(zip(starts, ends, durations)):
 			info: StepInfo = StepInfo(index, float(time), float(duration), float(end), current.values.copy())
 			result: StepResult[Detail] = method.advance(info.time, current.values.copy(), info.duration)
-			current = IntegrationState(info.end_time, result.state)
+			current = IntegrationState(info.end_time, np.asarray(result.state))
 			yield info, result
 
 	def sample(
@@ -151,11 +151,11 @@ class FixedStepController(Generic[Detail]):
 		"""Reuse endpoints or advance an independent physical/auxiliary snapshot."""
 		tolerance: float = _time_tolerance(method.request.t_span)
 		if abs(time - info.end_time) <= tolerance:
-			return IntegrationState(time, result.state, result.quadrature)
+			return IntegrationState(time, np.asarray(result.state), result.quadrature)
 		if abs(time - info.time) <= tolerance:
 			return IntegrationState(time, info.state_before)
 		shadow: StepResult[Detail] = method.advance(info.time, info.state_before.copy(), time - info.time)
-		return IntegrationState(time, shadow.state, shadow.quadrature)
+		return IntegrationState(time, np.asarray(shadow.state), shadow.quadrature)
 
 
 def _record_sample(method: IntegrationMethod[Any], result: States, sample: IntegrationState,

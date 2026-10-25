@@ -4,9 +4,9 @@ digraph architecture {
   node [shape=box, style="rounded,filled", fontname="DejaVu Sans"];
   recipe [label="Numerical scheme\nFour physical stages; classical weights", fillcolor="#fff0d9"];
   method [label="RK4\nExports: simulation / methods\nFixed integration step belongs to the method", fillcolor="#e5ecfa"];
-  driver [label="Simulation + execution\nBind f / derivatives and observer functions\nAccepted intervals, samples and collection", fillcolor="#e5ecfa"];
+  driver [label="Simulation + execution\nSelect device and prepare components\nAccepted intervals, samples and collection", fillcolor="#e5ecfa"];
   state [label="Physical state\nInitialConditions: values and layout\nNo formulation or auxiliary coordinates", fillcolor="#e5ecfa"];
-  advance [label="Physical advance\nEvaluate injected f and optional derivatives\nReturn Z, work and optional quadrature", fillcolor="#e5ecfa"];
+  advance [label="Shared advance\nSame algorithm with NumPy or JAX arrays\nPhysical Z, work and optional quadrature", fillcolor="#e5ecfa"];
   energy [label="EnergyObserver\nOwn momentum; consume accepted quadrature\nBind H and -partial_t H through execution", fillcolor="#e1f0e6"];
   observe [label="Step callbacks\nPassed through simulate(observers=...)\nExecution supplies physical provenance", fillcolor="#f0e5f5"];
   projection [label="Stage equations\nMethod owns tableau and equation assembly", fillcolor="#e1f0e6"];
@@ -15,7 +15,7 @@ digraph architecture {
   compose [label="Physical evaluations\nPhysical vector-field and optional derivative calls\nNo Hamiltonian or momentum evaluation", fillcolor="#e1f0e6"];
   tangent [label="Sampling\nIndependent shortened physical steps\nShadow quadrature never commits observer state", fillcolor="#e1f0e6"];
   maps [label="Accepted numerical data\nRetained stage times, states and weights", fillcolor="#e1f0e6"];
-  dynamics [label="Injected physical functions\nf(t, Z) and optional Jacobian\nMethod and maps retain no dynamics object", fillcolor="#e5ecfa"];
+  dynamics [label="Prepared physical functions\nPotential / dynamics own _as_jax()\nMethod retains functions only", fillcolor="#e5ecfa"];
   recipe -> method;
   method -> driver;
   driver -> advance;

@@ -128,7 +128,7 @@ def calculate_checkpointed_group(
                     result: ProjectedMapResult = solve_projection(
                         prepared, BM4, chunk_solver, 'reduced_multiplier', t0 + k * h, value, h,
                         observe=True)
-                    value = result.state
+                    value = np.asarray(result.state)
                     assert np.isfinite(value).all() and result.residual_norm <= threshold
                     states[:, local + 1] = value
                     counters[local] = result.iterations
@@ -137,7 +137,7 @@ def calculate_checkpointed_group(
                     mu[local] = np.linalg.norm(result.multiplier, ord=np.inf)
                 else:
                     midpoint: MidpointResult = midpoint_step(prepared, BM4, t0 + k * h, value, h)
-                    value = midpoint.state
+                    value = np.asarray(midpoint.state)
                     assert np.isfinite(value).all()
                     states[:, local + 1] = value
                     mu[local] = midpoint.copy_separation_norm

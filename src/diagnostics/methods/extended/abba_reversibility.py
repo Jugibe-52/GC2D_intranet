@@ -143,7 +143,7 @@ def _validated_reversibility_states(
 	):
 		raise ValueError("The observed physical state must be finite and planar.")
 	shape = state_before.shape
-	state_after: np.ndarray = _finite_vector(step.state_after, shape, "state_after")
+	state_after: np.ndarray = _finite_vector(np.asarray(step.state_after), shape, "state_after")
 	if not np.isclose(
 		step.time,
 		step.start_time + step.duration,
@@ -218,14 +218,14 @@ class ImplicitABBAReversibilityObserver:
 			recipe, order = ABBA4, 4
 		elif isinstance(step, ABBA6ImplicitIntegrationStep):
 			recipe, order = ABBA6, 6
-		maps: GCDoubledMaps = GCDoubledMaps(dynamics.vector_field, step.state_after.size,
+		maps: GCDoubledMaps = GCDoubledMaps(dynamics.vector_field, np.asarray(step.state_after).size,
 			coordinates=GuidingCenterDynamics.coordinates, jacobian=dynamics.particle_vector_field_jacobians,
 			jacobian_structure='particle', coupling_frequency=None)
 		project: partial[ProjectedMapResult] = partial(solve_projection, maps, recipe, self.solver, formulation)
-		result: ProjectedMapResult = project(step.time, step.state_after, -step.duration)
+		result: ProjectedMapResult = project(step.time, np.asarray(step.state_after), -step.duration)
 		builder: Callable[[float, float, int, np.ndarray, ProjectedMapResult], IntegrationStep] = bind_event_builder(step.method_name, formulation, order=order,
 			coefficients=tuple(2 * c for c in recipe.coefficients[::2]), project=project)
-		event: IntegrationStep = builder(step.time, -step.duration, step.step_index, step.state_after, result)
+		event: IntegrationStep = builder(step.time, -step.duration, step.step_index, np.asarray(step.state_after), result)
 		assert isinstance(event, (ABBA2ImplicitIntegrationStep, ABBA4ImplicitIntegrationStep,
 			ABBA6ImplicitIntegrationStep))
 		return replace(event, time=float(step.start_time), dynamics=dynamics, dynamics_name=type(dynamics).__name__)
@@ -259,7 +259,7 @@ class ImplicitABBAReversibilityObserver:
 		reverse_step: ABBA2ImplicitIntegrationStep | ABBA4ImplicitIntegrationStep | ABBA6ImplicitIntegrationStep = self._solve_reverse_step(step, dynamics)
 		backward_jacobian: np.ndarray = _complete_step_jacobian(reverse_step)
 		backward_state: np.ndarray = _finite_vector(
-			reverse_step.state_after,
+			np.asarray(reverse_step.state_after),
 			shape,
 			"backward_state",
 		)

@@ -123,6 +123,16 @@ def render(model: Model) -> None:
                  ('advance','projection'),('driver','energy'),('advance','energy'),('advance','observe'),
                  ('projection','compose'),('projection','solver'),('compose','tangent'),
                  ('compose','maps'),('maps','dynamics')]
+    if model.directory not in ('dop853', 'radau'):
+        nodes['driver'] = (11.7, 8.0, 'Simulation + execution',
+            'Select device and prepare components\nAccepted intervals, samples and collection', '#e5ecfa')
+        nodes['advance'] = (7.0, 6.5, 'Shared advance',
+            'Same algorithm with NumPy or JAX arrays\nPhysical Z, work and optional quadrature', '#e5ecfa')
+        nodes['dynamics'] = (7.0, .5, 'Prepared physical functions',
+            'Potential / dynamics own _as_jax()\nMethod retains functions only', '#e5ecfa')
+        if model.implicit:
+            nodes['solver'] = (11.7, 5.0, 'Prepared algebraic solver',
+                'Ordinary or JAX; inherited controls\nOwn iterations, derivatives and callbacks', '#fff0d9')
     fig, ax = plt.subplots(figsize=(16, 10))
     fig.patch.set_facecolor('#f8fafc'); ax.set_facecolor('#f8fafc')
     ax.set(xlim=(0,14), ylim=(-.3,9.4)); ax.axis('off')

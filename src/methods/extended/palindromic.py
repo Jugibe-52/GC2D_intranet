@@ -7,6 +7,7 @@ import json
 from typing import Generic, TypeVar
 
 import numpy as np
+from contracts.arrays import BackendArray
 
 from contracts.methods.observation import IntegrationStep
 from contracts.states.history import DiagnosticValue
@@ -31,7 +32,6 @@ Detail = TypeVar('Detail')
 class PalindromicMethod(FixedStepMethod[Detail], Generic[Detail]):
 	"""Bind physical functions to a recipe and temporary doubled workspaces."""
 
-	jax_mode = 'device_resident'
 	copies = 2
 	requires_planar = True
 	recipe: Composition
@@ -108,15 +108,15 @@ class ProjectedPalindromicMethod(PalindromicMethod[ProjectedMapResult]):
 	def _publish_substeps(self) -> bool:
 		return False
 
-	def advance(self, t: float, state: np.ndarray, h: float, *, observe: bool = True) -> StepResult[ProjectedMapResult]:
+	def advance(self, t: float, state: BackendArray, h: float, *, observe: bool = True) -> StepResult[ProjectedMapResult]:
 		"""Return the converged physical map and optional accepted-stage quadrature."""
 		result: ProjectedMapResult = self.project(t, self._checked_state(state), h, observe=observe)
 		return StepResult(result.state, step_statistics(result, include_substeps=self._publish_substeps()),
-		                  result, result.trace.quadrature if self.capture_quadrature else None)
+		                  result, result.trace.quadrature if self.capture_quadrature else None, result.stats.converged)
 
 	def build_observation(self, info: StepInfo, step: StepResult[ProjectedMapResult]) -> IntegrationStep:
 		def map_state(candidate: np.ndarray) -> np.ndarray:
-			return self.project(info.time, candidate, info.duration).state
+			return np.asarray(self.project(info.time, candidate, info.duration).state)
 		return IntegrationStep(dynamics_name='', method_name=self.method_name,
 			step_index=info.index, start_time=info.time, time=info.end_time, duration=info.duration,
 			state_before=info.state_before.copy(), state_after=step.details.state.copy(), map_state=map_state)
@@ -142,14 +142,14 @@ class MidpointPalindromicMethod(PalindromicMethod[MidpointResult]):
 			**self._operation_metadata(), **self._preset_metadata(),
 		}
 
-	def advance(self, t: float, state: np.ndarray, h: float, *, observe: bool = True) -> StepResult[MidpointResult]:
+	def advance(self, t: float, state: BackendArray, h: float, *, observe: bool = True) -> StepResult[MidpointResult]:
 		result: MidpointResult = midpoint_step(self.formulation, self.recipe, t, self._checked_state(state), h)
 		return StepResult(result.state, {'copy_separation_norms': result.copy_separation_norm}, result,
 		                  result.trace.quadrature if self.capture_quadrature else None)
 
 	def build_observation(self, info: StepInfo, step: StepResult[MidpointResult]) -> IntegrationStep:
 		def map_state(candidate: np.ndarray) -> np.ndarray:
-			return midpoint_step(self.formulation, self.recipe, info.time, candidate, info.duration).state
+			return np.asarray(midpoint_step(self.formulation, self.recipe, info.time, candidate, info.duration).state)
 		return IntegrationStep(dynamics_name='', method_name=self.method_name,
 			step_index=info.index, start_time=info.time, time=info.end_time, duration=info.duration,
 			state_before=info.state_before.copy(), state_after=step.details.state.copy(), map_state=map_state)

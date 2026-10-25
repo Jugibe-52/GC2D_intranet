@@ -20,5 +20,5 @@ class BM4VectorObserver:
         self.times.append(record.time)
         self.multipliers.append(record.multiplier.reshape(2, -1).T.copy())
         self.displacements.append(
-            (record.state_after - record.state_before).reshape(2, -1).T.copy()
+            (np.asarray(record.state_after) - record.state_before).reshape(2, -1).T.copy()
         )

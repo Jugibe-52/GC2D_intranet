@@ -7,7 +7,7 @@ The NumPy path does not import the optional JAX runtime.
 """
 
 import sys
-from typing import Any, TYPE_CHECKING, TypeAlias, Union
+from typing import Any, TYPE_CHECKING, TypeAlias, Union, TypeVar, cast
 
 import numpy as np
 
@@ -43,3 +43,62 @@ def array_namespace(*values: Any) -> "ModuleType":
 
 
 __all__ = ["BackendArray", "array_namespace", "uses_jax"]
+
+
+_Value = TypeVar("_Value")
+
+
+def checked_finite(value: _Value, message: str, error: type[Exception] = ValueError) -> _Value:
+	"""Raise eagerly, or propagate invalid numerical data through compiled work.
+
+	A traced invalid intermediate becomes NaN even if later arithmetic could
+	otherwise hide an infinity. The execution boundary rejects the resulting
+	invalid state or unconverged solve, without callbacks inside compiled loops.
+	"""
+	xp: ModuleType = array_namespace(value)
+	valid: Any = xp.all(xp.isfinite(value))
+	jax: ModuleType | None = sys.modules.get("jax")
+	if jax is not None and isinstance(valid, jax.core.Tracer):
+		return cast(_Value, xp.where(valid, value, xp.nan))
+	if not valid:
+		raise error(message)
+	return value
+
+
+def scan_arrays(function: Any, initial: Any, values: Any) -> tuple[Any, Any]:
+	"""Fold over leading array axes, returning the carry and stacked outputs.
+
+	The function defines the numerical recurrence once. NumPy executes ordinary
+	iterations; traced arrays use a compact compiled loop with the same order.
+	Carries and outputs are nested tuples of arrays or scalars.
+	"""
+	if uses_jax(initial, values):
+		from jax import lax
+		return lax.scan(function, initial, values)
+	carry: Any = initial
+	outputs: list[Any] = []
+	for index in range(len(values[0])):
+		output: Any
+		carry, output = function(carry, tuple(value[index] for value in values))
+		outputs.append(output)
+	def stack(items: list[Any]) -> Any:
+		if isinstance(items[0], tuple):
+			return tuple(stack([item[index] for item in items]) for index in range(len(items[0])))
+		return np.stack(items)
+	return carry, stack(outputs)
+
+
+def select_array_branch(index: Any, branches: tuple[Any, ...], *values: Any) -> Any:
+	"""Select one numerical branch with native scalar control."""
+	if uses_jax(index):
+		from jax import lax
+		return lax.switch(index, branches, *values)
+	return branches[int(index)](*values)
+
+
+def map_arrays(function: Any, *values: Any) -> Any:
+	"""Apply one array function to corresponding leading-axis entries."""
+	if uses_jax(*values):
+		from jax import vmap
+		return vmap(function)(*values)
+	return np.stack([function(*items) for items in zip(*values, strict=True)])

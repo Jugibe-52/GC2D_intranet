@@ -9,6 +9,8 @@ from types import MappingProxyType
 from typing import Any, ClassVar, Generic, Literal, Self, TYPE_CHECKING, TypeVar
 
 import numpy as np
+from types import ModuleType
+from contracts.arrays import array_namespace, checked_finite, BackendArray
 
 from contracts.dynamics.coordinates import StateLayout
 from contracts.methods.base import NumericalMethod
@@ -64,7 +66,6 @@ class IntegrationMethod(ABC, Generic[Detail]):
 	_status: str = "configuration"
 	copies: ClassVar[int] = 1
 	requires_planar: ClassVar[bool] = False
-	jax_mode: ClassVar[Literal["unsupported", "device_resident", "hybrid_scipy_controller"]] = "unsupported"
 
 	@property
 	def method_name(self) -> str:
@@ -105,7 +106,7 @@ class IntegrationMethod(ABC, Generic[Detail]):
 		"""Prepare method-specific work after the common function binding."""
 
 	@abstractmethod
-	def advance(self, time: float, state: np.ndarray, step: float, *, observe: bool = True) -> StepResult[Detail]:
+	def advance(self, time: Any, state: Any, step: Any, *, observe: bool = True) -> StepResult[Detail]:
 		"""Return a physical step and optional quadrature data without observing it."""
 
 	@abstractmethod
@@ -125,10 +126,12 @@ class IntegrationMethod(ABC, Generic[Detail]):
 			'observer_state_kind': 'physical_map', 'energy_feedback': False,
 		}
 
-	def _checked_state(self, state: np.ndarray) -> np.ndarray:
+	def _checked_state(self, state: Any) -> Any:
 		"""Reject packed workspaces and nonfinite physical inputs."""
-		physical: np.ndarray = np.asarray(state)
-		if physical.shape != self.initial_state.shape or not np.all(np.isfinite(physical)):
+		xp: ModuleType = array_namespace(state)
+		physical: np.ndarray = xp.asarray(state)
+		physical = checked_finite(physical, 'A step requires a finite physical vector with the initial shape.', ValueError)
+		if physical.shape != self.initial_state.shape:
 			raise ValueError('A step requires a finite physical vector with the initial shape.')
 		return physical
 

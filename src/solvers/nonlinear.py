@@ -7,12 +7,15 @@ from dataclasses import dataclass, field, replace
 from typing import ClassVar, Generic, Literal, TYPE_CHECKING, TypeAlias, TypeVar
 
 import numpy as np
+from contracts.arrays import BackendArray
+import sys
 
 from contracts.solvers.nonlinear import NewtonIteration, NewtonObserver
 from solvers.derivatives import JacobianMethod, centered_difference
 
 
 if TYPE_CHECKING:
+	from solvers.jax_nonlinear import JaxNewtonSolver, JaxBroydenSolver
 	from typing import Any
 
 
@@ -20,7 +23,7 @@ NonlinearSolver: TypeAlias = Literal["newton", "broyden"]
 NONLINEAR_SOLVERS: tuple[NonlinearSolver, ...] = ("newton", "broyden")
 
 _Payload = TypeVar("_Payload")
-_ResidualFunction: TypeAlias = Callable[[np.ndarray], tuple[np.ndarray, _Payload]]
+_ResidualFunction: TypeAlias = Callable[[BackendArray], tuple[BackendArray, _Payload]]
 _IterateObserver: TypeAlias = Callable[[int, np.ndarray, np.ndarray, float], None]
 
 
@@ -53,6 +56,7 @@ class SolveStats:
 	residual_evaluations: int
 	residual_norm: float
 	tolerance: float
+	converged: Any = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,14 +69,15 @@ class _NonlinearResult(Generic[_Payload]):
 	that same unknown.
 	"""
 
-	unknown: np.ndarray  # Accepted packed solution, with the same shape as the initial guess.
-	residual: np.ndarray  # Residual vector evaluated at `unknown`; its infinity norm measures convergence.
+	unknown: BackendArray  # Accepted packed solution, with the same shape as the initial guess.
+	residual: BackendArray  # Residual vector evaluated at `unknown`; its infinity norm measures convergence.
 	payload: _Payload  # Additional equation-specific data paired with `unknown` and `residual`.
 	iterations: int  # Accepted nonlinear corrections; zero when the initial guess already meets tolerance.
 	residual_evaluations: int  # Number of residual evaluations used, including the converged evaluation.
+	converged: Any = True
 
 
-def _validated_initial_unknown(initial_unknown: np.ndarray, solver: str) -> np.ndarray:
+def _validated_initial_unknown(initial_unknown: BackendArray, solver: str) -> np.ndarray:
 	"""Own the finite, nonempty vector whose coordinates the solver will update."""
 	unknown: np.ndarray = np.asarray(initial_unknown, dtype=float).copy()
 	if unknown.ndim != 1 or unknown.size == 0 or not np.all(np.isfinite(unknown)):
@@ -92,7 +97,7 @@ def _validate_solver_controls(tolerance: float, max_iterations: int, solver: str
 		raise ValueError(f"The {solver} iteration limit must be a positive integer.")
 
 
-def _validated_broyden_jacobian(initial_jacobian: np.ndarray, unknown: np.ndarray) -> np.ndarray:
+def _validated_broyden_jacobian(initial_jacobian: BackendArray, unknown: np.ndarray) -> np.ndarray:
 	"""Own a finite square initial approximation in the unknown's coordinates."""
 	jacobian: np.ndarray = np.asarray(initial_jacobian, dtype=float).copy()
 	expected_shape = (unknown.size, unknown.size)
@@ -104,7 +109,7 @@ def _validated_broyden_jacobian(initial_jacobian: np.ndarray, unknown: np.ndarra
 	return jacobian
 
 
-def _validated_residual(residual: np.ndarray, unknown: np.ndarray, message: str) -> np.ndarray:
+def _validated_residual(residual: BackendArray, unknown: np.ndarray, message: str) -> np.ndarray:
 	"""Normalize one finite residual without re-evaluating its paired payload."""
 	value: np.ndarray = np.asarray(residual, dtype=float)
 	if value.shape != unknown.shape or not np.all(np.isfinite(value)):
@@ -117,7 +122,7 @@ def _checked_residual_evaluation(
 	unknown: np.ndarray,
 ) -> tuple[np.ndarray, _Payload]:
 	"""Evaluate a residual without allowing shape changes or non-finite values."""
-	residual: np.ndarray
+	residual: BackendArray
 	payload: _Payload
 	residual, payload = residual_function(unknown)
 	value: np.ndarray = _validated_residual(
@@ -128,13 +133,13 @@ def _checked_residual_evaluation(
 
 def _solve_broyden(
 	residual_function: _ResidualFunction[_Payload],
-	initial_unknown: np.ndarray,
-	initial_jacobian: np.ndarray,
+	initial_unknown: BackendArray,
+	initial_jacobian: BackendArray,
 	*,
 	tolerance: float,
 	max_iterations: int,
 	context: str,
-	initial_evaluation: tuple[np.ndarray, _Payload] | None = None,
+	initial_evaluation: tuple[BackendArray, _Payload] | None = None,
 ) -> _NonlinearResult[_Payload]:
 	"""Solve one residual equation with the good Broyden Jacobian update.
 
@@ -158,7 +163,7 @@ def _solve_broyden(
 			unknown,
 		)
 	else:
-		initial_residual: np.ndarray
+		initial_residual: BackendArray
 		initial_residual, payload = initial_evaluation
 		residual = _validated_residual(
 			initial_residual, unknown,
@@ -229,13 +234,13 @@ def _solve_broyden(
 
 def _solve_newton(
 	residual_function: _ResidualFunction[_Payload],
-	initial_unknown: np.ndarray,
-	update: Callable[[np.ndarray, np.ndarray, _Payload], np.ndarray],
+	initial_unknown: BackendArray,
+	update: Callable[[BackendArray, BackendArray, _Payload], BackendArray],
 	*,
 	tolerance: float,
 	max_iterations: int,
 	context: str,
-	initial_evaluation: tuple[np.ndarray, _Payload] | None = None,
+	initial_evaluation: tuple[BackendArray, _Payload] | None = None,
 	iteration_observer: _IterateObserver | None = None,
 	norm: Callable[[np.ndarray], float] | None = None,
 	backtracking: bool = False,
@@ -251,10 +256,10 @@ def _solve_newton(
 	_validate_solver_controls(tolerance, max_iterations, "Newton")
 	measure = _infinity_norm if norm is None else norm
 	evaluations = 0
-	cached: tuple[np.ndarray, _Payload] | None = initial_evaluation
+	cached: tuple[BackendArray, _Payload] | None = initial_evaluation
 	for iteration in range(int(max_iterations) + 1):
 		if cached is not None:
-			residual: np.ndarray
+			residual: BackendArray
 			payload: _Payload
 			residual, payload = cached
 			residual = _validated_residual(
@@ -298,7 +303,7 @@ def _solve_newton(
 	)
 
 
-def _infinity_norm(value: np.ndarray) -> float:
+def _infinity_norm(value: BackendArray) -> float:
 	return float(np.linalg.norm(value, ord=np.inf))
 
 
@@ -329,7 +334,7 @@ class _SolverConfiguration:
 		if self.iteration_observer is not None and not callable(self.iteration_observer):
 			raise TypeError("`iteration_observer` must be callable or None.")
 
-	def tolerance(self, scale: np.ndarray) -> float:
+	def tolerance(self, scale: BackendArray) -> float:
 		"""Use the supplied physical-state scale, independent of root coordinates."""
 		return self.absolute_tolerance + self.relative_tolerance * max(1.0, _infinity_norm(scale))
 
@@ -345,14 +350,25 @@ class NewtonSolver(_SolverConfiguration):
 
 	name: ClassVar[Literal['newton']] = 'newton'
 
+	def _as_jax(self) -> JaxNewtonSolver:
+		"""Prepare the same algebraic controls without modifying this configuration."""
+		from dataclasses import fields
+		from solvers.jax_nonlinear import JaxNewtonSolver
+		if type(self) is JaxNewtonSolver:
+			return self
+		if type(self) is not NewtonSolver:
+			raise TypeError("Solver subclass overrides cannot be prepared automatically.")
+		return JaxNewtonSolver(**{item.name: getattr(self, item.name) for item in fields(self) if item.init})
+
+
 	def solve(
-		self, evaluate: _ResidualFunction[_Payload], initial: np.ndarray,
-		update: Callable[[np.ndarray, np.ndarray, _Payload], np.ndarray] | None = None,
-		*, scale: np.ndarray,
-		jacobian: Callable[[np.ndarray], np.ndarray] | None = None,
+		self, evaluate: _ResidualFunction[_Payload], initial: BackendArray,
+		update: Callable[[BackendArray, BackendArray, _Payload], BackendArray] | None = None,
+		*, scale: BackendArray,
+		jacobian: Callable[[BackendArray], BackendArray] | None = None,
 		context: str = 'nonlinear system',
-		initial_evaluation: tuple[np.ndarray, _Payload] | None = None,
-		norm: Callable[[np.ndarray], float] | None = None,
+		initial_evaluation: tuple[BackendArray, _Payload] | None = None,
+		norm: Callable[[BackendArray], float] | None = None,
 		update_returns_correction: bool = False,
 		time: float = 0.0, duration: float = 0.0,
 		stage_index: int | None = None, multiplier_slice: slice | None = None,
@@ -363,16 +379,16 @@ class NewtonSolver(_SolverConfiguration):
 			raise ValueError("Supply at most one of `update` or `jacobian`.")
 		derivative_evaluations = 0
 		if update is None:
-			def residual_only(candidate: np.ndarray) -> np.ndarray:
+			def residual_only(candidate: BackendArray) -> BackendArray:
 				nonlocal derivative_evaluations
 				derivative_evaluations += 1
 				return evaluate(candidate)[0]
 
-			def linear_correction(value: np.ndarray, residual: np.ndarray, payload: _Payload) -> np.ndarray:
+			def linear_correction(value: BackendArray, residual: BackendArray, payload: _Payload) -> BackendArray:
 				# Resolve only when a correction is needed, after the initial residual.
 				if self.jacobian_method == 'analytic' and jacobian is None:
 					raise ValueError("Analytic Newton iteration requires a Jacobian.")
-				matrix: np.ndarray = (
+				matrix: BackendArray = (
 					centered_difference(residual_only, value,
 						relative_step=self.jacobian_relative_step)
 					if self.jacobian_method == 'finite_difference' or jacobian is None
@@ -401,6 +417,17 @@ class BroydenSolver(_SolverConfiguration):
 
 	name: ClassVar[Literal['broyden']] = 'broyden'
 
+	def _as_jax(self) -> JaxBroydenSolver:
+		"""Prepare the same algebraic controls without modifying this configuration."""
+		from dataclasses import fields
+		from solvers.jax_nonlinear import JaxBroydenSolver
+		if type(self) is JaxBroydenSolver:
+			return self
+		if type(self) is not BroydenSolver:
+			raise TypeError("Solver subclass overrides cannot be prepared automatically.")
+		return JaxBroydenSolver(**{item.name: getattr(self, item.name) for item in fields(self) if item.init})
+
+
 	def __post_init__(self) -> None:
 		"""Keep the supported undamped Broyden algorithm explicit."""
 		_SolverConfiguration.__post_init__(self)
@@ -408,10 +435,10 @@ class BroydenSolver(_SolverConfiguration):
 			raise ValueError("BroydenSolver does not support backtracking or iteration observation.")
 
 	def solve(
-		self, evaluate: _ResidualFunction[_Payload], initial: np.ndarray,
-		initial_jacobian: np.ndarray, *, scale: np.ndarray,
+		self, evaluate: _ResidualFunction[_Payload], initial: BackendArray,
+		initial_jacobian: BackendArray, *, scale: BackendArray,
 		context: str = 'nonlinear system',
-		initial_evaluation: tuple[np.ndarray, _Payload] | None = None,
+		initial_evaluation: tuple[BackendArray, _Payload] | None = None,
 	) -> _NonlinearResult[_Payload]:
 		"""Keep a fresh Jacobian approximation and iterate state for each solve."""
 		return _solve_broyden(evaluate, initial, initial_jacobian, tolerance=self.tolerance(scale),
@@ -423,9 +450,13 @@ AlgebraicSolver: TypeAlias = NewtonSolver | BroydenSolver
 
 def validate_solver(solver: AlgebraicSolver, *, newton_only: bool = False) -> None:
 	"""Reject unsupported algorithms or subclass overrides before backend dispatch."""
-	if type(solver) not in (NewtonSolver, BroydenSolver):
+	optional: Any = sys.modules.get('solvers.jax_nonlinear')
+	allowed: tuple[type, ...] = (NewtonSolver, BroydenSolver)
+	if optional is not None:
+		allowed += (optional.JaxNewtonSolver, optional.JaxBroydenSolver)
+	if type(solver) not in allowed:
 		raise TypeError("`solver` must be a built-in NewtonSolver or BroydenSolver.")
-	if newton_only and type(solver) is not NewtonSolver:
+	if newton_only and not isinstance(solver, NewtonSolver):
 		raise ValueError("This method supports NewtonSolver only.")
 
 

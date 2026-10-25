@@ -177,8 +177,8 @@ Shared GC/FC equations use `self.coordinates` and that namespace. The classes
 `JaxGuidingCenterDynamics` and `JaxFullCyclotronDynamics` in
 `dynamics.jax_dynamics` only declare JAX coordinates and inherit all physical
 methods and constructors. Direct compiled calls also require `JaxPotential`.
-Execution prepares these exact subclasses, sharing samples, splines and the GC
-effective field without refitting, repeating gyroaveraging or mutating sources.
+Potential and dynamics own cached `_as_jax()` preparation, sharing samples, splines
+and GC effective fields without refitting, repeating gyroaveraging or mutating sources.
 Initial conditions and results keep structural NumPy coordinate snapshots.
 
 Execution preparation selects devices and caches compiled runs; DOP853/Radau
@@ -225,14 +225,14 @@ See docs/simulation/initial-solvers-formulations.md, docs/simulation/api-migrati
 ## Reusable solvers and projection equations
 
 `solvers` owns immutable NewtonSolver/BroydenSolver configurations and shared
-algebraic operations; each solve owns its work arrays. The solver alone owns tolerances, iteration limits, Jacobian strategy/difference scale, backtracking and iteration_observer. Explicit solver= is authoritative; omitted solvers retain family defaults. JAX derives controls without separate defaults.
+algebraic operations; each solve owns its work arrays. The solver alone owns tolerances, iteration limits, Jacobian strategy/difference scale, backtracking and iteration_observer. Explicit solver= is authoritative; omitted solvers retain family defaults. Optional solvers.jax_nonlinear provides JaxNewtonSolver/JaxBroydenSolver via `_as_jax()`, inheriting controls without separate defaults.
 Gauss, SDIRK and HBVM accept Newton; ABBA/BM4 also accept Broyden. Preserve HBVM's
 matrix infinity norm, damping and initial-residual-before-Jacobian validation.
 `methods.projection` owns ReducedProjection (2N unknowns) and
 SimultaneousProjection (6N), including guesses, residuals, Jacobian assembly and
 reconstruction. Methods supply compositions/derivatives; Gauss keeps its stage
 equations. ABBA accepts both classes or legacy strings; BM4 remains reduced.
-Use canonical solvers.nonlinear/linear/_jax imports, not retired methods private
+Use canonical solvers.nonlinear/linear/jax_nonlinear imports, not retired methods private
 modules. Built-in solver/formulation types are exact to preserve CPU/JAX behavior.
 See `docs/simulation/initial-solvers-formulations.md` for contracts and examples.
 
@@ -243,11 +243,10 @@ the job and completed result. Host and JAX run_steps workers fill that open reco
 Use States.record_history for complete bulk physical arrays from JAX; it requires an empty recorder and validates before writing. Preserve independent shadow
 samples.
 
-contracts.methods.base.NumericalMethod exposes new_run(f, initial_conditions, request, *, jacobian=None, jacobian_structure="dense", observe=False, capture_quadrature=False) and jax_mode. Methods retain no problem/dynamics or energy functions and never inspect callable owners. Execution binds physical/backend capabilities and attaches original source identity to events. methods.base.IntegrationMethod retains numerical preparation,
-advancement, observations and controller access. Keep exact-type JAX adapters beside algorithms; do not repeat their fixed-method support list. Unknown
-overrides fail explicitly. Configured methods are reusable; consumed runs finish on success and failure. Register EnergyObserver and caller-owned step callbacks via observers= on simulate/execution; each energy run is fresh. Newton iteration callbacks retain shadow-solve events; diagnostic replay is silent. Modal payload version 2 includes observer configurations, rejects arbitrary callbacks, and supports local worker validation.
+contracts.methods.base.NumericalMethod exposes new_run(f, initial_conditions, request, *, jacobian=None, jacobian_structure="dense", observe=False, capture_quadrature=False) without a backend declaration. Methods retain no problem/dynamics or energy functions and never inspect callable owners. Execution binds physical/backend capabilities and attaches original source identity to events. methods.base.IntegrationMethod retains numerical preparation,
+advancement, observations and controller access. Fixed methods share advance across arrays and contain no JAX dispatch, options or alternate steps. execution._jax_step owns exact-type compatibility checks, isolated solver preparation and generic binding; unknown overrides fail explicitly. Configured methods are reusable; consumed runs finish on success and failure. Register EnergyObserver and caller-owned step callbacks via observers= on simulate/execution; each energy run is fresh. Newton iteration callbacks retain shadow-solve events; diagnostic replay is silent. Modal payload version 2 includes observer configurations, rejects arbitrary callbacks, and supports local worker validation.
 
-execution._jax owns optional environment preparation and the cached SciPy/JAX host adapter. Dynamics has no dependency on execution. JaxPotential stays
+execution._jax owns device preparation and the cached SciPy/JAX host adapter; components own `_as_jax()`. Dynamics has no dependency on execution. JaxPotential stays
 independently usable, with its own precision guards and tracing-safe concrete caches; executor preparation shares physical samples/splines without refitting or
 mutation. execution._host owns host control, sampling, progress and step-count helpers; execution._jax_fixed owns the compiled loop; execution.state owns
 IntegrationState.
@@ -282,7 +281,7 @@ bases own advancement. Composition.from_half reflects explicit operations:
 A updates u from v, B updates v from u, only T moves the clock, and C applies
 independent HarmonicCoupling. Each coefficient multiplies h directly, without
 an extra half. Generic PalindromicImplicit/Midpoint accept recipes on CPU/JAX;
-arbitrary subclasses remain outside exact-type JAX dispatch. C operations and
+arbitrary subclasses remain outside execution-owned JAX compatibility checks. C operations and
 a coupling object must be supplied together; BM4 presets remain uncoupled.
 Preserve named recipes and grouped observations. Elementary traces drive
 derivatives and passive energy without replaying the map. Operation coefficients

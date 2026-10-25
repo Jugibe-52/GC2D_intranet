@@ -124,7 +124,6 @@ class ExecutionTests(unittest.TestCase):
         calls = []
 
         class ExternalMethod:
-            jax_mode = "unsupported"
 
             def new_run(self, f, initial_conditions, request, **kwargs):
                 calls.append((f, initial_conditions, request))

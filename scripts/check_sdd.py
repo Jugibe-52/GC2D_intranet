@@ -34,8 +34,9 @@ PREPARATION_FILES = {"goal.md", "proposal.md", "impact.md", "steps.md"}
 PLAIN_CHANGE_FILES = PREPARATION_FILES | {"results.md"}
 LEGACY_CHANGE_FILES = {"spec.md", "plan.md", "tasks.md"}
 # Historical records keep the paths that existed when their work was accepted.
-# Resolve these two retired sources only for change history, never current specs.
+# Resolve these retired sources only for change history, never current specs.
 HISTORICAL_SOURCE_MOVES = {
+	"src/methods/_jax_dispatch.py": "src/execution/_jax_step.py",
 	"src/formulations/layout.py": "src/dynamics/coordinates.py",
 	"src/contracts/formulations/layout.py": "src/contracts/dynamics/coordinates.py",
 }

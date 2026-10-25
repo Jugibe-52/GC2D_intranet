@@ -69,7 +69,14 @@ backend preparation. Each solve is independent, including repeated simulations.
 `solver=` is the sole owner of `absolute_tolerance`, `relative_tolerance`, `max_iterations`, `jacobian_method`, `jacobian_relative_step`, `backtracking` and `iteration_observer`. The method-level `newton_*`, `nonlinear_solver` and `SolverOptions` routes are removed. Omission selects the family default: Gauss/SDIRK use 1e-14, 1e-13 and 20 iterations; ABBA/BM4/HBVM use 1e-13, 1e-12 and 12 iterations. HBVM defaults to backtracking. An explicit solver owns its complete configuration, including these defaults. Relative thresholds use physical state scales. HBVM retains its matrix infinity norm and evaluates the first residual before its Jacobian. Requested tolerances bound the accepted residual, not the trajectory error.
 
 Shared implementations are `solvers.nonlinear`, `solvers.linear` and optional
-`solvers._jax`. The private `methods._nonlinear`, `methods._linear` and
+`solvers.jax_nonlinear` (with iteration primitives in `solvers._jax`).
+`NewtonSolver._as_jax()` prepares `JaxNewtonSolver`; `BroydenSolver._as_jax()`
+prepares `JaxBroydenSolver`. Both inherit the original immutable configuration
+and expose the same solve inputs and counters. Compiled nonconvergence returns
+a flag to execution, which raises before exporting a completed result. Methods
+supply equations, derivative assembly and norms; solvers own iteration,
+differences, linear solves, damping and convergence. Fixed `advance` functions
+are shared across array types, including the 2N and 6N projection equations. The private `methods._nonlinear`, `methods._linear` and
 `methods._jax_common` modules are removed; internal callers import the canonical
 implementations. No optional JAX dependency is imported by the default CPU path.
 See [execution](execution.md) for lifecycle and backend ownership and
