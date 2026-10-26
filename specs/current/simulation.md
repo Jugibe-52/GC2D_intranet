@@ -92,12 +92,16 @@ numerical operations and controllers own accepted intervals/sampling. Physics
 modules have no dependency on execution. Standalone JaxPotential remains usable
 with its own evaluation guards and caches.
 
-Private backend, observer, numerical-run and compiled-step preparation helpers
-live in `execution.execution`. They return explicit results without storing job
-state on the executor. `Execution.run` retains the lifecycle and recording
-boundary; compiled-step preparation stays inside its `try/finally`. Extraction
-preserves validation order, optional imports, observer behavior and metadata
-precedence. See the [execution guide](../../docs/simulation/execution.md).
+Private backend, observer and numerical-run preparation helpers live in
+`execution.execution`. Backend preparation resolves the mode and device once
+and binds the prepared dynamics directly; other helpers read `problem.request`.
+They return typed results without storing job state on the executor.
+`Execution.run` retains the lifecycle and recording boundary and calls
+`execution._jax_step.prepare_step` directly inside its `try/finally`, before
+result allocation. Step preparation owns fixed-JAX observation restrictions and
+the supported-run guard; the compiled worker uses `kernel.device`.
+Optional imports, observer behavior and metadata precedence are preserved.
+See the [execution guide](../../docs/simulation/execution.md).
 
 `NumericalMethod.new_run(f, initial_conditions, request, *, jacobian=None, jacobian_structure="dense", observe=False, capture_quadrature=False)` receives a physical vector field and independent initial data. Execution resolves dynamics capabilities and supplies any physical Jacobian explicitly. The prepared run retains no `InitialValueProblem` or `DynamicalSystem`. `jacobian_structure` distinguishes dense matrices from independent particle blocks; it does not identify a physical model.
 
@@ -144,9 +148,10 @@ All ABBA/BM4 presets inherit PalindromicMethod. Composition is a public tuple[Op
 ## Preparation result types
 
 Source result assignments follow the [typing convention](../../docs/development/typing.md).
-The JAX preparation boundary returns the prepared `HamiltonianSystem` and a
-`jax.Device`; device resolution returns the same device type. Type-only imports
-preserve optional JAX loading and existing execution behavior.
+Backend preparation returns `tuple[DynamicalSystem, Device | None, str, dict[str, DiagnosticValue]]`;
+device resolution returns `jax.Device`. The coordinator narrows the optional
+device before fixed-step preparation. Type-only imports preserve optional JAX
+loading and existing execution behavior.
 
 ## Input owners and array compatibility
 

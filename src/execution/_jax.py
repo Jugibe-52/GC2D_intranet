@@ -11,7 +11,6 @@ from dynamics.fc import FullCyclotronDynamics
 from dynamics.gc import GuidingCenterDynamics
 from dynamics.jax_dynamics import JaxFullCyclotronDynamics, JaxGuidingCenterDynamics
 from contracts.dynamics.protocols import DynamicalSystem, HamiltonianSystem
-from contracts.methods.base import NumericalMethod
 
 
 if TYPE_CHECKING:
@@ -116,23 +115,6 @@ def _host(dynamics: GuidingCenterDynamics | FullCyclotronDynamics, device: "Devi
 def bind_host_dynamics(dynamics: GuidingCenterDynamics | FullCyclotronDynamics, device: "Device") -> HamiltonianSystem:
 	"""Reuse compiled ordinary equations, checking precision on every call."""
 	return _host(dynamics, device)
-
-
-def prepare_environment(
-	dynamics: DynamicalSystem, method: NumericalMethod, options: ExecutionOptions,
-) -> tuple[HamiltonianSystem, "Device"]:
-	"""Resolve a simulation's device and physical evaluation mode once.
-
-	Fixed maps retain device-native equations. Adaptive SciPy solvers receive
-	the same equations through an explicit, cached host boundary.
-	"""
-	from execution._jax_step import execution_mode
-	mode = execution_mode(method)
-	device: Device = resolve_device(options)
-	prepared: GuidingCenterDynamics | FullCyclotronDynamics = prepare_dynamics(dynamics)
-	if mode == "hybrid_scipy_controller":
-		return bind_host_dynamics(prepared, device), device
-	return prepared, device
 
 
 __all__: list[str] = []

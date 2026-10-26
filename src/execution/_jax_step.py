@@ -5,6 +5,7 @@ step result. Numerical stages, residuals and compositions remain in methods.
 """
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 from copy import copy
 from dataclasses import dataclass, field, fields, is_dataclass
 from typing import Any
@@ -69,10 +70,20 @@ class PreparedStep:
 		return result.state, result.quadrature, dict(result.statistics), jnp.asarray(result.converged)
 
 
-def prepare_step(method: IntegrationMethod[Any], device: jax.Device) -> CompiledStep:
-	"""Copy run resources, prepare the solver and bind the same advance function."""
-	if execution_mode(method) != 'device_resident':
-		raise TypeError('A compiled fixed step requires a fixed method.')
+def prepare_step(
+	method: IntegrationMethod[Any], device: jax.Device,
+	*, callbacks: Sequence[Callable[[Any], None]] = (),
+) -> CompiledStep:
+	"""Validate fixed execution, isolate resources and bind the same advance function."""
+	if type(method) not in _SUPPORTED_FIXED:
+		raise TypeError('JAX fixed integration requires a supported built-in method; subclass overrides are not compiled.')
+	if (callbacks or method.progress
+			or getattr(getattr(method, "solver", None), "iteration_observer", None) is not None):
+		raise NotImplementedError(
+			"JAX fixed integration requires no step or iteration callbacks "
+			"and progress=False; Python callbacks "
+			"are supported by the SciPy execution path."
+		)
 	prepared: Any = copy(method)
 	solver: Any = getattr(prepared, 'solver', None)
 	if solver is not None:

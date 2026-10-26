@@ -181,6 +181,36 @@ class CompiledStepContractTests(unittest.TestCase):
 				Execution().run(self.problem.with_request(self.request), GaussLegendre4(step=0.1), options=self.execution)
 		self.assertEqual(events, [])
 
+	def test_direct_preparation_rejects_host_observation_before_copying(self) -> None:
+		from execution._jax_step import prepare_step
+
+		events = []
+		for method, callbacks in (
+			(RK4(), (events.append,)),
+			(RK4(progress=True), ()),
+			(GaussLegendre4(solver=NewtonSolver(iteration_observer=events.append)), ()),
+		):
+			with self.subTest(method=type(method).__name__, callbacks=bool(callbacks), progress=method.progress):
+				run = self.prepare_run(method)
+				with patch('execution._jax_step.copy', side_effect=AssertionError('Unexpected preparation')):
+					with self.assertRaisesRegex(NotImplementedError, 'step or iteration callbacks'):
+						prepare_step(run, self.jax.devices('cpu')[0], callbacks=callbacks)
+				self.assertEqual(run._status, 'ready')
+		self.assertEqual(events, [])
+
+	def test_direct_preparation_rejects_adaptive_and_overridden_methods(self) -> None:
+		from execution._jax_step import prepare_step
+		from methods.adaptive.scipy import DOP853
+
+		class CustomRK4(RK4):
+			pass
+
+		for method in (DOP853(), CustomRK4()):
+			with self.subTest(method=type(method).__name__):
+				run = self.prepare_run(method)
+				with self.assertRaisesRegex(TypeError, 'supported built-in method'):
+					prepare_step(run, self.jax.devices('cpu')[0])
+
 
 if __name__ == "__main__":
 	unittest.main()

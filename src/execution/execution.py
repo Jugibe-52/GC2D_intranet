@@ -66,16 +66,20 @@ class Execution:
 		energy: PreparedEnergyObserver | None
 		callbacks: list[Callable[[Any], None]]
 		energy, callbacks = _prepare_observers(observers, prepared_dynamics,
-			problem=problem, request=request)
+			problem=problem)
 		numerical_run: IntegrationMethod[Any]
 		observation_metadata: dict[str, DiagnosticValue]
-		numerical_run, observation_metadata = _prepare_numerical_run(problem, method, request,
+		numerical_run, observation_metadata = _prepare_numerical_run(problem, method,
 			prepared_dynamics, track_energy=energy is not None, callbacks=callbacks)
 		metadata.update(observation_metadata)
 
 		try:
 			numerical_run._status = "running"
-			kernel: CompiledStep | None = _prepare_compiled_step(numerical_run, mode, device, callbacks)
+			kernel: CompiledStep | None = None
+			if mode == "device_resident":
+				from execution._jax_step import prepare_step
+				assert device is not None
+				kernel = prepare_step(numerical_run, device, callbacks=callbacks)
 			saved: States = States.prepare(request.output_times, problem.initial_state, layout=problem.layout)
 			if kernel is None:
 				step_diagnostics: dict[str, DiagnosticValue] = run_steps(numerical_run, saved,
@@ -101,19 +105,21 @@ def _prepare_backend(
 	device: Device | None = None
 	mode = "unsupported"
 	if options.backend == "jax":
-		from execution._jax import prepare_environment
+		from execution._jax import bind_host_dynamics, prepare_dynamics, resolve_device
 		from execution._jax_step import execution_mode
 		mode = execution_mode(method)
-		prepared_dynamics, device = prepare_environment(dynamics, method, options)
+		device = resolve_device(options)
+		prepared_dynamics = prepare_dynamics(dynamics)
 		metadata.update(execution_mode=mode, execution_device_kind=str(device.device_kind))
 		if mode == "hybrid_scipy_controller":
+			prepared_dynamics = bind_host_dynamics(prepared_dynamics, device)
 			metadata["adaptive_controller"] = "scipy"
 	return prepared_dynamics, device, mode, metadata
 
 
 def _prepare_observers(
 	observers: Sequence[EnergyObserver | Callable[[Any], None]], dynamics: DynamicalSystem,
-	*, problem: InitialValueProblem, request: SimulationRequest,
+	*, problem: InitialValueProblem,
 ) -> tuple[PreparedEnergyObserver | None, list[Callable[[Any], None]]]:
 	"""Bind a fresh energy accumulator and keep caller-owned callbacks in order."""
 	energy: PreparedEnergyObserver | None = None
@@ -127,7 +133,7 @@ def _prepare_observers(
 			if not isinstance(dynamics, HamiltonianSystem):
 				raise TypeError("Energy observation requires HamiltonianSystem.")
 			energy = observer.new_run(dynamics.hamiltonian, dynamics.extended_momentum_derivative,
-				particle_count=problem.particle_count, initial_time=request.t_span[0])
+				particle_count=problem.particle_count, initial_time=problem.request.t_span[0])
 		elif callable(observer):
 			callbacks.append(observer)
 		else:
@@ -136,7 +142,7 @@ def _prepare_observers(
 
 
 def _prepare_numerical_run(
-	problem: InitialValueProblem, method: NumericalMethod, request: SimulationRequest,
+	problem: InitialValueProblem, method: NumericalMethod,
 	prepared_dynamics: DynamicalSystem, *, track_energy: bool,
 	callbacks: Sequence[Callable[[Any], None]],
 ) -> tuple[IntegrationMethod[Any], dict[str, DiagnosticValue]]:
@@ -148,7 +154,7 @@ def _prepare_numerical_run(
 	if not isinstance(method, _AdaptiveMethod) and isinstance(prepared_dynamics, GuidingCenterJacobianSystem):
 		jacobian, structure = prepared_dynamics.particle_vector_field_jacobians, "particle"
 	numerical_run: IntegrationMethod[Any] = method.new_run(
-		prepared_dynamics.vector_field, problem.initial_conditions, request,
+		prepared_dynamics.vector_field, problem.initial_conditions, problem.request,
 		jacobian=jacobian, jacobian_structure=structure, observe=bool(callbacks),
 		capture_quadrature=track_energy or any(getattr(callback, "requires_quadrature", False) for callback in callbacks),
 	)
@@ -163,25 +169,6 @@ def _prepare_numerical_run(
 	if not isinstance(numerical_run, IntegrationMethod) or numerical_run._status != "ready":
 		raise TypeError("Method preparation must return a fresh ready IntegrationMethod.")
 	return numerical_run, metadata
-
-
-def _prepare_compiled_step(
-	numerical_run: IntegrationMethod[Any], mode: str, device: Device | None,
-	callbacks: Sequence[Callable[[Any], None]],
-) -> CompiledStep | None:
-	"""Prepare a device-resident step or leave advancement to the host controller."""
-	if mode != "device_resident":
-		return None
-	from execution._jax_step import prepare_step
-	if (callbacks or numerical_run.progress
-			or getattr(getattr(numerical_run, "solver", None), "iteration_observer", None) is not None):
-		raise NotImplementedError(
-			"JAX fixed integration requires no step or iteration callbacks "
-			"and progress=False; Python callbacks "
-			"are supported by the SciPy execution path."
-		)
-	assert device is not None
-	return prepare_step(numerical_run, device)
 
 
 __all__ = ["Execution"]

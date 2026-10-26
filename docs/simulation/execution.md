@@ -46,12 +46,19 @@ Numerical formulas, nonlinear solves, observations and convergence checks retain
 their owners. The executor does not call `simulate`. Failures propagate without
 a local fallback, and consumed runs become finished.
 
-Preparation is split into four private functions in the same module:
+Preparation is split into three private functions in the same module:
 
-- `_prepare_backend` resolves dynamics, device and execution metadata, importing JAX only when selected.
+- `_prepare_backend` resolves the execution mode and device once, prepares dynamics and binds the hybrid adapter when needed, importing JAX only when selected.
 - `_prepare_observers` binds a fresh energy accumulator and preserves callback identity and order.
 - `_prepare_numerical_run` supplies the Jacobian and quadrature requirements, validates a fresh run and returns its observation metadata.
-- `_prepare_compiled_step` checks fixed JAX restrictions and prepares its device step; other modes use the host controller.
+
+The latter two functions read the request from the supplied problem.
+`Execution.run` calls `execution._jax_step.prepare_step` directly for fixed JAX
+execution. That function checks supported run types and rejects Python callbacks,
+progress and iteration observers before copying resources. The local device
+reference becomes `PreparedStep.device`, used by the compiled worker for input
+placement and compilation reuse. Hybrid evaluation retains the device in its
+cached adapter. No additional context object or global device setting is needed.
 
 `Execution.run` keeps argument validation, status transitions, allocation,
 worker selection and finalization visible together. Compiled-step preparation
@@ -171,8 +178,10 @@ See [initial data and numerical components](initial-solvers-formulations.md) for
 Result assignments follow the [source typing convention](../development/typing.md):
 one receiving variable is annotated inline, and new unpacked names are declared
 before assignment. Existing optional initializations retain their union with `None`.
-`prepare_environment` returns `tuple[HamiltonianSystem, jax.Device]`, and
-`resolve_device` returns `jax.Device`. Device imports used only for annotations
+`_prepare_backend` returns `tuple[DynamicalSystem, Device | None, str, dict[str, DiagnosticValue]]`;
+`resolve_device` returns `jax.Device`. The coordinator checks that the device is
+not `None` before passing it to `prepare_step`, which returns `CompiledStep`.
+Device imports used only for annotations
 stay under `TYPE_CHECKING`; ordinary CPU imports still do not load JAX.
 
 ## Method-owned integration step
