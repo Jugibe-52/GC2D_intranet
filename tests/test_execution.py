@@ -36,7 +36,8 @@ class ReturnedExecution(Execution):
         self.data = data
         self.jobs = []
 
-    def run(self, problem, method, request, *, options=None, observers=()):
+    def run(self, problem, method, *, options=None, observers=()):
+        request = problem.request
         self.jobs.append((problem, method, request, options))
         return self.data
 
@@ -48,12 +49,13 @@ class ExecutionTests(unittest.TestCase):
         self.request = SimulationRequest.uniform(
             t_span=(0., .2),  sample_count=3,
         )
+        self.problem = self.problem.with_request(self.request)
 
     def test_local_executor_returns_complete_integration_and_can_be_reused(self):
         self.assertIs(Execution, CanonicalExecution)
         executor = Execution()
-        first = executor.run(self.problem, self.method, self.request)
-        second = executor.run(self.problem, self.method, self.request)
+        first = executor.run(self.problem.with_request(self.request), self.method)
+        second = executor.run(self.problem.with_request(self.request), self.method)
         self.assertIsInstance(first, States)
         np.testing.assert_array_equal(first.t, self.request.output_times)
         expected = np.array([np.cos(first.t), -np.sin(first.t)])
@@ -63,17 +65,17 @@ class ExecutionTests(unittest.TestCase):
         self.assertEqual(self.method._status, "configuration")
 
     def test_default_and_explicit_executor_produce_the_same_solution(self):
-        default = simulate(self.problem, self.method, self.request)
-        explicit = simulate(self.problem, self.method, self.request, execution=Execution())
+        default = simulate(self.problem.with_request(self.request), self.method)
+        explicit = simulate(self.problem.with_request(self.request), self.method, execution=Execution())
         np.testing.assert_array_equal(default.states, explicit.states)
         self.assertFalse(explicit.states.flags.writeable)
 
     def test_simulation_dispatches_one_complete_job_to_the_subclass(self):
-        data = Execution().run(self.problem, self.method, self.request)
+        data = Execution().run(self.problem.with_request(self.request), self.method)
         executor = ReturnedExecution(data)
         options = ExecutionOptions(backend="jax")
         with patch.object(RK4, "new_run", side_effect=AssertionError("Unexpected local calculation")):
-            solution = simulate(self.problem, self.method, self.request,
+            solution = simulate(self.problem.with_request(self.request), self.method,
                                 execution=executor, options=options)
         self.assertEqual(len(executor.jobs), 1)
         for received, expected in zip(executor.jobs[0],
@@ -85,7 +87,7 @@ class ExecutionTests(unittest.TestCase):
             data.states[0, -1] = 99.
 
     def test_subclass_results_still_undergo_simulation_validation(self):
-        data = Execution().run(self.problem, self.method, self.request)
+        data = Execution().run(self.problem.with_request(self.request), self.method)
         bad_initial = data.states.copy()
         bad_initial[0, 0] += 1.
         nonfinite = data.states.copy()
@@ -93,7 +95,7 @@ class ExecutionTests(unittest.TestCase):
         for times, values in ((data.t+1., data.states), (data.t, bad_initial), (data.t, nonfinite)):
             with self.subTest(times=times), self.assertRaises(ValueError):
                 invalid = States(times, values, layout=self.problem.layout, initial_state=self.problem.initial_state)
-                simulate(self.problem, self.method, self.request, execution=ReturnedExecution(invalid))
+                simulate(self.problem.with_request(self.request), self.method, execution=ReturnedExecution(invalid))
 
     def test_executor_cannot_relabel_a_valid_physical_history(self):
         from dynamics.fc import FullCyclotronDynamics
@@ -105,14 +107,14 @@ class ExecutionTests(unittest.TestCase):
                                 (GuidingCenterDynamics.coordinates, problem.initial_state + 1)):
             invalid = States(self.request.output_times, values, layout=layout, initial_state=initial)
             with self.subTest(layout=layout, initial=initial), self.assertRaises(ValueError):
-                simulate(problem, self.method, self.request, execution=ReturnedExecution(invalid))
+                simulate(problem.with_request(self.request), self.method, execution=ReturnedExecution(invalid))
 
     def test_local_executor_owns_preparation_and_drives_the_controller(self):
         from execution._host import FixedStepController
         run = self.method.new_run(self.problem.dynamics.vector_field, self.problem.initial_conditions, self.request)
         with patch.object(RK4, "new_run", return_value=run) as prepare:
             with patch.object(run, "controller", wraps=run.controller) as controller:
-                result = Execution().run(self.problem, self.method, self.request)
+                result = Execution().run(self.problem.with_request(self.request), self.method)
         prepare.assert_called_once_with(self.problem.dynamics.vector_field, self.problem.initial_conditions, self.request,
                                         jacobian=None, jacobian_structure="dense", observe=False, capture_quadrature=False)
         controller.assert_called_once_with()
@@ -131,7 +133,7 @@ class ExecutionTests(unittest.TestCase):
 
         for options in (None, ExecutionOptions()):
             with self.subTest(options=options):
-                result = simulate(self.problem, ExternalMethod(), self.request, options=options)
+                result = simulate(self.problem.with_request(self.request), ExternalMethod(), options=options)
                 np.testing.assert_allclose(result.values[:, -1], [np.cos(.2), -np.sin(.2)], atol=1e-10)
         self.assertEqual(len(calls), 2)
         self.assertEqual(calls[0][0], self.problem.dynamics.vector_field)
@@ -142,17 +144,17 @@ class ExecutionTests(unittest.TestCase):
                 raise AssertionError("Retired entry point must not be used")
 
         with self.assertRaisesRegex(TypeError, "NumericalMethod"):
-            simulate(self.problem, RetiredMethod(), self.request)
+            simulate(self.problem.with_request(self.request), RetiredMethod())
 
     def test_controller_preparation_failure_consumes_only_the_fresh_run(self):
         run = self.method.new_run(self.problem.dynamics.vector_field, self.problem.initial_conditions, self.request)
         with patch.object(RK4, "new_run", return_value=run):
             with patch.object(run, "controller", side_effect=RuntimeError("Controller unavailable")):
                 with self.assertRaisesRegex(RuntimeError, "Controller unavailable"):
-                    Execution().run(self.problem, self.method, self.request)
+                    Execution().run(self.problem.with_request(self.request), self.method)
         self.assertEqual(run._status, "finished")
         self.assertEqual(self.method._status, "configuration")
-        self.assertTrue(Execution().run(self.problem, self.method, self.request).complete)
+        self.assertTrue(Execution().run(self.problem.with_request(self.request), self.method).complete)
 
     def test_result_preparation_and_finalization_failures_consume_only_the_run(self):
         for operation in ("prepare", "finalize"):
@@ -160,12 +162,12 @@ class ExecutionTests(unittest.TestCase):
             with self.subTest(operation=operation), patch.object(RK4, "new_run", return_value=run):
                 with patch.object(States, operation, side_effect=RuntimeError("Result failure")):
                     with self.assertRaisesRegex(RuntimeError, "Result failure"):
-                        Execution().run(self.problem, self.method, self.request)
+                        Execution().run(self.problem.with_request(self.request), self.method)
                 self.assertEqual(run._status, "finished")
                 with self.assertRaisesRegex(TypeError, "fresh"):
-                    Execution().run(self.problem, self.method, self.request)
+                    Execution().run(self.problem.with_request(self.request), self.method)
             self.assertEqual(self.method._status, "configuration")
-        self.assertTrue(Execution().run(self.problem, self.method, self.request).complete)
+        self.assertTrue(Execution().run(self.problem.with_request(self.request), self.method).complete)
 
     def test_host_result_is_finalized_once_while_the_run_is_active(self):
         run = self.method.new_run(self.problem.dynamics.vector_field, self.problem.initial_conditions, self.request)
@@ -177,7 +179,7 @@ class ExecutionTests(unittest.TestCase):
             finished.append(result)
             return finalize(result, *args, **kwargs)
         with patch.object(RK4, "new_run", return_value=run), patch.object(States, "finalize", finish):
-            result = Execution().run(self.problem, self.method, self.request)
+            result = Execution().run(self.problem.with_request(self.request), self.method)
         self.assertEqual(len(finished), 1)
         self.assertIs(finished[0], result)
         self.assertEqual(run._status, "finished")
@@ -185,18 +187,19 @@ class ExecutionTests(unittest.TestCase):
     def test_wrong_executor_and_options_are_rejected_before_local_calculation(self):
         with patch.object(RK4, "new_run", side_effect=AssertionError("Unexpected calculation")):
             with self.assertRaisesRegex(TypeError, "Execution instance"):
-                simulate(self.problem, self.method, self.request, execution=ExecutionOptions())
+                simulate(self.problem.with_request(self.request), self.method, execution=ExecutionOptions())
             with self.assertRaisesRegex(TypeError, "ExecutionOptions instance"):
-                simulate(self.problem, self.method, self.request, options=Execution())
+                simulate(self.problem.with_request(self.request), self.method, options=Execution())
 
     def test_executor_failure_propagates_without_local_fallback(self):
         class FailedExecution(Execution):
-            def run(self, problem, method, request, *, options=None, observers=()):
+            def run(self, problem, method, *, options=None, observers=()):
+                request = problem.request
                 raise RuntimeError("Execution failed")
 
         with patch.object(RK4, "new_run", side_effect=AssertionError("Unexpected fallback")):
             with self.assertRaisesRegex(RuntimeError, "Execution failed"):
-                simulate(self.problem, self.method, self.request, execution=FailedExecution())
+                simulate(self.problem.with_request(self.request), self.method, execution=FailedExecution())
 
 
 if __name__ == "__main__":

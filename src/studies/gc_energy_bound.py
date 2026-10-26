@@ -196,7 +196,7 @@ def run_gc_energy_bound_study(
             for repeat in range(config.timing_repeats):
                 for name in METHODS if repeat % 2 == 0 else METHODS[::-1]:
                     started: float = perf_counter()
-                    solution: States = simulate(problem, replace(methods[name], step=step), request)
+                    solution: States = simulate(problem.with_request(request), replace(methods[name], step=step))
                     elapsed = perf_counter()-started
                     assert solution.diagnostics["step_count"] == count
                     assert solution.states.shape == (2, count+1)
@@ -207,8 +207,8 @@ def run_gc_energy_bound_study(
             observer: GCGeneralizedEnergyObserver = GCGeneralizedEnergyObserver(
                 dynamics, initial_time=config.t_span[0], initial_state=problem.initial_state)
             log("  Collecting energy at every accepted step in untimed replays.")
-            observed_bm4: States = simulate(problem, replace(bm4, step=step), request, observers=(observer,))
-            observed_rk4: States = simulate(problem, RK4(step=step), request, observers=(EnergyObserver(),))
+            observed_bm4: States = simulate(problem.with_request(request), replace(bm4, step=step), observers=(observer,))
+            observed_rk4: States = simulate(problem.with_request(request), RK4(step=step), observers=(EnergyObserver(),))
             np.testing.assert_array_equal(observed_bm4.states, solutions["BM4Implicit"].states)
             np.testing.assert_allclose(observed_rk4.states, solutions["RK4"].states, rtol=1e-13, atol=1e-13)
             assert len(observer.records) == count+1
@@ -375,7 +375,7 @@ def audit_initial_step_geometry(
                 relative_tolerance=config.newton_rtol, max_iterations=config.newton_max_iterations,
                 jacobian_method="analytic", jacobian_relative_step=config.jacobian_relative_step))
             if name == "BM4Implicit" else RK4())
-        simulate(problem, replace(method, step=h), request, observers=(events.append,))
+        simulate(problem.with_request(request), replace(method, step=h), observers=(events.append,))
         assert len(events) == 1
         event = events[0]
         if name == "BM4Implicit":

@@ -92,8 +92,8 @@ class SharedABBARuntimeTests(unittest.TestCase):
 			with self.subTest(extension=extension, solver=solver, placement=placement):
 				options = dict(state_extension=extension, solver=(NewtonSolver if solver == 'newton' else BroydenSolver)(max_iterations=50, jacobian_method='analytic'), projection_placement=placement)
 				main_events, dense_events = [], []
-				main = simulate(problem, ABBA4Implicit(step=0.02, **options), _request([0.0, 0.02, 0.04]), observers=(EnergyObserver(), main_events.append))
-				dense = simulate(problem, ABBA4Implicit(step=0.02, **options), _request([0.0, 0.009, 0.02, 0.031, 0.04]), observers=(EnergyObserver(), dense_events.append))
+				main = simulate(problem.with_request(_request([0.0, 0.02, 0.04])), ABBA4Implicit(step=0.02, **options), observers=(EnergyObserver(), main_events.append))
+				dense = simulate(problem.with_request(_request([0.0, 0.009, 0.02, 0.031, 0.04])), ABBA4Implicit(step=0.02, **options), observers=(EnergyObserver(), dense_events.append))
 				np.testing.assert_array_equal(main.states, dense.states[:, [0, 2, 4]])
 				for key in ("nonlinear_iterations", "residual_evaluations", "nonlinear_residual_norms",
 					"nonlinear_tolerances", "projection_multiplier_norms"):
@@ -110,14 +110,14 @@ class SharedABBARuntimeTests(unittest.TestCase):
 	def test_unobserved_compositions_do_not_construct_events(self) -> None:
 		with patch("methods.extended.observations.ABBA2ImplicitIntegrationStep",
 			side_effect=AssertionError("Unexpected observer allocation")):
-			result = simulate(_problem(), ABBA4Implicit(step=0.02), _request([0.0, 0.04]))
+			result = simulate(_problem().with_request(_request([0.0, 0.04])), ABBA4Implicit(step=0.02))
 		self.assertEqual(result.diagnostics["nonlinear_solves_per_step"], 1)
 		self.assertEqual(np.asarray(result.diagnostics["substep_nonlinear_iterations"]).shape, (2, 1))
 
 	def test_observer_snapshots_cannot_mutate_state_or_tracked_energy(self) -> None:
 		problem = _problem()
 		request = _request([0.0, 0.02, 0.04])
-		expected = simulate(problem, ABBA4Implicit(step=0.02), request, observers=(EnergyObserver(),))
+		expected = simulate(problem.with_request(request), ABBA4Implicit(step=0.02), observers=(EnergyObserver(),))
 
 		def mutate_snapshot(event):
 			event.state_after[:] = 999.0
@@ -126,7 +126,7 @@ class SharedABBARuntimeTests(unittest.TestCase):
 				substep.u_first[:] = 888.0
 				substep.u_initial[:] = 888.0
 
-		actual = simulate(problem, ABBA4Implicit(step=0.02), request, observers=(EnergyObserver(),) + tuple((o for o in (mutate_snapshot,) if o is not None)))
+		actual = simulate(problem.with_request(request), ABBA4Implicit(step=0.02), observers=(EnergyObserver(),) + tuple((o for o in (mutate_snapshot,) if o is not None)))
 		np.testing.assert_array_equal(expected.states, actual.states)
 		np.testing.assert_array_equal(
 			expected.diagnostics["extended_momentum"], actual.diagnostics["extended_momentum"],

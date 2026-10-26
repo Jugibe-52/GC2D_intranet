@@ -658,9 +658,8 @@ def _run_abba4_trajectory_task(
 	variant = _ABBA4_CONFIGURATION_VARIANTS_BY_KEY[task.variant_key]
 	started: float = perf_counter()
 	solution: States = simulate(
-		context.problems[task.particle],
-		context.methods[task.variant_key],
-		context.request, observers=(EnergyObserver(),))
+		context.problems[task.particle].with_request(context.request),
+		context.methods[task.variant_key], observers=(EnergyObserver(),))
 	runtime_seconds = perf_counter() - started
 	_generalized_energy_history(context.dynamics, variant, solution)
 	return _ABBA4TrajectoryPayload(
@@ -892,9 +891,8 @@ def _run_sequential_trajectories(
 			)
 		started: float = perf_counter()
 		solution: States = simulate(
-			problems[task.particle],
-			methods[task.variant_key],
-			request, observers=(EnergyObserver(),))
+			problems[task.particle].with_request(request),
+			methods[task.variant_key], observers=(EnergyObserver(),))
 		runtime_seconds = perf_counter() - started
 		_generalized_energy_history(dynamics, variant, solution)
 		runtime_rows[task.variant_key][task.particle] = runtime_seconds

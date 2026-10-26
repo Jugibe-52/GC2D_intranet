@@ -401,7 +401,7 @@ def run_ten_method_trajectory_comparison(
 	for variant in TEN_METHOD_VARIANTS:
 		method: FixedStepMethod[Any] = _method_for_variant(variant, config)
 		started: float = perf_counter()
-		solutions[variant.label] = simulate(problem, replace(method, step=config.integration_step), request)
+		solutions[variant.label] = simulate(problem.with_request(request), replace(method, step=config.integration_step))
 		runtimes[variant.label] = perf_counter() - started
 
 	return TenMethodTrajectoryComparisonResult(

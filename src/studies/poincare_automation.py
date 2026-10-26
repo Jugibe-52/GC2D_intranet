@@ -366,7 +366,7 @@ def run_automation_case(prepared: PreparedAutomationCase, *,
 	"""Integrate all particles jointly and retain only cycle states/scalar diagnostics."""
 	executor: Execution = Execution() if execution is None else execution
 	with automation_execution_context(prepared.config, execution):
-		solution: States = simulate(prepared.problem, automation_method(prepared), prepared.request,
+		solution: States = simulate(prepared.problem.with_request(prepared.request), automation_method(prepared),
 			execution=executor, options=prepared.config.execution_options())
 	validate_automation_solution(solution, prepared)
 	diagnostics: dict[str, DiagnosticValue] = {k: v for k, v in solution.diagnostics.items()

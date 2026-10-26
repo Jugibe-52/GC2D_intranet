@@ -34,7 +34,7 @@ from simulation import ABBA4Implicit, InitialValueProblem, SimulationRequest, si
 configuration = GuidingCenterDynamics.coordinates.pack_components(x0, y0)
 problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=0.3), configuration)
 request = SimulationRequest.uniform(t_span=(0.0, 1.0), sample_count=101)
-solution = simulate(problem, ABBA4Implicit(step=0.01), request,
+solution = simulate(problem.with_request(request), ABBA4Implicit(step=0.01),
                     observers=(EnergyObserver(),))
 ```
 
@@ -287,3 +287,32 @@ physical dynamics equations or objects.
 Existing GC/FC numerical archives retain their labels and schemas. Recreate old
 configured-object pickles; current coordinate, initial-condition, problem and
 result objects still support serialization. No saved arrays or units change.
+
+
+## Complete problems with separate modules (2026-10-26)
+
+`SimulationRequest` retains its definition in `request.py`, including its
+validators, constants and `simulation` re-export. `InitialValueProblem` contains
+the request alongside dynamics and initial conditions:
+
+```python
+request = SimulationRequest.uniform(t_span=(0.0, 10.0))
+problem = InitialValueProblem(dynamics, initial_state, request=request)
+solution = simulate(problem, method, execution=executor)
+```
+
+Omitting `request` when constructing a problem creates the default uniform
+request (0 to 1, with 11 samples). To reuse physical inputs with another schedule,
+use `other_problem = problem.with_request(other_request)`; it does not mutate the
+source or copy equations. Initial distributions and their validation remain in
+their existing modules.
+
+`simulate` and `Execution.run` no longer accept a separate request. Execution
+subclasses override `run(self, problem, method, *, options=None, observers=())`
+and obtain times from `problem.request`. `method.new_run` retains its separate
+function, initial-condition and request arguments.
+
+Modal payload version 3 carries the request only inside the problem and rejects
+older versions. Recreate older configured problems and receipts; redeploy workers
+from the same revision as clients. Numerical result archives keep their schemas.
+The preceding module-move record is preserved as history and superseded by this API.

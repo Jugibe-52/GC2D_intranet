@@ -39,7 +39,7 @@ class UncoupledBM4Tests(unittest.TestCase):
 				with patch.object(HarmonicCoupling, 'apply', side_effect=AssertionError('BM4 invoked C')):
 					run = replace(constructor(), step=h).new_run(p.dynamics.vector_field, p.initial_conditions, request, jacobian=getattr(p.dynamics, 'particle_vector_field_jacobians', None), jacobian_structure='particle', observe=True)
 					self.assertIsNone(run.formulation.coupling)
-					actual = simulate(p, replace(constructor(), step=h), request, observers=(EnergyObserver(),))
+					actual = simulate(p.with_request(request), replace(constructor(), step=h), observers=(EnergyObserver(),))
 				np.testing.assert_allclose(actual.states[:, -1], expected, rtol=0., atol=3e-15)
 				self.assertEqual(actual.diagnostics['coupling_frequency'], 0.)
 

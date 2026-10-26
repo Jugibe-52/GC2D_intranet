@@ -121,7 +121,7 @@ def run_cpu_star_comparison(
                     Execution_Modal(app_name, f'integrate_cpu_{cores}', record_directory=record_directory))
         print(f'Running Modal JAX CPU benchmark: {cores} core(s).', flush=True)
         start: float = perf_counter()
-        solution: States = simulate(problem, method, request, execution=executor, options=options)
+        solution: States = simulate(problem.with_request(request), method, execution=executor, options=options)
         total_seconds = perf_counter() - start
         diagnostics = solution.diagnostics
         if (diagnostics['step_count'] != config.cycles * config.steps_per_cycle

@@ -105,7 +105,7 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 			t_span=(0.0, 0.2),
 			sample_count=2,
 		)
-		solution = simulate(problem, BM4Implicit(step=0.2, solver=NewtonSolver(jacobian_method='analytic', absolute_tolerance=1e-14, relative_tolerance=1e-14)), request, observers=(events.append,))
+		solution = simulate(problem.with_request(request), BM4Implicit(step=0.2, solver=NewtonSolver(jacobian_method='analytic', absolute_tolerance=1e-14, relative_tolerance=1e-14)), observers=(events.append,))
 
 		self.assertEqual(solution.states.shape, (2, 2))
 		self.assertEqual(len(events), 1)
@@ -151,7 +151,7 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 		problem = _problem()
 
 		def final_state(step: float) -> np.ndarray:
-			return simulate(problem, BM4Implicit(step=step, solver=NewtonSolver(jacobian_method='analytic', absolute_tolerance=1e-14, relative_tolerance=1e-14)), SimulationRequest.uniform(t_span=(0.0, 0.4), sample_count=2)).states[:, -1]
+			return simulate(problem.with_request(SimulationRequest.uniform(t_span=(0.0, 0.4), sample_count=2)), BM4Implicit(step=step, solver=NewtonSolver(jacobian_method='analytic', absolute_tolerance=1e-14, relative_tolerance=1e-14))).states[:, -1]
 
 		reference = final_state(0.00625)
 		coarse_error = float(np.linalg.norm(final_state(0.1) - reference))
@@ -169,8 +169,8 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 			"absolute_tolerance": 1e-14,
 			"relative_tolerance": 1e-14,
 		}
-		analytic = simulate(problem, BM4Implicit(step=0.05, solver=NewtonSolver(**common, jacobian_method='analytic')), request)
-		finite_difference = simulate(problem, BM4Implicit(step=0.05, solver=NewtonSolver(**common, jacobian_method='finite_difference')), request)
+		analytic = simulate(problem.with_request(request), BM4Implicit(step=0.05, solver=NewtonSolver(**common, jacobian_method='analytic')))
+		finite_difference = simulate(problem.with_request(request), BM4Implicit(step=0.05, solver=NewtonSolver(**common, jacobian_method='finite_difference')))
 
 		np.testing.assert_allclose(
 			analytic.states,
@@ -186,7 +186,7 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 
 	def test_step_observer_receives_only_main_grid_steps(self) -> None:
 		events = []
-		solution = simulate(_problem(), BM4Implicit(step=0.02), SimulationRequest.uniform(t_span=(0.0, 0.05), sample_count=11), observers=(events.append,))
+		solution = simulate(_problem().with_request(SimulationRequest.uniform(t_span=(0.0, 0.05), sample_count=11)), BM4Implicit(step=0.02), observers=(events.append,))
 		self.assertEqual(len(events), solution.n_steps)
 		for event in events:
 			np.testing.assert_allclose(

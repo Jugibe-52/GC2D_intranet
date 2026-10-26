@@ -173,9 +173,8 @@ def run_implicit_abba_reversibility_study(
 	)
 	started: float = perf_counter()
 	solution: States = simulate(
-		problem,
-		replace(method, step=config.max_step),
-		request, observers=(observer,))
+		problem.with_request(request),
+		replace(method, step=config.max_step), observers=(observer,))
 	runtime_seconds = perf_counter() - started
 	return ImplicitABBAReversibilityStudyResult(
 		config=config,

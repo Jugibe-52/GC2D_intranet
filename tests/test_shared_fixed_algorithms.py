@@ -143,9 +143,9 @@ class SharedSolverTests(unittest.TestCase):
 				calls.append(type(args[1]))
 				return advance(method, *args, **kwargs)
 			with patch.object(cls, 'advance', observed):
-				reference = simulate(problem, cls(step=.01), request)
+				reference = simulate(problem.with_request(request), cls(step=.01))
 				host_calls = len(calls)
-				actual = simulate(problem, cls(step=.01), request, options=ExecutionOptions(backend='jax'))
+				actual = simulate(problem.with_request(request), cls(step=.01), options=ExecutionOptions(backend='jax'))
 			self.assertGreater(host_calls, 0)
 			self.assertGreater(len(calls), host_calls)
 			np.testing.assert_allclose(actual.states, reference.states, rtol=0, atol=2e-14)

@@ -11,7 +11,6 @@ if TYPE_CHECKING:
 from contracts.methods.base import NumericalMethod
 from execution.options import ExecutionOptions
 from problem import InitialValueProblem
-from request import SimulationRequest
 from execution.execution import Execution
 from states.history import States
 
@@ -19,7 +18,6 @@ from states.history import States
 def _validate_simulation_inputs(
 	problem: InitialValueProblem,
 	method: NumericalMethod,
-	request: SimulationRequest,
 	execution: Execution | None,
 ) -> None:
 	"""Check the public orchestration boundary before selecting its executor."""
@@ -27,8 +25,6 @@ def _validate_simulation_inputs(
 		raise TypeError("`problem` must be an InitialValueProblem.")
 	if not isinstance(method, NumericalMethod):
 		raise TypeError("`method` must implement NumericalMethod.")
-	if not isinstance(request, SimulationRequest):
-		raise TypeError("`request` must be a SimulationRequest.")
 	if execution is not None and not isinstance(execution, Execution):
 		raise TypeError("`execution` must be an Execution instance or None.")
 
@@ -36,12 +32,11 @@ def _validate_simulation_inputs(
 def _validate_solution_matches_request(
 	solution: States,
 	problem: InitialValueProblem,
-	request: SimulationRequest,
 ) -> None:
 	"""Check requested sampling and the preserved initial physical state."""
 	initial_state = problem.initial_state
 	if (
-		not np.array_equal(solution.t, request.output_times)
+		not np.array_equal(solution.t, problem.request.output_times)
 		or solution.states.shape[0] != initial_state.size
 		or solution.layout != problem.layout
 	):
@@ -56,7 +51,6 @@ def _validate_solution_matches_request(
 def simulate(
 	problem: InitialValueProblem,
 	method: NumericalMethod,
-	request: SimulationRequest,
 	*, execution: Execution | None = None,
 	options: ExecutionOptions | None = None,
 	observers: Sequence[EnergyObserver | Callable[[Any], None]] = (),
@@ -68,13 +62,13 @@ def simulate(
 	The executor receives the complete job; backend options are separate from
 	where it runs. Omission selects local NumPy/SciPy execution.
 	"""
-	_validate_simulation_inputs(problem, method, request, execution)
+	_validate_simulation_inputs(problem, method, execution)
 	executor: Execution = Execution() if execution is None else execution
-	data: States = executor.run(problem, method, request, options=options, observers=observers)
+	data: States = executor.run(problem, method, options=options, observers=observers)
 	if not isinstance(data, States) or not data.complete:
 		raise ValueError("The executor must return completed States.")
 	solution = data
-	_validate_solution_matches_request(solution, problem, request)
+	_validate_solution_matches_request(solution, problem)
 	return solution
 
 

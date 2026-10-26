@@ -171,7 +171,7 @@ class ImplicitABBAFormulationTests(unittest.TestCase):
 			sample_count=5,
 		)
 		solutions = {
-			formulation: simulate(problem, ABBA2Implicit(step=0.05, projection_formulation=formulation), request)
+			formulation: simulate(problem.with_request(request), ABBA2Implicit(step=0.05, projection_formulation=formulation))
 			for formulation in ABBA_PROJECTION_FORMULATIONS
 		}
 		for formulation, solution in solutions.items():

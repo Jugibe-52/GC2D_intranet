@@ -175,7 +175,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 		initial_state = np.asarray([1.0, 1.2])
 		start = 0.2
 		step = 0.1
-		solution = simulate(InitialValueProblem(dynamics, np.array(initial_state, dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates), ABBA2Implicit(step=step), SimulationRequest.uniform(t_span=(start, start + step), sample_count=2), observers=tuple((o for o in (lambda _step: None,) if o is not None)))
+		solution = simulate(InitialValueProblem(dynamics, np.array(initial_state, dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates).with_request(SimulationRequest.uniform(t_span=(start, start + step), sample_count=2)), ABBA2Implicit(step=step), observers=tuple((o for o in (lambda _step: None,) if o is not None)))
 		expected_increment = step / 2 * np.asarray(
 			[start + start + step, start**2 + (start + step) ** 2]
 		)
@@ -195,7 +195,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 
 		# Without an observer, only the capability preflight needs a Hessian.
 		unobserved_dynamics = _TimeOnlyPlanarDynamics()
-		simulate(InitialValueProblem(unobserved_dynamics, np.array(initial_state, dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates), ABBA2Implicit(step=step), SimulationRequest.uniform(t_span=(start, start + step), sample_count=2))
+		simulate(InitialValueProblem(unobserved_dynamics, np.array(initial_state, dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates).with_request(SimulationRequest.uniform(t_span=(start, start + step), sample_count=2)), ABBA2Implicit(step=step))
 		self.assertEqual(unobserved_dynamics.jacobian_times, [start])
 
 	def test_projected_step_is_reversible_and_symplectic(self) -> None:
@@ -277,7 +277,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 		problem = InitialValueProblem(dynamics, source, layout=GuidingCenterDynamics.coordinates)
 
 		def final_state(step: float) -> np.ndarray:
-			return simulate(problem, ABBA2Implicit(step=step, solver=NewtonSolver(jacobian_method='analytic', absolute_tolerance=1e-14, relative_tolerance=1e-14)), SimulationRequest.uniform(t_span=(0.0, 0.4), sample_count=2)).states[:, -1]
+			return simulate(problem.with_request(SimulationRequest.uniform(t_span=(0.0, 0.4), sample_count=2)), ABBA2Implicit(step=step, solver=NewtonSolver(jacobian_method='analytic', absolute_tolerance=1e-14, relative_tolerance=1e-14))).states[:, -1]
 
 		reference = final_state(5e-4)
 		coarse_error = float(np.linalg.norm(final_state(0.1) - reference))
@@ -290,8 +290,8 @@ class ABBA2ImplicitTests(unittest.TestCase):
 		source = np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True)
 		problem = InitialValueProblem(dynamics, source, layout=GuidingCenterDynamics.coordinates)
 		events = []
-		observed = simulate(problem, ABBA2Implicit(step=0.02), SimulationRequest.uniform(t_span=(0.0, 0.05), sample_count=11), observers=(events.append,))
-		sparse = simulate(problem, ABBA2Implicit(step=0.02), SimulationRequest.uniform(t_span=(0.0, 0.05), sample_count=3))
+		observed = simulate(problem.with_request(SimulationRequest.uniform(t_span=(0.0, 0.05), sample_count=11)), ABBA2Implicit(step=0.02), observers=(events.append,))
+		sparse = simulate(problem.with_request(SimulationRequest.uniform(t_span=(0.0, 0.05), sample_count=3)), ABBA2Implicit(step=0.02))
 		self.assertEqual(observed.n_steps, 3)
 		self.assertEqual(len(events), observed.n_steps)
 		self.assertEqual(observed.diagnostics["newton_iterations"].shape, (3,))
@@ -315,7 +315,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 		)
 		source = np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True)
 		zero_problem = InitialValueProblem(GuidingCenterDynamics(zero_potential, rho=0.05), source, layout=GuidingCenterDynamics.coordinates)
-		solution = simulate(zero_problem, ABBA2Implicit(step=0.02), SimulationRequest.uniform(t_span=(0.0, 0.1), sample_count=3))
+		solution = simulate(zero_problem.with_request(SimulationRequest.uniform(t_span=(0.0, 0.1), sample_count=3)), ABBA2Implicit(step=0.02))
 		np.testing.assert_array_equal(
 			solution.states,
 			np.repeat(source[:, None], 3, axis=1),
@@ -336,7 +336,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 				eta=0.1,
 			), fc_source, layout=FullCyclotronDynamics.coordinates)
 		with self.assertRaisesRegex(TypeError, "position coordinates"):
-			simulate(fc_problem, ABBA2Implicit(step=0.01), SimulationRequest.uniform(t_span=(0.0, 0.01), sample_count=2))
+			simulate(fc_problem.with_request(SimulationRequest.uniform(t_span=(0.0, 0.01), sample_count=2)), ABBA2Implicit(step=0.01))
 
 	def test_nonconvergence_reports_time_step_and_residual(self) -> None:
 		problem = InitialValueProblem(gc_dynamics(), np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
@@ -344,7 +344,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 			RuntimeError,
 			"t=.*step=.*residual norm",
 		):
-			simulate(problem, ABBA2Implicit(step=0.05, solver=NewtonSolver(jacobian_method='analytic', absolute_tolerance=1e-30, relative_tolerance=1e-30, max_iterations=1)), SimulationRequest.uniform(t_span=(0.0, 0.05), sample_count=2))
+			simulate(problem.with_request(SimulationRequest.uniform(t_span=(0.0, 0.05), sample_count=2)), ABBA2Implicit(step=0.05, solver=NewtonSolver(jacobian_method='analytic', absolute_tolerance=1e-30, relative_tolerance=1e-30, max_iterations=1)))
 
 
 class ABBASymplecticityStudyTests(unittest.TestCase):

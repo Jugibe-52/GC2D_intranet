@@ -29,6 +29,7 @@ from methods.extended.configuration import ABBA_PROJECTION_FORMULATIONS, Project
 from methods.extended.abba import ABBA2Implicit
 
 from problem import InitialValueProblem
+
 from request import SimulationRequest
 from states.history import States
 from simulation.runner import simulate
@@ -300,14 +301,13 @@ def run_implicit_abba_jacobian_study(
 	) as observer:
 		started: float = perf_counter()
 		solution: States = simulate(
-			problem,
+			problem.with_request(request),
 			ABBA2Implicit(
 				step=config.max_step,
 				projection_formulation=config.formulation,
 				progress=config.progress,
 				solver=NewtonSolver(absolute_tolerance=config.newton_absolute_tolerance, relative_tolerance=config.newton_relative_tolerance, max_iterations=config.newton_max_iterations, jacobian_method='analytic'),
-			),
-			request, observers=(observer,))
+			), observers=(observer,))
 		runtime_seconds = perf_counter() - started
 
 	return ImplicitABBAJacobianStudyResult(

@@ -569,7 +569,7 @@ def run_gauss_legendre4_evaluation(
 			progress=config.progress,
 			solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic'),
 		)
-		solution: States = simulate(problem, replace(method, step=step), step_request, observers=(collector,))
+		solution: States = simulate(problem.with_request(step_request), replace(method, step=step), observers=(collector,))
 		solutions[step] = solution
 		accuracy_by_step[step] = accuracy_series(
 			"GaussLegendre4",
@@ -590,13 +590,12 @@ def run_gauss_legendre4_evaluation(
 			),
 		)
 		energy_solution: States = simulate(
-			problem,
+			problem.with_request(energy_request),
 			GaussLegendre4(
 				step=step,
 				progress=False,
 				solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic'),
-			),
-			energy_request, observers=(EnergyObserver(),))
+			), observers=(EnergyObserver(),))
 		momentum = energy_solution.k
 		if momentum is None:
 			raise RuntimeError("Gauss4 energy tracking did not return momentum.")
@@ -607,13 +606,12 @@ def run_gauss_legendre4_evaluation(
 		)
 		geometry_by_step[step] = collector.result()
 		newton_audit_solution: States = simulate(
-			problem,
+			problem.with_request(step_request),
 			GaussLegendre4(
 				step=step,
 				progress=False,
 				solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance * config.newton_audit_tolerance_factor, relative_tolerance=config.relative_tolerance * config.newton_audit_tolerance_factor, max_iterations=config.max_iterations, jacobian_method='analytic'),
 			),
-			step_request,
 		)
 		newton_audit_series: TrajectoryAccuracySeries = accuracy_series(
 			"GaussLegendre4 tighter Newton audit",
@@ -639,11 +637,11 @@ def run_gauss_legendre4_evaluation(
 			solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic'),
 		)
 		for _ in range(config.timing_warmups):
-			simulate(problem, replace(timing_method, step=step), step_request)
+			simulate(problem.with_request(step_request), replace(timing_method, step=step))
 		timing_samples: list[float] = []
 		for _ in range(config.timing_repeats):
 			started: float = perf_counter()
-			simulate(problem, replace(timing_method, step=step), step_request)
+			simulate(problem.with_request(step_request), replace(timing_method, step=step))
 			timing_samples.append(perf_counter() - started)
 		runtimes_by_step[step] = readonly_runtime_samples(
 			np.asarray(timing_samples)

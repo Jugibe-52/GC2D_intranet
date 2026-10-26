@@ -19,7 +19,6 @@ from uuid import uuid4
 
 from execution.options import ExecutionOptions
 from problem import InitialValueProblem
-from request import SimulationRequest
 from states.history import States
 from execution._modal_worker import PAYLOAD_VERSION, encode_job
 from execution.execution import Execution
@@ -128,7 +127,7 @@ class Execution_Modal(Execution):
                    resume_call_id=record["call_id"])
 
     def run(
-        self, problem: InitialValueProblem, method: NumericalMethod, request: SimulationRequest,
+        self, problem: InitialValueProblem, method: NumericalMethod,
         *, options: ExecutionOptions | None = None,
         observers: Sequence[EnergyObserver | Callable[[Any], None]] = (),
     ) -> States:
@@ -141,7 +140,7 @@ class Execution_Modal(Execution):
         """
         self.last_call_id = None
         self.last_record_path = None
-        payload: bytes = encode_job(problem, method, request, options, observers)
+        payload: bytes = encode_job(problem, method, options, observers)
         digest: str = sha256(payload).hexdigest()
         modal: ModuleType = _modal_sdk()
         self.record_directory.mkdir(parents=True, exist_ok=True)

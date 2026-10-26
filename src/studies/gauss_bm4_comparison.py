@@ -465,7 +465,7 @@ def run_gauss_bm4_comparison(
 			sample_count=config.output_sample_count,
 		)
 		for method_name in GAUSS_BM4_METHODS:
-			solution: States = simulate(problem, replace(_method(method_name, config), step=step), request)
+			solution: States = simulate(problem.with_request(request), replace(_method(method_name, config), step=step))
 			solutions[method_name][step] = solution
 			accuracy_by_method[method_name][step] = accuracy_series(
 				method_name,
@@ -480,7 +480,7 @@ def run_gauss_bm4_comparison(
 		}
 		for _ in range(config.timing_warmups):
 			for method_name in GAUSS_BM4_METHODS:
-				simulate(problem, replace(timing_methods[method_name], step=step), request)
+				simulate(problem.with_request(request), replace(timing_methods[method_name], step=step))
 		samples: dict[str, list[float]] = {name: [] for name in GAUSS_BM4_METHODS}
 		for repeat in range(config.timing_repeats):
 			order: tuple[str, ...] = (
@@ -490,7 +490,7 @@ def run_gauss_bm4_comparison(
 			)
 			for method_name in order:
 				started: float = perf_counter()
-				simulate(problem, replace(timing_methods[method_name], step=step), request)
+				simulate(problem.with_request(request), replace(timing_methods[method_name], step=step))
 				samples[method_name].append(perf_counter() - started)
 		for method_name in GAUSS_BM4_METHODS:
 			runtimes[method_name][step] = readonly_runtime_samples(

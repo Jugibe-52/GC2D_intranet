@@ -97,7 +97,7 @@ class ExactTrajectoryJacobianTests(unittest.TestCase):
 						solver=NewtonSolver(absolute_tolerance=1e-14,
 							relative_tolerance=1e-14, jacobian_method="analytic"),
 					)
-				simulate(problem, replace(method_type(**kwargs), step=0.1), request,
+				simulate(problem.with_request(request), replace(method_type(**kwargs), step=0.1),
 					observers=(events.append,))
 				self.assertEqual(len(events), 1)
 				event = events[0]

@@ -357,8 +357,7 @@ def run_rho_star(prepared: PreparedRhoStar, *, executor: Execution,
     """Integrate once and retain cycle states, optionally with folded copies."""
     started: float = perf_counter()
     solution: States = simulate(
-        prepared.problem, _rho_star_method(prepared.config),
-        prepared.request, execution=executor, options=options,
+        prepared.problem.with_request(prepared.request), _rho_star_method(prepared.config), execution=executor, options=options,
     )
     validate_rho_solution(solution, prepared, options=options)
     # Per-step arrays are internal diagnostics, not requested observations.

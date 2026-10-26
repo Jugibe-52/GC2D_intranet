@@ -1,4 +1,4 @@
-"""Owned physical initial conditions associated with compatible dynamics."""
+"""Complete physical problems composed from dynamics, initial values and time."""
 
 from __future__ import annotations
 from dataclasses import dataclass, field
@@ -7,24 +7,29 @@ from contracts.dynamics.protocols import DynamicalSystem
 from contracts.dynamics.coordinates import StateLayout
 from dynamics.coordinates import PhysicalCoordinates, describe_coordinates
 from states.initial import InitialConditions
+from request import SimulationRequest
 
 
 @dataclass(frozen=True, slots=True, init=False)
 class InitialValueProblem:
-	"""Own physical initial data; the request independently selects its time.
+	"""Associate compatible physical initial data with a temporal request.
 
 	Omitted layouts use the dynamics coordinate declaration. External systems may
 	declare coordinates or supply an explicit structural description.
 	"""
 
 	dynamics: DynamicalSystem
+	request: SimulationRequest
 	initial_conditions: InitialConditions = field(init=False)
 	particle_count: int = field(init=False)
 
 	def __init__(self, dynamics: DynamicalSystem, initial_state: np.ndarray | InitialConditions,
-	             *, layout: StateLayout | None = None) -> None:
+	             *, request: SimulationRequest | None = None,
+	             layout: StateLayout | None = None) -> None:
 		if not isinstance(dynamics, DynamicalSystem):
 			raise TypeError("`dynamics` must implement DynamicalSystem.")
+		if request is not None and not isinstance(request, SimulationRequest):
+			raise TypeError("`request` must be a SimulationRequest or None.")
 		if isinstance(initial_state, InitialConditions):
 			if layout is not None:
 				raise ValueError("InitialConditions already owns its layout; omit `layout`.")
@@ -37,8 +42,17 @@ class InitialValueProblem:
 		if initial.layout.state_dimension != dynamics.state_dimension:
 			raise TypeError("The initial layout is incompatible with the dynamics.")
 		object.__setattr__(self, 'dynamics', dynamics)
+		object.__setattr__(self, 'request', SimulationRequest.uniform() if request is None else request)
 		object.__setattr__(self, 'initial_conditions', initial)
 		object.__setattr__(self, 'particle_count', initial.particle_count)
+
+	def with_request(self, request: SimulationRequest) -> InitialValueProblem:
+		"""Reuse physical inputs with another schedule, leaving this problem unchanged."""
+		if not isinstance(request, SimulationRequest):
+			raise TypeError("`request` must be a SimulationRequest.")
+		if request is self.request:
+			return self
+		return InitialValueProblem(self.dynamics, self.initial_conditions, request=request)
 
 	@staticmethod
 	def _from_array(dynamics: DynamicalSystem, values: np.ndarray, layout: StateLayout | None) -> InitialConditions:

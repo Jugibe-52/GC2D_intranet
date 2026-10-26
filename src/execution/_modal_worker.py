@@ -19,11 +19,11 @@ from states.history import States
 from execution.execution import Execution
 from contracts.methods.base import NumericalMethod
 
-PAYLOAD_VERSION = 2
+PAYLOAD_VERSION = 3
 
 
 def validate_job(
-    problem: InitialValueProblem, method: NumericalMethod, request: SimulationRequest,
+    problem: InitialValueProblem, method: NumericalMethod,
     options: ExecutionOptions | None,
     observers: Sequence[EnergyObserver | Callable[[Any], None]] = (),
 ) -> ExecutionOptions:
@@ -32,7 +32,7 @@ def validate_job(
         raise TypeError("`problem` must be an InitialValueProblem.")
     if not isinstance(method, NumericalMethod):
         raise TypeError("`method` must implement NumericalMethod.")
-    if not isinstance(request, SimulationRequest):
+    if not isinstance(problem.request, SimulationRequest):
         raise TypeError("`request` must be a SimulationRequest.")
     if options is not None and not isinstance(options, ExecutionOptions):
         raise TypeError("`options` must be an ExecutionOptions instance or None.")
@@ -50,7 +50,7 @@ def validate_job(
 
 
 def encode_job(
-    problem: InitialValueProblem, method: NumericalMethod, request: SimulationRequest,
+    problem: InitialValueProblem, method: NumericalMethod,
     options: ExecutionOptions | None,
     observers: Sequence[EnergyObserver | Callable[[Any], None]] = (),
 ) -> bytes:
@@ -59,24 +59,23 @@ def encode_job(
     Potential's pickle contract transfers field samples and recreates its
     interpolation resources in the worker. No source HDF5 path is required.
     """
-    choice: ExecutionOptions = validate_job(problem, method, request, options, observers)
-    return pickle.dumps((PAYLOAD_VERSION, problem, method, request, choice, tuple(observers)), protocol=5)
+    choice: ExecutionOptions = validate_job(problem, method, options, observers)
+    return pickle.dumps((PAYLOAD_VERSION, problem, method, choice, tuple(observers)), protocol=5)
 
 
-def decode_job(payload: bytes) -> tuple[InitialValueProblem, NumericalMethod, SimulationRequest, ExecutionOptions, tuple[EnergyObserver, ...]]:
+def decode_job(payload: bytes) -> tuple[InitialValueProblem, NumericalMethod, ExecutionOptions, tuple[EnergyObserver, ...]]:
     """Restore and validate a trusted job once for one or several integrations."""
     version: Any
     problem: Any
     method: Any
-    request: Any
     options: Any
     observers: Any
     job = pickle.loads(payload)
-    if not isinstance(job, tuple) or len(job) != 6 or job[0] != PAYLOAD_VERSION:
+    if not isinstance(job, tuple) or len(job) != 5 or job[0] != PAYLOAD_VERSION:
         raise ValueError("Unsupported Modal integration payload version.")
-    version, problem, method, request, options, observers = job
-    choice: ExecutionOptions = validate_job(problem, method, request, options, observers)
-    return problem, method, request, choice, observers
+    version, problem, method, options, observers = job
+    choice: ExecutionOptions = validate_job(problem, method, options, observers)
+    return problem, method, choice, observers
 
 
 def execute_payload(payload: bytes) -> tuple[int, str, States]:
@@ -87,11 +86,10 @@ def execute_payload(payload: bytes) -> tuple[int, str, States]:
     """
     problem: InitialValueProblem
     method: NumericalMethod
-    request: SimulationRequest
     choice: ExecutionOptions
     observers: tuple[EnergyObserver, ...]
-    problem, method, request, choice, observers = decode_job(payload)
-    data: States = Execution().run(problem, method, request, options=choice, observers=observers)
+    problem, method, choice, observers = decode_job(payload)
+    data: States = Execution().run(problem, method, options=choice, observers=observers)
     if not isinstance(data, States):
         raise TypeError("The remote method must return States.")
     return PAYLOAD_VERSION, sha256(payload).hexdigest(), data

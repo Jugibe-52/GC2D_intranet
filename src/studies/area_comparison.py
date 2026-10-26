@@ -310,7 +310,7 @@ def run_area_comparison(
 				progress=config.progress,
 				solver=NewtonSolver(absolute_tolerance=config.newton_absolute_tolerance, relative_tolerance=config.newton_relative_tolerance, max_iterations=config.newton_max_iterations, jacobian_relative_step=config.newton_jacobian_relative_step, jacobian_method='analytic'),
 			)
-			solution: States = simulate(problem, replace(method, step=step.value), request, observers=(observer,))
+			solution: States = simulate(problem.with_request(request), replace(method, step=step.value), observers=(observer,))
 		solutions[step.label] = solution
 		records_by_label[step.label] = observer.records
 		output_directories[step.label] = observer.output_directory

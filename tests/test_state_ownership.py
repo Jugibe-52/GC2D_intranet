@@ -13,6 +13,7 @@ import unittest
 import numpy as np
 
 from problem import InitialValueProblem
+
 from request import SimulationRequest
 from dynamics.fc import FullCyclotronDynamics
 from dynamics.gc import GuidingCenterDynamics
@@ -145,7 +146,7 @@ class StateOwnershipTests(unittest.TestCase):
 		problem = InitialValueProblem(GuidingCenterDynamics(self.potential), source.initial_state, layout=source.layout)
 		source.state = np.array([1.0, 1.1, 0.7, 0.8])
 		source.layout.position_shift = 100.0
-		solution = simulate(problem, RK4(step=0.1), SimulationRequest.uniform(t_span=(0.0, 0.01), sample_count=2))
+		solution = simulate(problem.with_request(SimulationRequest.uniform(t_span=(0.0, 0.01), sample_count=2)), RK4(step=0.1))
 		self.assertFalse(np.shares_memory(solution.initial_state, source.state))
 		np.testing.assert_array_equal(solution.initial_state, state)
 		np.testing.assert_array_equal(solution.positions()[0], solution.states[:1])
@@ -160,7 +161,7 @@ class StateOwnershipTests(unittest.TestCase):
 		state = np.array([1.0, 0.7])
 		source = _ExternalConfiguration(state, GuidingCenterDynamics.coordinates)
 		problem = InitialValueProblem(GuidingCenterDynamics(self.potential), source.initial_state, layout=source.layout)
-		solution = simulate(problem, RK4(step=0.1), SimulationRequest.uniform(t_span=(0.0, 0.01), sample_count=2))
+		solution = simulate(problem.with_request(SimulationRequest.uniform(t_span=(0.0, 0.01), sample_count=2)), RK4(step=0.1))
 		source.state = np.array([1.0, 1.1, 0.7, 0.8])
 		with tempfile.TemporaryDirectory() as directory:
 			location = Path(directory) / "trajectory"

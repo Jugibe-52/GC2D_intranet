@@ -83,7 +83,7 @@ def calculate_group(
         started_utc: str = utc_now()
         started: float = time.perf_counter()
         cpu_started: float = time.process_time()
-        solution: States = simulate(problem, replace(method, step=settings['step']), request)
+        solution: States = simulate(problem.with_request(request), replace(method, step=settings['step']))
         history_arrays: Any | None = history.arrays() if history is not None else None
         cpu_seconds = time.process_time() - cpu_started
         finished: float = time.perf_counter()

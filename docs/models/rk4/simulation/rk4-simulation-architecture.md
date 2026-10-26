@@ -52,7 +52,7 @@ outside the physical solver counters; reported wall time still includes them.
 
 ## Lifecycle and output
 
-By default, `simulate(problem, method, request)` delegates to `Execution.run`,
+By default, `simulate(problem, method)` delegates to `Execution.run`,
 which prepares a fresh run via `new_run` and allocates one physical recorder.
 The host worker advances and samples through the method's controller. Each
 `advance` returns a physical state, work counters, accepted details and optional quadrature data.
@@ -101,7 +101,7 @@ from simulation.runner import simulate
 
 jax.config.update("jax_enable_x64", True)
 solution = simulate(
-    problem, RK4(), request,
+    problem.with_request(request), RK4(),
     observers=(EnergyObserver(),),
     options=ExecutionOptions(backend="jax", device="cpu"),
 )
@@ -200,7 +200,7 @@ also compared with the migrated implementations on short nonautonomous runs.
 
 ## Complete integration executor
 
-`simulate(problem, method, request, execution=Execution())` delegates the complete
+`simulate(problem, method, execution=Execution())` delegates the complete
 job to `Execution.run`. Import the executor with `from execution import Execution`.
 The executor prepares the requested environment and a fresh numerical run, allocates one recorder, invokes the host or compiled worker and finalizes the result once. It owns run status on success and failure. It does not change thread counts, affinity
 or global JAX settings. Subclasses can execute the same job elsewhere, while

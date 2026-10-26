@@ -102,7 +102,7 @@ def run_rk4_execution_comparison(
     timings: dict[str, list[float]] = {key: [] for key in selected}
     for key, execution in selected.items():
         start: float = perf_counter()
-        solutions[key] = simulate(problem, replace(method, step=config.max_step), request, options=execution, observers=(EnergyObserver(),) if config.track_energy else ())
+        solutions[key] = simulate(problem.with_request(request), replace(method, step=config.max_step), options=execution, observers=(EnergyObserver(),) if config.track_energy else ())
         first_calls[key] = perf_counter() - start
     orders = []
     for repetition in range(config.repetitions):
@@ -110,7 +110,7 @@ def run_rk4_execution_comparison(
         orders.append(order)
         for key in order:
             start = perf_counter()
-            solutions[key] = simulate(problem, replace(method, step=config.max_step), request, options=selected[key], observers=(EnergyObserver(),) if config.track_energy else ())
+            solutions[key] = simulate(problem.with_request(request), replace(method, step=config.max_step), options=selected[key], observers=(EnergyObserver(),) if config.track_energy else ())
             timings[key].append(perf_counter() - start)
     baseline = solutions["scipy_cpu_0"]
     records: dict[str, dict[str, Any]] = {}

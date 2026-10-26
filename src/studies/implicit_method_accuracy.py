@@ -608,9 +608,8 @@ def run_implicit_method_accuracy_study(
 		for method_name in IMPLICIT_ACCURACY_METHOD_NAMES:
 			started: float = perf_counter()
 			solution: States = simulate(
-				problem,
+				problem.with_request(request),
 				replace(_configured_method(method_name, config), step=step),
-				request,
 			)
 			runtimes[method_name][step] = perf_counter() - started
 			solutions[method_name][step] = solution

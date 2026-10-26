@@ -138,7 +138,7 @@ class SDIRK4Tests(unittest.TestCase):
 		errors: list[float] = []
 		finest = None
 		for step in (0.2, 0.1, 0.05):
-			finest = simulate(problem, SDIRK4(step=step, solver=NewtonSolver(max_iterations=20, absolute_tolerance=1e-15, relative_tolerance=1e-14, jacobian_method='analytic')), SimulationRequest.uniform(t_span=(0.0, 1.0), sample_count=int(round(1.0 / step)) + 1))
+			finest = simulate(problem.with_request(SimulationRequest.uniform(t_span=(0.0, 1.0), sample_count=int(round(1.0 / step)) + 1)), SDIRK4(step=step, solver=NewtonSolver(max_iterations=20, absolute_tolerance=1e-15, relative_tolerance=1e-14, jacobian_method='analytic')))
 			angles = np.linspace(0.0, 0.4, 2) + 1.0
 			expected = np.concatenate((np.cos(angles), np.sin(angles)))
 			errors.append(float(np.linalg.norm(finest.states[:, -1] - expected)))
@@ -164,14 +164,14 @@ class SDIRK4Tests(unittest.TestCase):
 
 	def test_generic_time_dependent_field_uses_sdirk_stage_times(self) -> None:
 		problem = InitialValueProblem(_CubicTimeField(), np.array(np.zeros(2), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
-		solution = simulate(problem, SDIRK4(step=1.0, solver=NewtonSolver(absolute_tolerance=1e-14, relative_tolerance=1e-13, max_iterations=20, jacobian_method='auto')), SimulationRequest.uniform(t_span=(0.0, 1.0), sample_count=2))
+		solution = simulate(problem.with_request(SimulationRequest.uniform(t_span=(0.0, 1.0), sample_count=2)), SDIRK4(step=1.0, solver=NewtonSolver(absolute_tolerance=1e-14, relative_tolerance=1e-13, max_iterations=20, jacobian_method='auto')))
 		np.testing.assert_allclose(solution.states[:, -1], (0.25, 0.0), atol=2e-14)
 		self.assertEqual(
 			solution.diagnostics["newton_jacobian_method"],
 			"finite_difference",
 		)
 		with self.assertRaises(TypeError):
-			simulate(problem, SDIRK4(step=1.0, solver=NewtonSolver(absolute_tolerance=1e-14, relative_tolerance=1e-13, max_iterations=20, jacobian_method='analytic')), SimulationRequest.uniform(t_span=(0.0, 1.0), sample_count=2))
+			simulate(problem.with_request(SimulationRequest.uniform(t_span=(0.0, 1.0), sample_count=2)), SDIRK4(step=1.0, solver=NewtonSolver(absolute_tolerance=1e-14, relative_tolerance=1e-13, max_iterations=20, jacobian_method='analytic')))
 
 	def test_energy_tracking_preserves_physical_states(self) -> None:
 		problem = _rotation_problem(particles=2)
@@ -179,8 +179,8 @@ class SDIRK4Tests(unittest.TestCase):
 			t_span=(0.0, 1.0),
 			sample_count=11,
 		)
-		plain = simulate(problem, SDIRK4(step=0.1), request)
-		tracked = simulate(problem, SDIRK4(step=0.1), request, observers=(EnergyObserver(),))
+		plain = simulate(problem.with_request(request), SDIRK4(step=0.1))
+		tracked = simulate(problem.with_request(request), SDIRK4(step=0.1), observers=(EnergyObserver(),))
 		np.testing.assert_array_equal(plain.states, tracked.states)
 		assert tracked.k is not None
 		np.testing.assert_array_equal(tracked.k, 0.0)

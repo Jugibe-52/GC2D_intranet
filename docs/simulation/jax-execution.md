@@ -13,7 +13,7 @@ from simulation.runner import simulate
 
 jax.config.update("jax_enable_x64", True)
 solution = simulate(
-    problem, BM4Implicit(), request,
+    problem.with_request(request), BM4Implicit(),
     observers=(EnergyObserver(),),
     options=ExecutionOptions(backend="jax", device="cpu"),
 )

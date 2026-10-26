@@ -45,8 +45,8 @@ class JaxMethodTests(unittest.TestCase):
         method = replace(method, **({"max_step": .05} if isinstance(method, (DOP853, Radau)) else {"step": .05}))
         problem = self.gc if problem is None else problem
         observers = ((EnergyObserver(),) if tracking else ()) + tuple(callbacks)
-        reference = simulate(problem, method, self.request, observers=observers)
-        result = simulate(problem, method, self.request, options=execution or self.execution, observers=observers)
+        reference = simulate(problem.with_request(self.request), method, observers=observers)
+        result = simulate(problem.with_request(self.request), method, options=execution or self.execution, observers=observers)
         np.testing.assert_allclose(result.states, reference.states, rtol=3e-10, atol=3e-11)
         np.testing.assert_array_equal(result.t, reference.t)
         np.testing.assert_array_equal(result.states[:, 0], problem.initial_state)
@@ -102,13 +102,13 @@ class JaxMethodTests(unittest.TestCase):
 
     def test_sparse_output_independence_and_repeat_run_isolation(self):
         method = ABBA4Implicit()
-        dense = simulate(self.gc, method, self.request, options=self.execution, observers=(EnergyObserver(),))
+        dense = simulate(self.gc.with_request(self.request), method, options=self.execution, observers=(EnergyObserver(),))
         sparse_request = replace(self.request, output_times=np.array([.3, .4]))
-        sparse = simulate(self.gc, method, sparse_request, options=self.execution, observers=(EnergyObserver(),))
+        sparse = simulate(self.gc.with_request(sparse_request), method, options=self.execution, observers=(EnergyObserver(),))
         np.testing.assert_allclose(sparse.states, dense.states[:, [0, -1]], rtol=0, atol=2e-15)
         np.testing.assert_array_equal(sparse.diagnostics['nonlinear_iterations'], dense.diagnostics['nonlinear_iterations'])
         self.assertFalse(hasattr(method, 'initial_state'))
-        again = simulate(self.gc, method, self.request, options=self.execution, observers=(EnergyObserver(),))
+        again = simulate(self.gc.with_request(self.request), method, options=self.execution, observers=(EnergyObserver(),))
         np.testing.assert_array_equal(again.states, dense.states)
 
     def test_adaptive_scipy_control_and_physical_observers(self):
@@ -139,15 +139,15 @@ class JaxMethodTests(unittest.TestCase):
                        ABBA4Implicit(solver=NewtonSolver(1e-30, 1e-30, 1)),
                        BM4Implicit(solver=BroydenSolver(1e-30, 1e-30, 1, jacobian_method='analytic'))):
             with self.subTest(method=method), self.assertRaisesRegex(RuntimeError, 'did not converge'):
-                simulate(self.gc, method, self.request, options=self.execution)
+                simulate(self.gc.with_request(self.request), method, options=self.execution)
         class CustomEuler(ExplicitEuler):
             pass
         with self.assertRaisesRegex(TypeError, 'subclass'):
-            simulate(self.gc, CustomEuler(), self.request, options=self.execution)
+            simulate(self.gc.with_request(self.request), CustomEuler(), options=self.execution)
         try:
             self.jax.config.update('jax_enable_x64', False)
             with self.assertRaisesRegex(RuntimeError, 'float64'):
-                simulate(self.gc, Radau(), self.request, options=self.execution)
+                simulate(self.gc.with_request(self.request), Radau(), options=self.execution)
         finally:
             self.jax.config.update('jax_enable_x64', True)
 
@@ -159,7 +159,7 @@ class JaxMethodTests(unittest.TestCase):
         execution = ExecutionOptions(backend='jax', device='gpu')
         if not devices:
             with self.assertRaisesRegex(RuntimeError, 'unavailable'):
-                simulate(self.gc, Radau(), self.request, options=execution)
+                simulate(self.gc.with_request(self.request), Radau(), options=execution)
             self.skipTest('No JAX GPU available; hybrid unavailability is explicit')
         for cls in (ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42,
                     ABBA2Midpoint, BM4Midpoint, ABBA2Implicit, ABBA4Implicit,  BM4Implicit, DOP853, Radau):

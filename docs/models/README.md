@@ -48,3 +48,9 @@ this cross-model architecture was explicitly requested.
 The current guides and canonical theory PDFs describe physical states and temporary workspaces.
 Previously rendered diagrams with R8 time/momentum projection are historical and
 are superseded by these guides. All methods now support passive energy tracking.
+
+`problem.InitialValueProblem` contains dynamics, initial conditions and a
+`request.SimulationRequest` supplying the interval and output times. Both classes
+remain available from `simulation` and retain their respective modules. Physical
+equations stay in `dynamics/` and initial values in `states/initial.py`; the
+executor supplies these inputs separately to methods.

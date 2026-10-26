@@ -8,12 +8,12 @@ grouped by responsibility:
 - `dynamics`: guiding-center and full-cyclotron equations;
 - `states`: physical sampled histories, completed results and geometry generators;
 - `contracts`: interfaces and shared records organized by source domain, plus array compatibility;
-- `problem.py`: physical initial-value problems;
+- `problem.py`: physical initial-value problems containing their temporal request;
+- `request.py`: validated time intervals and output schedules;
 - `formulations`: reusable physical layouts, internal coordinates and split maps;
 - `methods`: numerical methods, including the shared `extended` family;
 - `execution`: execution configuration, preparation, step scheduling and collection;
 - `simulation`: public execution facade;
-- `request.py`: temporal configuration;
 - `diagnostics`: opt-in numerical observers and persistence;
 - `studies`: reusable experiment composition;
 - `visualization`: optional Matplotlib presentation.
@@ -22,12 +22,10 @@ The simulation lifecycle keeps the physical model, initial state, numerical
 algorithm, temporal request, and computed result separate:
 
 ```text
-Potential -> Dynamics --\
-                       +-> InitialValueProblem --\
-Initial values + layout -/                         \
-                                                  -> simulate -> States
-NumericalMethod ---------------------------------/
-SimulationRequest -------------------------------/
+Potential -> Dynamics ----\
+Initial values + layout ---+-> InitialValueProblem --\
+SimulationRequest --------/                          +-> simulate -> States
+NumericalMethod -----------------------------------/
 ```
 
 The [common integration architecture](docs/simulation/integration-architecture.md)
@@ -47,7 +45,7 @@ code imports from the defining modules. The former `simulation.methods.*`,
 been removed. See the [import policy and migration table](docs/simulation/integration-architecture.md#public-api-and-imports)
 for canonical paths and the [retired API migration](docs/simulation/api-migration.md).
 
-`simulate(problem, method, request)` is the public execution entry point. It
+`simulate(problem, method)` is the public execution entry point. It
 delegates the complete integration to a local `Execution` by default. Use
 `from execution import Execution` and pass `execution=Execution()` explicitly,
 or supply a subclass overriding `run`. Executors do not configure runtime
@@ -69,7 +67,7 @@ equations to JAX potentials without refitting splines or changing the source
 objects. Neither potential class accepts execution options.
 All built-in methods select their simulation backend using
 `ExecutionOptions` from `execution.options`
-through `simulate(problem, method, request, options=ExecutionOptions(backend="jax", device="cpu"))`.
+through `simulate(problem, method, options=ExecutionOptions(backend="jax", device="cpu"))`.
 Enable `jax_enable_x64` first; select `device="gpu"` on a compatible installation.
 The eleven fixed-step methods compile their stages, nonlinear/projection solves
 and time loop. DOP853/Radau retain SciPy adaptive control and use JAX for batched
@@ -77,7 +75,7 @@ field/energy evaluations, explicitly reporting hybrid execution. Results keep
 the immutable NumPy `States` contract. See the [execution guide](docs/simulation/jax-execution.md)
 for supported dynamics, callbacks, nonlinear controls and timing scope.
 
-`States` records physical samples and becomes the read-only computed trajectory. Controllers keep the current internal `IntegrationState(time, values)` separately. `solution.initial_state` and `solution.layout` expose independent snapshots, and diagnostics are read-only. `request.SimulationRequest` owns the initial time, maximum step and output schedule. Shared physical dynamics are documented independently of numerical models:
+`States` records physical samples and becomes the read-only computed trajectory. Controllers keep the current internal `IntegrationState(time, values)` separately. `solution.initial_state` and `solution.layout` expose independent snapshots, and diagnostics are read-only. `request.SimulationRequest` owns the initial time, integration span and output schedule; step controls belong to methods. Shared physical dynamics are documented independently of numerical models:
 
 - [GC2D HDF5 potential and guiding-center dynamics](docs/dynamics/gc2d-h5-import.md).
 - [Optional JAX potential evaluation on CPU or GPU](docs/dynamics/jax-potential-evaluation.md).
@@ -198,9 +196,8 @@ request = SimulationRequest.uniform(
     sample_count=361,
 )
 solution = simulate(
-    problem,
+    problem.with_request(request),
     BM4Implicit(),
-    request,
 )
 ```
 
@@ -258,7 +255,7 @@ method = ABBA4Implicit(
     solver=BroydenSolver(absolute_tolerance=1e-14, relative_tolerance=1e-13,
                          max_iterations=40, jacobian_method="analytic"),
 )
-solution = simulate(problem, method, request, observers=(EnergyObserver(),))
+solution = simulate(problem.with_request(request), method, observers=(EnergyObserver(),))
 ```
 
 The formulation, solver, state and energy selections apply to the complete
@@ -338,10 +335,10 @@ interpolant instead of a fixed-step `map_state`.
 ```python
 from simulation import DOP853, Radau, simulate
 
-reference = simulate(problem, DOP853(relative_tolerance=1e-10,
-                                     absolute_tolerance=1e-12), request)
-audit = simulate(problem, Radau(relative_tolerance=1e-11,
-                                absolute_tolerance=1e-13), request)
+reference = simulate(problem.with_request(request), DOP853(relative_tolerance=1e-10,
+                                     absolute_tolerance=1e-12))
+audit = simulate(problem.with_request(request), Radau(relative_tolerance=1e-11,
+                                absolute_tolerance=1e-13))
 ```
 
 The common [architecture guide](docs/simulation/integration-architecture.md)
@@ -371,15 +368,14 @@ from simulation import GaussLegendre4
 from solvers import NewtonSolver
 
 solution = simulate(
-    problem,
+    problem.with_request(SimulationRequest.uniform(
+        t_span=(0.0, 2.0),
+        sample_count=41,
+    )),
     GaussLegendre4(
         step=0.05,
         solver=NewtonSolver(absolute_tolerance=1e-14, relative_tolerance=1e-13,
                             max_iterations=40, jacobian_method="analytic"),
-    ),
-    SimulationRequest.uniform(
-        t_span=(0.0, 2.0),
-        sample_count=41,
     ),
     observers=(EnergyObserver(),),
 )
@@ -413,13 +409,12 @@ problem = InitialValueProblem(
     configuration,
 )
 solution = simulate(
-    problem,
-    RK4(),
-    SimulationRequest.uniform(
+    problem.with_request(SimulationRequest.uniform(
         t_span=(0.0, 2 * np.pi),
         max_step=0.001,
         sample_count=101,
-    ),
+    )),
+    RK4(),
 )
 ```
 

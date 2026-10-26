@@ -130,9 +130,9 @@ class ConfiguredIntegrationTests(unittest.TestCase):
 			ABBA4Implicit(solver=BroydenSolver(1e-12, 1e-11, 30))]
 		for configured in cases:
 			with self.subTest(method=type(configured).__name__):
-				expected = simulate(self.problem, replace(configured, step=.02), self.request)
+				expected = simulate(self.problem.with_request(self.request), replace(configured, step=.02))
 				for unused in range(2):
-					actual = simulate(self.problem, replace(configured, step=.02), self.request)
+					actual = simulate(self.problem.with_request(self.request), replace(configured, step=.02))
 					np.testing.assert_array_equal(actual.states, expected.states)
 					for key in ('nonlinear_iterations', 'residual_evaluations'):
 						np.testing.assert_array_equal(actual.diagnostics[key], expected.diagnostics[key])
@@ -158,8 +158,8 @@ class ConfiguredIntegrationTests(unittest.TestCase):
 			for method in (GaussLegendre4(solver=NewtonSolver()),
 				ABBA4Implicit(projection_formulation=ReducedProjection(), solver=NewtonSolver()),
 				ABBA4Implicit(projection_formulation=SimultaneousProjection(), solver=NewtonSolver())):
-				expected = simulate(self.problem, replace(method, step=0.02), self.request)
-				actual = simulate(self.problem, replace(method, step=0.02), self.request, options=ExecutionOptions(backend='jax'))
+				expected = simulate(self.problem.with_request(self.request), replace(method, step=0.02))
+				actual = simulate(self.problem.with_request(self.request), replace(method, step=0.02), options=ExecutionOptions(backend='jax'))
 				np.testing.assert_allclose(actual.states, expected.states, atol=3e-12, rtol=0)
 				np.testing.assert_array_equal(actual.diagnostics['nonlinear_iterations'], expected.diagnostics['nonlinear_iterations'])
 
@@ -168,17 +168,17 @@ class ConfiguredIntegrationTests(unittest.TestCase):
 		equation = SimultaneousProjection()
 		method = ABBA4Implicit(step=.02, projection_formulation=equation, solver=NewtonSolver())
 		self.assertIs(method.projection_formulation, equation)
-		payload = encode_job(self.problem, method, self.request, None)
-		problem, restored, request, options, observers = decode_job(payload)
+		payload = encode_job(self.problem.with_request(self.request), method, None)
+		problem, restored, options, observers = decode_job(payload)
 		self.assertIsInstance(restored.projection_formulation, SimultaneousProjection)
 		self.assertIsInstance(problem.initial_conditions, InitialConditions)
-		expected = simulate(self.problem, replace(method, step=0.02), self.request)
+		expected = simulate(self.problem.with_request(self.request), replace(method, step=0.02))
 		actual = execute_payload(payload)[2]
 		np.testing.assert_array_equal(actual.states, expected.states)
 
 	def test_projection_forms_recover_same_physical_map(self) -> None:
-		results = [simulate(self.problem, ABBA4Implicit(step=0.02, projection_formulation=form,
-			solver=NewtonSolver(1e-13, 1e-12, 30)), self.request) for form in (ReducedProjection(), SimultaneousProjection())]
+		results = [simulate(self.problem.with_request(self.request), ABBA4Implicit(step=0.02, projection_formulation=form,
+			solver=NewtonSolver(1e-13, 1e-12, 30))) for form in (ReducedProjection(), SimultaneousProjection())]
 		np.testing.assert_allclose(results[0].states, results[1].states, rtol=0, atol=3e-12)
 		self.assertEqual(results[0].diagnostics['nonlinear_unknown_dimension'], 4)
 		self.assertEqual(results[1].diagnostics['nonlinear_unknown_dimension'], 12)

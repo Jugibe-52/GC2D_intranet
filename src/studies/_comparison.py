@@ -553,7 +553,7 @@ def run_alternating_comparison(
 	)
 	for _ in range(config.timing_warmups):
 		for method_name in method_names:
-			simulate(problem, replace(comparison_method(method_name, config), step=config.integration_step), request)
+			simulate(problem.with_request(request), replace(comparison_method(method_name, config), step=config.integration_step))
 	solutions: dict[str, States] = {}
 	runtime_values: dict[str, list[float]] = {
 		name: [] for name in method_names
@@ -567,9 +567,8 @@ def run_alternating_comparison(
 		for method_name in order:
 			started: float = perf_counter()
 			solutions[method_name] = simulate(
-				problem,
+				problem.with_request(request),
 				replace(comparison_method(method_name, config), step=config.integration_step),
-				request,
 			)
 			runtime_values[method_name].append(perf_counter() - started)
 	accuracy_by_method: dict[str, TrajectoryAccuracySeries] = {}

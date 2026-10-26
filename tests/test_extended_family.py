@@ -147,7 +147,7 @@ class ExtendedFamilyTests(unittest.TestCase):
                 observed = []
                 with patch.object(type(p.dynamics), 'vector_field', autospec=True, side_effect=type(p.dynamics).vector_field) as field, \
                      patch.object(type(p.dynamics), 'particle_vector_field_jacobians', autospec=True, side_effect=AssertionError('Unexpected Jacobian')):
-                    results.append(simulate(p, replace(replace(method), step=(0.34 - 0.3) / 2), request, observers=((EnergyObserver(),) if enabled else ()) + tuple((o for o in (observed.append if enabled else None,) if o is not None))))
+                    results.append(simulate(p.with_request(request), replace(replace(method), step=(0.34 - 0.3) / 2), observers=((EnergyObserver(),) if enabled else ()) + tuple((o for o in (observed.append if enabled else None,) if o is not None))))
                     counts.append(field.call_count)
                 if enabled:
                     self.assertEqual(len(observed), 2)

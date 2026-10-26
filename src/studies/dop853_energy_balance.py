@@ -15,6 +15,7 @@ from methods.base import FixedStepMethod
 from dynamics import GuidingCenterDynamics
 
 from problem import InitialValueProblem
+
 from request import SimulationRequest
 from methods.extended.bm4 import BM4Implicit
 from methods.classical.gauss_legendre import GaussLegendre4
@@ -68,9 +69,8 @@ def run_energy_balance(potential: Potential, configuration: np.ndarray, config: 
     arrays = {'times': times, 'initial_state': z0,
               'domain': np.array([potential.grid.xmin, potential.grid.ymin, potential.grid.period])}
     print('Starting DOP853', flush=True)
-    reference: States = simulate(problem, DOP853(max_step=h,
-        relative_tolerance=config['reference_rtol'], absolute_tolerance=config['reference_atol']),
-        request, observers=(EnergyObserver(),))
+    reference: States = simulate(problem.with_request(request), DOP853(max_step=h,
+        relative_tolerance=config['reference_rtol'], absolute_tolerance=config['reference_atol']), observers=(EnergyObserver(),))
     arrays['DOP853.states'] = reference.states
     arrays['DOP853.kappa'] = np.asarray(reference.diagnostics['extended_momentum'])
     solver = NewtonSolver(absolute_tolerance=config['newton_atol'],
@@ -84,7 +84,7 @@ def run_energy_balance(potential: Potential, configuration: np.ndarray, config: 
     }
     for name, method in methods.items():
         print(f'Starting {name}', flush=True)
-        solution: States = simulate(problem, replace(method, step=h), request,
+        solution: States = simulate(problem.with_request(request), replace(method, step=h),
             observers=(observer,) if name == 'BM4Implicit' else (EnergyObserver(),))
         assert solution.diagnostics['step_count'] == cycles*steps
         arrays[name+'.states'] = solution.states

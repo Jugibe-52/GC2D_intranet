@@ -1,5 +1,9 @@
 # Modal integration execution
 
+Version 3 payloads include the request in `problem.request`, without a separate
+copy. Earlier receipts and payloads must be recreated; update the client and
+worker together before submitting work.
+
 `Execution_Modal` inherits from `Execution` and executes one complete integration
 on a deployed Modal Function. It returns `States` to the local machine;
 `simulate` validates and returns that completed NumPy `States` object.
@@ -63,7 +67,7 @@ executor = Execution_Modal(
     function_name="integrate",
     record_directory="logs/execution_modal",
 )
-solution = simulate(problem, method, request, execution=executor)
+solution = simulate(problem.with_request(request), method, execution=executor)
 
 # Use the actual notebook experiment directory and its explicit run identifier.
 destination = solution_destination(EXPERIMENT_PATH, RUN_ID)
@@ -214,7 +218,7 @@ and request, and load the confirmed receipt:
 
 ```python
 executor = Execution_Modal.from_record("logs/execution_modal/SAVED_RECEIPT.json")
-solution = simulate(problem, method, request, execution=executor)
+solution = simulate(problem.with_request(request), method, execution=executor)
 ```
 
 Alternatively, construct `Execution_Modal(resume_call_id="fc-SAVED_ID")` if only

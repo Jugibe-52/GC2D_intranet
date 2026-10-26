@@ -33,7 +33,7 @@ class ExplicitEulerTests(unittest.TestCase):
 		self.assertEqual(request.output_times.size, DEFAULT_SAVED_STEPS_PER_CYCLE + 1)
 		np.testing.assert_allclose(np.diff(request.output_times), DEFAULT_SAVE_INTERVAL)
 
-		solution = simulate(_rotation_problem(), ExplicitEuler(step=0.1), request)
+		solution = simulate(_rotation_problem().with_request(request), ExplicitEuler(step=0.1))
 		self.assertEqual(solution.n_steps, DEFAULT_INTEGRATION_STEPS_PER_CYCLE)
 
 		ten_cycles = SimulationRequest.uniform(t_span=(0.0, 10.0))
@@ -51,7 +51,7 @@ class ExplicitEulerTests(unittest.TestCase):
 		)
 		initial = problem.initial_state
 		expected = initial + 0.1 * problem.dynamics.vector_field(0.0, initial)
-		solution = simulate(problem, ExplicitEuler(step=0.1), request)
+		solution = simulate(problem.with_request(request), ExplicitEuler(step=0.1))
 		np.testing.assert_allclose(
 			solution.states[:, -1],
 			expected,

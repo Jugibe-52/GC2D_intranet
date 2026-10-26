@@ -306,12 +306,11 @@ class TrajectoryTests(unittest.TestCase):
 		np.testing.assert_allclose(areas, expected_polygon_area)
 
 		solution = simulate(
-			gc_problem(square),
-			RK4(step=0.01),
-			uniform_request(
+			gc_problem(square).with_request(uniform_request(
 				t_span=(0.0, 0.02),
 				sample_count=3,
-			),
+			)),
+			RK4(step=0.01),
 		)
 		transported_area = calculate_area(solution.values, period=2 * np.pi, layout=GuidingCenterDynamics.coordinates)
 		self.assertEqual(transported_area.shape, (3,))
@@ -334,12 +333,11 @@ class SimulationTests(unittest.TestCase):
 		)
 		dynamics = GuidingCenterDynamics(random_potential(), rho=0.05)
 		solution = simulate(
-			InitialValueProblem(dynamics, area, layout=GuidingCenterDynamics.coordinates),
-			BM4Implicit(step=0.01),
-			uniform_request(
+			InitialValueProblem(dynamics, area, layout=GuidingCenterDynamics.coordinates).with_request(uniform_request(
 				t_span=(0.0, 0.02),
 				sample_count=3,
-			),
+			)),
+			BM4Implicit(step=0.01),
 		)
 
 		animation = animate_gc_area_solution(

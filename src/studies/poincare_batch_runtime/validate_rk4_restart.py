@@ -37,7 +37,7 @@ def main() -> None:
             expected: np.ndarray=np.stack((a['states'][ids].T,a['states'][48+ids].T),axis=-1)
             np.testing.assert_array_equal(baseline['xy'],expected)
             problem: InitialValueProblem=InitialValueProblem(GuidingCenterDynamics(potential,rho=.3), GuidingCenterDynamics.coordinates.pack_components(xy[:,0], xy[:,1]), layout=GuidingCenterDynamics.coordinates)
-            solution: States=simulate(problem,RK4(step=0.05),SimulationRequest.uniform(t_span=(0.,2.),sample_count=41))
+            solution: States=simulate(problem.with_request(SimulationRequest.uniform(t_span=(0.,2.),sample_count=41)),RK4(step=0.05))
             full: np.ndarray=np.stack(solution.positions(),axis=-1).transpose(1,0,2)
             discrepancies.append(float(np.max(np.abs(full-expected))))
             np.testing.assert_allclose(full,expected,rtol=0,atol=1e-12)

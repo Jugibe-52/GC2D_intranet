@@ -184,8 +184,8 @@ def run_single_particle_recurrence(
         configured: Radau | DOP853 = (Radau(**controls, jacobian=lambda t, z: dynamics.particle_vector_field_jacobians(t, z)[0])
                       if method == 'Radau' else DOP853(**controls))
         problem: InitialValueProblem = InitialValueProblem(dynamics, np.array(initial, dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
-        data: States = simulate(problem, replace(configured, max_step=options['max_step']), SimulationRequest(
-            t_span=(0.0, config.final_time),  output_times=times), observers=(observer,))
+        data: States = simulate(problem.with_request(SimulationRequest(
+            t_span=(0.0, config.final_time),  output_times=times)), replace(configured, max_step=options['max_step']), observers=(observer,))
         dense = observer.evaluate
         solutions[label] = dense
         arrays[label + ".states"] = data.states.copy()

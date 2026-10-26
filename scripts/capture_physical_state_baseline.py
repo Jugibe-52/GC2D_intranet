@@ -44,7 +44,7 @@ for model, dynamics, initial in models:
                         cases.append((f'{cls.__name__}_{solver.name}_{projection.name if projection else "reduced"}',cls(**options,**extra)))
         for name, method in cases:
             key = f'{model}_{name}_energy{int(energy)}'
-            result = simulate(problem, method, request, options=ExecutionOptions(backend=args.backend),
+            result = simulate(problem.with_request(request), method, options=ExecutionOptions(backend=args.backend),
                 observers=(EnergyObserver(),) if energy else ())
             arrays[key + '/values'] = result.values
             arrays[key + '/times'] = result.times

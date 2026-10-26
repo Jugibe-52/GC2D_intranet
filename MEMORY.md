@@ -244,7 +244,7 @@ Use States.record_history for complete bulk physical arrays from JAX; it require
 samples.
 
 contracts.methods.base.NumericalMethod exposes new_run(f, initial_conditions, request, *, jacobian=None, jacobian_structure="dense", observe=False, capture_quadrature=False) without a backend declaration. Methods retain no problem/dynamics or energy functions and never inspect callable owners. Execution binds physical/backend capabilities and attaches original source identity to events. methods.base.IntegrationMethod retains numerical preparation,
-advancement, observations and controller access. Fixed methods share advance across arrays and contain no JAX dispatch, options or alternate steps. execution._jax_step owns exact-type compatibility checks, isolated solver preparation and generic binding; unknown overrides fail explicitly. Configured methods are reusable; consumed runs finish on success and failure. Register EnergyObserver and caller-owned step callbacks via observers= on simulate/execution; each energy run is fresh. Newton iteration callbacks retain shadow-solve events; diagnostic replay is silent. Modal payload version 2 includes observer configurations, rejects arbitrary callbacks, and supports local worker validation.
+advancement, observations and controller access. Fixed methods share advance across arrays and contain no JAX dispatch, options or alternate steps. execution._jax_step owns exact-type compatibility checks, isolated solver preparation and generic binding; unknown overrides fail explicitly. Configured methods are reusable; consumed runs finish on success and failure. Register EnergyObserver and caller-owned step callbacks via observers= on simulate/execution; each energy run is fresh. Newton iteration callbacks retain shadow-solve events; diagnostic replay is silent. Modal payload version 3 includes the request inside the problem and observer configurations, rejects arbitrary callbacks, and supports local worker validation.
 
 execution._jax owns device preparation and the cached SciPy/JAX host adapter; components own `_as_jax()`. Dynamics has no dependency on execution. JaxPotential stays
 independently usable, with its own precision guards and tracing-safe concrete caches; executor preparation shares physical samples/splines without refitting or
@@ -260,7 +260,7 @@ Methods use type-only references and local controller/snapshot imports to avoid 
 Existing Protocol/TypedDict interfaces and shared records live under contracts in subpaths mirroring src domains.
 Import defining modules, retaining public facade exports; see docs/simulation/contracts.md. Concrete implementations
 stay in their domains; type-only references prevent runtime cycles. Standalone workers bundle lightweight contracts.
-problem owns InitialValueProblem; execution.options owns ExecutionOptions. Shared records retain validation;
+problem owns InitialValueProblem with a request.SimulationRequest; simulate and Execution.run receive only problem and method plus keyword options; execution.options owns ExecutionOptions. Shared records retain validation;
 diagnostics.studies.comparison owns RMS/energy reductions, and diagnostics.studies.bm4_recurrence owns recurrence_distances.
 studies._validation owns require_uncoupled_bm4; archive readers retain historical rates. contracts.arrays keeps shared
 NumPy/JAX compatibility without device or execution policy.

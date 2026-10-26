@@ -88,7 +88,7 @@ class PhysicalWorkspaceTests(unittest.TestCase):
 			dynamics = ExternalThreeComponentSystem()
 			initial = np.arange(3 * count, dtype=float)
 			problem = InitialValueProblem(dynamics, initial)
-			result = simulate(problem, RK4(step=.02), SimulationRequest((.15, .255), np.array([.15, .153, .255])))
+			result = simulate(problem.with_request(SimulationRequest((.15, .255), np.array([.15, .153, .255]))), RK4(step=.02))
 			np.testing.assert_allclose(result.values, initial[:, None] + result.times - .15, rtol=0, atol=4e-15)
 			self.assertEqual(result.layout.state_dimension, 3)
 			self.assertIs(type(result.layout), ThreeCoordinates)

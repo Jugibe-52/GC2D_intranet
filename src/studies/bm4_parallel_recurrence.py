@@ -117,7 +117,7 @@ def _run_particle(particle: int) -> _ParticlePayload:
 		solver=NewtonSolver(absolute_tolerance=context.config.absolute_tolerance, relative_tolerance=context.config.relative_tolerance, max_iterations=context.config.max_iterations, jacobian_method='analytic', jacobian_relative_step=context.config.jacobian_relative_step),
 	)
 	started: float = perf_counter()
-	solution: States = simulate(problem, method, context.request)
+	solution: States = simulate(problem.with_request(context.request), method)
 	runtime = perf_counter() - started
 	position_x: np.ndarray
 	position_y: np.ndarray

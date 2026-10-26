@@ -306,7 +306,7 @@ def run_implicit_trajectory_comparison(
 	runtimes: dict[str, float] = {}
 	for method_name, method in zip(IMPLICIT_METHOD_NAMES, methods, strict=True):
 		started: float = perf_counter()
-		solutions[method_name] = simulate(problem, replace(method, step=config.integration_step), request)
+		solutions[method_name] = simulate(problem.with_request(request), replace(method, step=config.integration_step))
 		runtimes[method_name] = perf_counter() - started
 
 	return ImplicitTrajectoryComparisonResult(

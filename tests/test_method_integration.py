@@ -28,9 +28,9 @@ def _execute_prepared(run, problem, *, controller=None, observers=()):
 	"""Inspect a specific prepared run through the complete execution boundary."""
 	with patch.object(type(run), "new_run", return_value=run):
 		if controller is None:
-			return Execution().run(problem, run, run.request, observers=observers)
+			return Execution().run(problem.with_request(run.request), run, observers=observers)
 		with patch.object(run, "controller", return_value=controller):
-			return Execution().run(problem, run, run.request, observers=observers)
+			return Execution().run(problem.with_request(run.request), run, observers=observers)
 
 
 def _problem() -> InitialValueProblem:
@@ -99,7 +99,7 @@ class MethodIntegrationTests(unittest.TestCase):
 				self.assertEqual(len(events), 2)
 				for key in dense.diagnostics:
 					np.testing.assert_equal(dense.diagnostics[key], again.diagnostics[key])
-				sparse = simulate(problem, replace(method, step=(0.34 - 0.3) / 2), _request(), observers=(EnergyObserver(),) if tracking else ())
+				sparse = simulate(problem.with_request(_request()), replace(method, step=(0.34 - 0.3) / 2), observers=(EnergyObserver(),) if tracking else ())
 				np.testing.assert_array_equal(dense.states[:, [0, 2, 4]], sparse.states)
 				for key in ("step_times", "step_start_times", "step_sizes"):
 					np.testing.assert_array_equal(dense.diagnostics[key], sparse.diagnostics[key])
@@ -119,15 +119,15 @@ class MethodIntegrationTests(unittest.TestCase):
 		for method, tracking in _methods():
 			with self.subTest(method=method):
 				observers = (EnergyObserver(),) if tracking else ()
-				plain = simulate(problem, replace(method, step=(0.34 - 0.3) / 2), _request(True), observers=observers)
-				observed = simulate(problem, replace(method, step=(0.34 - 0.3) / 2), _request(True), observers=observers + (corrupt,))
+				plain = simulate(problem.with_request(_request(True)), replace(method, step=(0.34 - 0.3) / 2), observers=observers)
+				observed = simulate(problem.with_request(_request(True)), replace(method, step=(0.34 - 0.3) / 2), observers=observers + (corrupt,))
 				np.testing.assert_array_equal(plain.states, observed.states)
 				for key in plain.diagnostics:
 					np.testing.assert_equal(plain.diagnostics[key], observed.diagnostics[key])
 
 	def test_unobserved_bm4_does_not_replay_stage_events(self) -> None:
 		with patch("methods.extended.bm4.stage_events", side_effect=AssertionError("Unexpected event construction")):
-			simulate(_problem(), BM4Implicit(step=(0.34 - 0.3) / 2), _request(True))
+			simulate(_problem().with_request(_request(True)), BM4Implicit(step=(0.34 - 0.3) / 2))
 
 	def test_controller_can_supply_nonuniform_accepted_steps(self) -> None:
 		"""The coordinator uses accepted intervals, independent of step policy."""
@@ -174,7 +174,7 @@ class MethodIntegrationTests(unittest.TestCase):
 				self.assertFalse(hasattr(method, "initial_state"))
 				result = _execute_prepared(first, problem)
 				_execute_prepared(second, other)
-				np.testing.assert_array_equal(result.states, simulate(problem, replace(method, step=(0.34 - 0.3) / 2), _request()).states)
+				np.testing.assert_array_equal(result.states, simulate(problem.with_request(_request()), replace(method, step=(0.34 - 0.3) / 2)).states)
 				with self.assertRaisesRegex(TypeError, "fresh"):
 					_execute_prepared(first, problem)
 

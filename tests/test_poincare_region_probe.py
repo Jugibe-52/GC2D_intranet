@@ -33,8 +33,7 @@ class RegionProbeTests(unittest.TestCase):
         actual=integrate_region_probes(self.potential,self.settings,progress=lambda a,b:events.append((a,b)))
         initial=np.asarray(self.settings.initial_xy_over_L)*self.potential.grid.period
         problem=InitialValueProblem(GuidingCenterDynamics(self.potential,rho=0.), GuidingCenterDynamics.coordinates.pack_components(initial[:,0], initial[:,1]), layout=GuidingCenterDynamics.coordinates)
-        expected=simulate(problem,BM4Midpoint(step=0.05),
-            SimulationRequest.uniform(t_span=(0,3),sample_count=61))
+        expected=simulate(problem.with_request(SimulationRequest.uniform(t_span=(0,3),sample_count=61)),BM4Midpoint(step=0.05))
         np.testing.assert_array_equal(actual['xy'],np.stack(expected.positions(),axis=-1).transpose(1,0,2))
         self.assertEqual(events,[(40,60),(60,60)])
         self.assertEqual(actual['method_diagnostics']['nonlinear_unknown_dimension'],0)

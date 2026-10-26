@@ -63,7 +63,7 @@ def run_bm4_vector_study(
 ) -> BM4VectorStudy:
     """Integrate with a fresh observer and align vectors to the saved endpoints."""
     observer: BM4VectorObserver = BM4VectorObserver()
-    solution: States = simulate(problem, method, request, observers=(observer,))
+    solution: States = simulate(problem.with_request(request), method, observers=(observer,))
     times: np.ndarray = np.asarray(observer.times)
     if times.shape != solution.t[1:].shape or not np.allclose(
         times, solution.t[1:], rtol=0, atol=1e-12

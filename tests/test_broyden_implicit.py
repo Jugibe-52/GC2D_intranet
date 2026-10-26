@@ -75,8 +75,8 @@ class ImplicitBroydenTests(unittest.TestCase):
 				formulation=formulation,
 			):
 				events = []
-				newton = simulate(_problem(particle_count=2), replace(method_type(projection_formulation=formulation, solver=NewtonSolver(**common, jacobian_method='analytic')), step=0.02), _request())
-				broyden = simulate(_problem(particle_count=2), replace(method_type(projection_formulation=formulation, solver=BroydenSolver(**common, jacobian_method='analytic')), step=0.02), _request(), observers=(events.append,))
+				newton = simulate(_problem(particle_count=2).with_request(_request()), replace(method_type(projection_formulation=formulation, solver=NewtonSolver(**common, jacobian_method='analytic')), step=0.02))
+				broyden = simulate(_problem(particle_count=2).with_request(_request()), replace(method_type(projection_formulation=formulation, solver=BroydenSolver(**common, jacobian_method='analytic')), step=0.02), observers=(events.append,))
 				np.testing.assert_allclose(
 					broyden.states,
 					newton.states,
@@ -124,7 +124,7 @@ class ImplicitBroydenTests(unittest.TestCase):
 				extension=extension,
 				track_energy=track_energy,
 			):
-				solution = simulate(problem, replace(method_type(projection_formulation=formulation, state_extension=extension, solver=BroydenSolver(jacobian_method='analytic', max_iterations=50)), step=0.02), _request(), observers=(EnergyObserver(),) if track_energy else ())
+				solution = simulate(problem.with_request(_request()), replace(method_type(projection_formulation=formulation, state_extension=extension, solver=BroydenSolver(jacobian_method='analytic', max_iterations=50)), step=0.02), observers=(EnergyObserver(),) if track_energy else ())
 				self.assertEqual(solution.states.shape, (2, 2))
 
 	def test_newton_abba2_requires_derivatives_for_every_energy_strategy(
@@ -142,7 +142,7 @@ class ImplicitBroydenTests(unittest.TestCase):
 				track_energy=track_energy,
 			):
 				with self.assertRaisesRegex(ValueError, "interpolation_order"):
-					simulate(problem, ABBA2Implicit(step=0.02, projection_formulation=formulation, state_extension=extension), _request(), observers=(EnergyObserver(),) if track_energy else ())
+					simulate(problem.with_request(_request()), ABBA2Implicit(step=0.02, projection_formulation=formulation, state_extension=extension), observers=(EnergyObserver(),) if track_energy else ())
 
 	def test_removed_full_projection_does_not_silently_select_broyden(self) -> None:
 		with self.assertRaisesRegex(ValueError, "removed"):

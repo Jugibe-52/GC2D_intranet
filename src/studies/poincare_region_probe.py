@@ -122,7 +122,7 @@ def integrate_region_probes(potential: Potential, settings: RegionProbeSettings,
             method = BM4Midpoint()
         else:
             method = RK4()
-        solution: States = simulate(InitialValueProblem(dynamics, initial, layout=GuidingCenterDynamics.coordinates), replace(method, step=step), request, observers=(report,) if settings.method == "BM4Midpoint" and progress else ())
+        solution: States = simulate(InitialValueProblem(dynamics, initial, layout=GuidingCenterDynamics.coordinates).with_request(request), replace(method, step=step), observers=(report,) if settings.method == "BM4Midpoint" and progress else ())
         if solution.diagnostics['step_count'] != end - start or solution.diagnostics['output_interpolation_count'] != 0:
             raise RuntimeError('The method did not preserve the requested complete-step grid.')
         xy[start:end + 1] = np.stack(solution.positions(), axis=-1).transpose(1, 0, 2)

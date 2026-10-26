@@ -51,16 +51,16 @@ class MethodStepTests(unittest.TestCase):
 		events = []
 		method = ExplicitEuler(step=.3)
 		r = SimulationRequest((0., 1.), np.array([0., .1, .3, .55, .9, 1.]))
-		result = simulate(p, method, r, observers=(events.append,))
+		result = simulate(p.with_request(r), method, observers=(events.append,))
 		np.testing.assert_allclose(result.diagnostics['step_sizes'], [.3, .3, .3, .1], atol=2e-16, rtol=0)
 		np.testing.assert_allclose(result.diagnostics['step_times'], [.3, .6, .9, 1.], atol=2e-16, rtol=0)
 		np.testing.assert_allclose(result.states[:, -1], [.36, 1.], atol=2e-16, rtol=0)
 		self.assertEqual(result.diagnostics['step_times'][-1], 1.)
 		self.assertEqual(len(events), 4)
 		self.assertEqual(method.step, .3)
-		sparse = simulate(p, method, SimulationRequest((0., 1.), np.array([0., 1.])))
+		sparse = simulate(p.with_request(SimulationRequest((0., 1.), np.array([0., 1.]))), method)
 		np.testing.assert_array_equal(sparse.states[:, -1], result.states[:, -1])
-		short = simulate(p, method, SimulationRequest((2., 2.1), np.array([2., 2.1])))
+		short = simulate(p.with_request(SimulationRequest((2., 2.1), np.array([2., 2.1]))), method)
 		self.assertEqual(short.diagnostics['step_count'], 1)
 		self.assertEqual(method.step, .3)
 
@@ -85,8 +85,8 @@ class MethodStepTests(unittest.TestCase):
 			for cls in FIXED:
 				with self.subTest(method=cls.__name__):
 					method = cls(step=.02)
-					host = simulate(p, method, r, observers=(EnergyObserver(),))
-					device = simulate(p, method, r, options=ExecutionOptions(backend='jax'), observers=(EnergyObserver(),))
+					host = simulate(p.with_request(r), method, observers=(EnergyObserver(),))
+					device = simulate(p.with_request(r), method, options=ExecutionOptions(backend='jax'), observers=(EnergyObserver(),))
 					np.testing.assert_allclose(host.diagnostics['step_sizes'], [.02, .02, .015], atol=1e-16, rtol=0)
 					for key in ('step_start_times', 'step_times', 'step_sizes'):
 						np.testing.assert_array_equal(host.diagnostics[key], device.diagnostics[key])

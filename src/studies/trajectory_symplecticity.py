@@ -386,7 +386,7 @@ def _run_trajectory_symplecticity_study(
 			sample_count=config.output_sample_count,
 		)
 		with observer:
-			solution: States = simulate(problem, replace(method_factory(), step=step.value), request, observers=(observer,))
+			solution: States = simulate(problem.with_request(request), replace(method_factory(), step=step.value), observers=(observer,))
 		solutions[step.label] = solution
 		records[step.label] = observer.records
 		output_directories[step.label] = observer.output_directory

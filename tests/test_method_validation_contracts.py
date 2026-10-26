@@ -11,6 +11,7 @@ import unittest
 import numpy as np
 
 from problem import InitialValueProblem
+
 from request import SimulationRequest
 
 from solvers.nonlinear import _solve_broyden, _solve_newton, NewtonSolver

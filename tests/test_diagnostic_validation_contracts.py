@@ -79,9 +79,8 @@ class DiagnosticValidationContracts(unittest.TestCase):
 		configuration = GuidingCenterDynamics.coordinates.pack_components(np.array([1.0]), np.array([1.2]))
 		events: list[IntegrationStep] = []
 		simulate(
-			InitialValueProblem(dynamics, configuration, layout=GuidingCenterDynamics.coordinates),
+			InitialValueProblem(dynamics, configuration, layout=GuidingCenterDynamics.coordinates).with_request(SimulationRequest.uniform(t_span=(0.0, 0.02),  sample_count=3)),
 			ABBA2Implicit(step=0.01),
-			SimulationRequest.uniform(t_span=(0.0, 0.02),  sample_count=3),
 			observers=(EnergyObserver(), events.append),
 		)
 		reversibility = ImplicitABBAReversibilityObserver(sample_every=2)

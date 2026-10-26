@@ -245,7 +245,7 @@ def run_five_method_comparison(
 			f"{trajectory_count} trajectories together, {config.step_count} steps.",
 		)
 		started: float = perf_counter()
-		solution: States = simulate(problem, comparison_method(method_name, config), request)
+		solution: States = simulate(problem.with_request(request), comparison_method(method_name, config))
 		runtime_seconds = perf_counter() - started
 		with progress_lock:
 			completed_method_runs += 1

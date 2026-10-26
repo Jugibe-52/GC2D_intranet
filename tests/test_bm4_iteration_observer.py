@@ -60,7 +60,7 @@ class ImplicitBM4IterationObserverTests(unittest.TestCase):
 				project_root=root,
 				chunk_size=2,
 			) as observer:
-				solution = simulate(InitialValueProblem(GuidingCenterDynamics(_potential(), rho=0.05), _configuration(), layout=GuidingCenterDynamics.coordinates), BM4Implicit(step=0.02), request, observers=tuple((o for o in (observer,) if o is not None)))
+				solution = simulate(InitialValueProblem(GuidingCenterDynamics(_potential(), rho=0.05), _configuration(), layout=GuidingCenterDynamics.coordinates).with_request(request), BM4Implicit(step=0.02), observers=tuple((o for o in (observer,) if o is not None)))
 			iterations = np.asarray(
 				[record.newton_iterations for record in observer.records]
 			)

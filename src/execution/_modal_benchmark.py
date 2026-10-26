@@ -20,7 +20,6 @@ if TYPE_CHECKING:
     from execution.options import ExecutionOptions
     from problem import InitialValueProblem
     from contracts.methods.base import NumericalMethod
-    from request import SimulationRequest
 
 
 def benchmark_payload(payload: bytes, *, cpu_cores: int, repetitions: int) -> tuple[int, str, States]:
@@ -34,10 +33,9 @@ def benchmark_payload(payload: bytes, *, cpu_cores: int, repetitions: int) -> tu
         raise ValueError("Use at least three repetitions and 1, 2 or 4 CPU cores.")
     problem: InitialValueProblem
     method: NumericalMethod
-    request: SimulationRequest
     options: ExecutionOptions
     observers: tuple[EnergyObserver, ...]
-    problem, method, request, options, observers = decode_job(payload)
+    problem, method, options, observers = decode_job(payload)
     if options.backend != "jax" or options.device != "cpu":
         raise ValueError("This benchmark requires explicit JAX CPU options.")
     import jax
@@ -46,7 +44,7 @@ def benchmark_payload(payload: bytes, *, cpu_cores: int, repetitions: int) -> tu
 
     executor: Execution = Execution()
     start: float = perf_counter()
-    first: States = executor.run(problem, method, request, options=options, observers=observers)
+    first: States = executor.run(problem, method, options=options, observers=observers)
     first_seconds = perf_counter() - start
     wall: list[float]
     cpu: list[float]
@@ -54,7 +52,7 @@ def benchmark_payload(payload: bytes, *, cpu_cores: int, repetitions: int) -> tu
     for _ in range(repetitions):
         cpu_start: float
         start, cpu_start = perf_counter(), process_time()
-        data: States = executor.run(problem, method, request, options=options, observers=observers)
+        data: States = executor.run(problem, method, options=options, observers=observers)
         cpu.append(process_time() - cpu_start)
         wall.append(perf_counter() - start)
         np.testing.assert_array_equal(data.t, first.t)

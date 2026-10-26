@@ -54,7 +54,7 @@ def calculate_checkpointed_group(indices: np.ndarray, initial_xy: np.ndarray,
             initial: np.ndarray=GuidingCenterDynamics.coordinates.pack_components(value[:count], value[count:])
             problem: InitialValueProblem=InitialValueProblem(field, initial, layout=GuidingCenterDynamics.coordinates)
             request: SimulationRequest=SimulationRequest.uniform(t_span=(t0+completed*h,t0+end*h),sample_count=length+1)
-            solution: States=simulate(problem,RK4(step=h, progress=False),request)
+            solution: States=simulate(problem.with_request(request),RK4(step=h, progress=False))
             assert solution.diagnostics['step_count']==length
             part=solution.states;assert part.shape==(2*count,length+1) and np.isfinite(part).all()
             np.testing.assert_array_equal(part[:,0],value)

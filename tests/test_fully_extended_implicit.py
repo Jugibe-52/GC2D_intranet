@@ -15,7 +15,7 @@ class FormerFullProjectionTests(unittest.TestCase):
         for cls in (ABBA2Implicit, ABBA4Implicit,):
             for formulation in ("reduced_multiplier", "simultaneous_state_multiplier"):
                 events=[]
-                result=simulate(_problem(), cls(projection_formulation=formulation), _request(), observers=(EnergyObserver(),) + (events.append,))
+                result=simulate(_problem().with_request(_request()), cls(projection_formulation=formulation), observers=(EnergyObserver(),) + (events.append,))
                 self.assertEqual(result.diagnostics["accepted_internal_state_dimension"],2)
                 self.assertEqual(result.diagnostics["nonlinear_unknown_dimension"],
                     2 if formulation=="reduced_multiplier" else 6)

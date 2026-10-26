@@ -195,7 +195,7 @@ def run_generalized_energy_comparison(
 			),
 			progress=config.progress,
 		)
-		raw_solution: States = simulate(problem, replace(method, step=step), request,
+		raw_solution: States = simulate(problem.with_request(request), replace(method, step=step),
 			observers=(energy_observer,))
 		records = energy_observer.records
 		if len(records) != raw_solution.n_steps + 1:

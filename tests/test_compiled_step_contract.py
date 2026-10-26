@@ -67,7 +67,7 @@ class CompiledStepContractTests(unittest.TestCase):
 		run = self.prepare_run(RK4(step=0.1))
 		with patch.object(RK4, "new_run", return_value=run):
 			with patch("execution._jax_step.prepare_step", return_value=ConstantDrift(self.jax.devices("cpu")[0])):
-				data = Execution().run(self.problem, RK4(step=0.1), self.request, options=self.execution)
+				data = Execution().run(self.problem.with_request(self.request), RK4(step=0.1), options=self.execution)
 		expected = self.problem.initial_state[:, None] + np.array([2., -1.])[:, None] * data.t
 		np.testing.assert_allclose(data.states, expected, rtol=0., atol=1e-15)
 		self.assertEqual(data.diagnostics["step_count"], 2)
@@ -96,7 +96,7 @@ class CompiledStepContractTests(unittest.TestCase):
 					return run
 				with patch.object(States, "prepare", side_effect=allocate), patch.object(States, "finalize", finish):
 					with patch.object(type(method), "new_run", side_effect=prepare_run):
-						result = Execution().run(self.problem, method, self.request, options=self.execution, observers=(EnergyObserver(),))
+						result = Execution().run(self.problem.with_request(self.request), method, options=self.execution, observers=(EnergyObserver(),))
 				self.assertEqual(len(recorders), 1)
 				self.assertEqual(len(finalized), 1)
 				self.assertIs(recorders[0], result)
@@ -116,14 +116,14 @@ class CompiledStepContractTests(unittest.TestCase):
 			with patch("execution._jax_step.prepare_step", side_effect=fail_preparation) as compile_step:
 				with patch.object(States, "prepare") as allocate:
 					with self.assertRaisesRegex(RuntimeError, "Compiled step unavailable"):
-						Execution().run(self.problem, method, self.request, options=self.execution)
+						Execution().run(self.problem.with_request(self.request), method, options=self.execution)
 					allocate.assert_not_called()
 				compile_step.assert_called_once()
 			self.assertEqual(run._status, "finished")
 			with self.assertRaisesRegex(TypeError, "fresh"):
-				Execution().run(self.problem, method, self.request, options=self.execution)
+				Execution().run(self.problem.with_request(self.request), method, options=self.execution)
 		self.assertEqual(method._status, "configuration")
-		self.assertTrue(Execution().run(self.problem, method, self.request, options=self.execution).complete)
+		self.assertTrue(Execution().run(self.problem.with_request(self.request), method, options=self.execution).complete)
 
 	def test_prepared_controls_do_not_follow_mutable_method_options(self) -> None:
 		from execution._jax_step import prepare_step
@@ -168,17 +168,17 @@ class CompiledStepContractTests(unittest.TestCase):
 		execution = ExecutionOptions(backend="jax", device_index=len(self.jax.devices("cpu")))
 		run = self.prepare_run(RK4(step=0.1))
 		with self.assertRaisesRegex(ValueError, "device index.*unavailable"):
-			Execution().run(self.problem, RK4(step=0.1), self.request, options=execution)
+			Execution().run(self.problem.with_request(self.request), RK4(step=0.1), options=execution)
 
 	def test_python_newton_callbacks_are_rejected_before_compilation(self) -> None:
 		events = []
 		run = self.prepare_run(GaussLegendre4(step=0.1, solver=NewtonSolver(1e-14, 1e-13, 20, iteration_observer=events.append)))
 		with patch.object(GaussLegendre4, "new_run", return_value=run):
 			with self.assertRaisesRegex(NotImplementedError, "iteration callbacks"):
-				Execution().run(self.problem, GaussLegendre4(step=0.1), self.request, options=self.execution)
+				Execution().run(self.problem.with_request(self.request), GaussLegendre4(step=0.1), options=self.execution)
 			self.assertEqual(run._status, "finished")
 			with self.assertRaisesRegex(TypeError, "fresh"):
-				Execution().run(self.problem, GaussLegendre4(step=0.1), self.request, options=self.execution)
+				Execution().run(self.problem.with_request(self.request), GaussLegendre4(step=0.1), options=self.execution)
 		self.assertEqual(events, [])
 
 

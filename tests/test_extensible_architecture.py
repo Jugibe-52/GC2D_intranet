@@ -77,9 +77,9 @@ class _FixedOutputExecution(Execution):
 		self,
 		_problem: InitialValueProblem,
 		method,
-		request: SimulationRequest,
 		*, options=None, observers=(),
 	) -> States:
+		request = _problem.request
 		return States(layout=_problem.layout, initial_state=_problem.initial_state,
 			t=request.output_times if self.times is None else self.times,
 			states=self.states,
@@ -168,12 +168,11 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		errors = []
 		for max_step in (0.1, 0.05):
 			solution = simulate(
-				problem,
-				RK4(step=max_step),
-				SimulationRequest.uniform(
+				problem.with_request(SimulationRequest.uniform(
 					t_span=(0.0, 1.0),
 					sample_count=2,
-				),
+				)),
+				RK4(step=max_step),
 			)
 			errors.append(float(np.linalg.norm(solution.states[:, -1] - exact)))
 		self.assertGreater(errors[0] / errors[1], 14.0)
@@ -182,12 +181,11 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 	def test_rk4_uses_non_autonomous_stage_times(self) -> None:
 		source = np.array(np.asarray([0.0, 0.0]), dtype=float, copy=True)
 		solution = simulate(
-			InitialValueProblem(_TimePolynomialDynamics(), source, layout=GuidingCenterDynamics.coordinates),
-			RK4(step=0.1),
-			SimulationRequest.uniform(
+			InitialValueProblem(_TimePolynomialDynamics(), source, layout=GuidingCenterDynamics.coordinates).with_request(SimulationRequest.uniform(
 				t_span=(0.0, 1.0),
 				sample_count=2,
-			),
+			)),
+			RK4(step=0.1),
 		)
 		self.assertLess(abs(float(solution.states[0, -1]) - 0.2), 1e-6)
 		self.assertEqual(float(solution.states[1, -1]), 0.0)
@@ -197,12 +195,11 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		problem = InitialValueProblem(_RotationDynamics(), source, layout=GuidingCenterDynamics.coordinates)
 		events = []
 		solution = simulate(
-			problem,
-			RK4(step=0.01),
-			SimulationRequest.uniform(
+			problem.with_request(SimulationRequest.uniform(
 				t_span=(0.0, 0.02),
 				sample_count=5,
-			),
+			)),
+			RK4(step=0.01),
 			observers=(events.append,),
 		)
 
@@ -238,9 +235,8 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		for dynamics, source, physical_size in cases:
 			with self.subTest(dynamics=type(dynamics).__name__):
 				solution = simulate(
-					InitialValueProblem(dynamics, source),
+					InitialValueProblem(dynamics, source).with_request(request),
 					replace(method, step=0.01),
-					request,
 				)
 				self.assertEqual(solution.states.shape, (physical_size, 5))
 				np.testing.assert_array_equal(
@@ -277,12 +273,11 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 
 		)
 		solution = simulate(
-			InitialValueProblem(GuidingCenterDynamics(potential, rho=0.05), area, layout=GuidingCenterDynamics.coordinates),
-			RK4(step=0.01),
-			SimulationRequest.uniform(
+			InitialValueProblem(GuidingCenterDynamics(potential, rho=0.05), area, layout=GuidingCenterDynamics.coordinates).with_request(SimulationRequest.uniform(
 				t_span=(0.0, 0.02),
 				sample_count=3,
-			),
+			)),
+			RK4(step=0.01),
 		)
 
 		self.assertIsInstance(area, np.ndarray)
@@ -319,9 +314,8 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 			with self.subTest(states=states):
 				with self.assertRaises(ValueError):
 					simulate(
-						problem,
+						problem.with_request(request),
 						RK4(step=0.1),
-						request,
 						execution=_FixedOutputExecution(states),
 					)
 
@@ -337,7 +331,7 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		):
 			with self.subTest(times=times):
 				with self.assertRaises(ValueError):
-					simulate(problem, RK4(step=0.1), request, execution=_FixedOutputExecution(states, times))
+					simulate(problem.with_request(request), RK4(step=0.1), execution=_FixedOutputExecution(states, times))
 
 	def test_gc_and_fc_split_maps_preserve_physical_motion_and_reverse_signed_steps(self) -> None:
 		potential = deterministic_potential()

@@ -207,7 +207,7 @@ see the [implementation results](../../../../specs/changes/2026-10-25-common-imp
 
 ## Complete integration executor
 
-`simulate(problem, method, request, execution=Execution())` delegates the complete
+`simulate(problem, method, execution=Execution())` delegates the complete
 job to `Execution.run`. Import the executor with `from execution import Execution`.
 The executor prepares the requested environment and a fresh numerical run, allocates one recorder, invokes the host or compiled worker and finalizes the result once. It owns run status on success and failure. It does not change thread counts, affinity
 or global JAX settings. Subclasses can execute the same job elsewhere, while

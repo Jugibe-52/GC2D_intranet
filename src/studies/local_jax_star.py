@@ -123,7 +123,7 @@ def integrate_local_star(
         request: SimulationRequest = SimulationRequest((float(first_cycle), float(last_cycle)),
                                      times[first:last + 1])
         start: float = perf_counter()
-        block: States = simulate(block_problem, replace(method, step=1.0 / config.steps_per_cycle), request, execution=executor, options=options)
+        block: States = simulate(block_problem.with_request(request), replace(method, step=1.0 / config.steps_per_cycle), execution=executor, options=options)
         seconds = perf_counter() - start  # NumPy output has synchronized JAX.
         data = block.diagnostics
         if (data['step_count'] != last - first or data['output_interpolation_count'] != 0

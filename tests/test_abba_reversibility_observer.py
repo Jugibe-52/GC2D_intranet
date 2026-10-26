@@ -58,7 +58,7 @@ class ImplicitABBAReversibilityObserverTests(unittest.TestCase):
 		methods.append(ABBA4Implicit(solver=NewtonSolver(absolute_tolerance=solver['newton_absolute_tolerance'], relative_tolerance=solver['newton_relative_tolerance'], max_iterations=solver['newton_max_iterations'], jacobian_method='analytic')))
 		for method in methods:
 			observer = ImplicitABBAReversibilityObserver(**solver)
-			solution = simulate(problem, replace(replace(method), step=0.07), request, observers=tuple((o for o in (observer,) if o is not None)))
+			solution = simulate(problem.with_request(request), replace(replace(method), step=0.07), observers=tuple((o for o in (observer,) if o is not None)))
 			self.assertEqual(len(observer.samples), solution.n_steps)
 			for sample in observer.samples:
 				identity = np.eye(2)

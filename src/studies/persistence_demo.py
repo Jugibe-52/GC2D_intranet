@@ -13,6 +13,7 @@ from pathlib import Path
 import numpy as np
 
 from problem import InitialValueProblem
+
 from request import SimulationRequest
 from diagnostics.io.persistence import save_solution
 
@@ -71,7 +72,7 @@ def run_persistence_demo(
     dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
     request: SimulationRequest = SimulationRequest.uniform(t_span=config.t_span,
                                         sample_count=config.sample_count)
-    solution: States = simulate(InitialValueProblem(dynamics, initial, layout=GuidingCenterDynamics.coordinates), RK4(step=config.max_step), request, observers=(EnergyObserver(),))
+    solution: States = simulate(InitialValueProblem(dynamics, initial, layout=GuidingCenterDynamics.coordinates).with_request(request), RK4(step=config.max_step), observers=(EnergyObserver(),))
     # Hash the source used for this run, including uncommitted implementation
     # changes; a Git commit alone would not identify a local development run.
     source_root = Path(__file__).resolve().parents[1]

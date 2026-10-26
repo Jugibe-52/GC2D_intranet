@@ -11,6 +11,7 @@ from solvers.nonlinear import NewtonSolver
 import numpy as np
 
 from problem import InitialValueProblem
+
 from request import SimulationRequest
 
 from methods.extended.bm4 import BM4Implicit
@@ -103,11 +104,10 @@ class PotentialSnapshotTests(unittest.TestCase):
 			for particle, (x, y) in enumerate(result.initial_positions):
 				problem = InitialValueProblem(dynamics, GuidingCenterDynamics.coordinates.pack_components(np.asarray([x]), np.asarray([y])), layout=GuidingCenterDynamics.coordinates)
 				solution = simulate(
-					problem,
+					problem.with_request(request),
 					BM4Implicit(step=config.integration_step,
 						solver=NewtonSolver(config.absolute_tolerance, config.relative_tolerance, config.max_iterations, jacobian_method='analytic'),
 					),
-					request,
 				)
 				x_values, y_values = solution.positions()
 				np.testing.assert_array_equal(result.times, solution.t)

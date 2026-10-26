@@ -196,8 +196,7 @@ def run_and_save_radial_cycle(prepared: PreparedRadialCycle, destination: str | 
             raise ValueError("Destination contains a different experiment; choose a new run ID.")
         validate_radial_solution(saved.solution, prepared)
         return saved
-    solution: States = simulate(prepared.problem, BM4Midpoint(step=1.0 / prepared.config.steps_per_cycle),
-                        prepared.request, execution=Execution(), options=options)
+    solution: States = simulate(prepared.problem.with_request(prepared.request), BM4Midpoint(step=1.0 / prepared.config.steps_per_cycle), execution=Execution(), options=options)
     validate_radial_solution(solution, prepared)
     metadata = {**expected, "execution_options": asdict(options)}
     dynamics = prepared.problem.dynamics

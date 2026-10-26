@@ -7,7 +7,7 @@ documents = ["docs/simulation/initial-solvers-formulations.md", "docs/simulation
 
 [[requirements]]
 id = "SIM-001"
-tests = ["tests/test_independent_formulations.py", "tests/test_initial_solvers_formulations.py", "tests/test_core.py::SimulationTests.test_problem_and_request_validate_initial_state_and_time_span", "tests/test_state_ownership.py::StateOwnershipTests.test_problem_and_prepared_formulations_own_state_and_layout_snapshots"]
+tests = ["tests/test_problem_request.py", "tests/test_independent_formulations.py", "tests/test_initial_solvers_formulations.py", "tests/test_core.py::SimulationTests.test_problem_and_request_validate_initial_state_and_time_span", "tests/test_state_ownership.py::StateOwnershipTests.test_problem_and_prepared_formulations_own_state_and_layout_snapshots"]
 
 [[requirements]]
 id = "SIM-002"
@@ -24,7 +24,7 @@ tests = ["tests/test_extensible_architecture.py::ExtensibleArchitectureTests.tes
 
 # Simulation boundary
 
-The public call is `simulate(problem, method, request, *, execution=None,
+The public call is `simulate(problem, method, *, execution=None,
 options=None, observers=()) -> States`. This baseline covers orchestration, not a particular
 integrator's accuracy or convergence. Detailed ownership remains in the
 [integration architecture](../../docs/simulation/integration-architecture.md)
@@ -49,7 +49,7 @@ their recorded grids.
 
 ## SIM-001: Validated problem snapshot
 
-`InitialValueProblem(dynamics, initial_state, layout=...)` associates compatible
+`InitialValueProblem(dynamics, initial_state, request=..., layout=...)` associates compatible
 dynamics with `states.InitialConditions` or a packed physical array. The initial
 vector is finite, one-dimensional and contains complete particle blocks; its
 layout dimension matches the dynamics. InitialConditions owns copies of the
@@ -60,6 +60,12 @@ is rejected. Raw arrays normalize through the same owner, using the declared dyn
 fresh array. The initial time belongs exclusively to `request.SimulationRequest`
 and may be nonzero. Geometry generators still return arrays. See the
 [state contracts](states.md).
+
+`request` references a validated `request.SimulationRequest`. Omitting the keyword
+creates an independent uniform request from 0 to 1 with 11 samples.
+`with_request(request)` reuses dynamics and the initial-value owner in another
+problem without mutating the source. `simulate` and executors receive the problem
+and method; numerical methods still receive the request separately at preparation.
 
 ## SIM-002: Complete, increasing output schedule
 

@@ -84,7 +84,7 @@ class AdaptiveIntegrationTests(unittest.TestCase):
                 request = SimulationRequest.uniform(t_span=(.3, .32),  sample_count=2)
                 with patch.object(type(problem.dynamics), 'extended_momentum_derivative', autospec=True,
                                   side_effect=type(problem.dynamics).extended_momentum_derivative) as rate:
-                    result = simulate(problem, replace(cls(first_step=step), max_step=step), request, observers=(EnergyObserver(),))
+                    result = simulate(problem.with_request(request), replace(cls(first_step=step), max_step=step), observers=(EnergyObserver(),))
                 self.assertEqual(result.n_steps, 1)
                 self.assertEqual(rate.call_count, 8)
 
@@ -104,8 +104,8 @@ class AdaptiveIntegrationTests(unittest.TestCase):
                         self.problem.initial_state, method=cls.__name__, t_eval=request.output_times,
                         max_step=.08, rtol=1e-10, atol=1e-12)
                     events = []
-                    plain = simulate(self.problem, cls(max_step=.08), request)
-                    observed = simulate(self.problem, cls(max_step=.08), request, observers=(events.append,))
+                    plain = simulate(self.problem.with_request(request), cls(max_step=.08))
+                    observed = simulate(self.problem.with_request(request), cls(max_step=.08), observers=(events.append,))
                     np.testing.assert_array_equal(plain.states, reference.y)
                     np.testing.assert_array_equal(observed.states, plain.states)
                     for key, total in zip(('function_evaluations', 'jacobian_evaluations', 'lu_decompositions'),
@@ -136,11 +136,11 @@ class AdaptiveIntegrationTests(unittest.TestCase):
                 events.append(event)
             run = replace(cls(), max_step=0.08).new_run(self.problem.dynamics.vector_field, self.problem.initial_conditions, self.request, observe=True)
             self.assertEqual(events, [])
-            plain = simulate(self.problem, replace(cls(), max_step=0.08), self.request)
+            plain = simulate(self.problem.with_request(self.request), replace(cls(), max_step=0.08))
             with patch.object(cls, "new_run", return_value=run):
-                first = Execution().run(self.problem, replace(run, max_step=0.08), self.request, observers=(mutate,))
+                first = Execution().run(self.problem.with_request(self.request), replace(run, max_step=0.08), observers=(mutate,))
             count = len(events)
-            second = simulate(self.problem, replace(cls(), max_step=0.08), self.request, observers=(mutate,))
+            second = simulate(self.problem.with_request(self.request), replace(cls(), max_step=0.08), observers=(mutate,))
             self.assertEqual(len(events), 2 * count)
             np.testing.assert_array_equal(first.states, plain.states)
             np.testing.assert_array_equal(second.states, first.states)
@@ -149,7 +149,7 @@ class AdaptiveIntegrationTests(unittest.TestCase):
         for cls in (DOP853, Radau):
             observer = AdaptiveTrajectoryObserver()
             configured = cls(dense_output=True)
-            actual = simulate(self.problem, replace(configured, max_step=0.08), self.request, observers=(observer,))
+            actual = simulate(self.problem.with_request(self.request), replace(configured, max_step=0.08), observers=(observer,))
             reference = solve_ivp(self.problem.dynamics.vector_field, self.request.t_span,
                 self.problem.initial_state, method=cls.__name__, max_step=.08,
                 rtol=1e-10, atol=1e-12, dense_output=True)
@@ -170,8 +170,8 @@ class AdaptiveIntegrationTests(unittest.TestCase):
             request = SimulationRequest.uniform(t_span=(.3, .34),  sample_count=5)
             reference = solve_ivp(derivative, request.t_span, np.r_[problem.initial_state, 0.],
                 method='DOP853', rtol=1e-13, atol=1e-15, max_step=.001, t_eval=request.output_times)
-            actual = simulate(problem, replace(cls(), max_step=0.02), request, observers=(EnergyObserver(),))
-            plain = simulate(problem, replace(cls(), max_step=0.02), request)
+            actual = simulate(problem.with_request(request), replace(cls(), max_step=0.02), observers=(EnergyObserver(),))
+            plain = simulate(problem.with_request(request), replace(cls(), max_step=0.02))
             np.testing.assert_array_equal(actual.states, plain.states)
             for key in ('step_times', 'function_evaluations', 'jacobian_evaluations', 'lu_decompositions'):
                 np.testing.assert_array_equal(actual.diagnostics[key], plain.diagnostics[key])
@@ -210,18 +210,18 @@ class AdaptiveIntegrationTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     cls(**options)
             with self.assertRaises(TypeError):
-                simulate(self.problem, cls(max_step=.08), self.request, observers=(EnergyObserver(),))
+                simulate(self.problem.with_request(self.request), cls(max_step=.08), observers=(EnergyObserver(),))
             def fail(solver):
                 solver.status = 'failed'
                 return 'injected failure'
             with patch.object(cls.solver_type, 'step', fail):
                 with self.assertRaisesRegex(RuntimeError, 'injected failure'):
-                    simulate(self.problem, replace(cls(), max_step=0.08), self.request)
+                    simulate(self.problem.with_request(self.request), replace(cls(), max_step=0.08))
 
     def test_first_step_and_optional_radau_jacobian(self):
         problem = InitialValueProblem(TimeDependentRotation(), np.array(np.array([1., 0.]), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
         method = Radau(first_step=.01, jacobian=lambda t, z: t * np.array([[0., -1.], [1., 0.]]))
-        actual = simulate(problem, replace(method, max_step=0.08), self.request)
+        actual = simulate(problem.with_request(self.request), replace(method, max_step=0.08))
         reference = solve_ivp(problem.dynamics.vector_field, self.request.t_span, problem.initial_state,
             method='Radau', rtol=1e-10, atol=1e-12, max_step=.08, first_step=.01,
             jac=method.jacobian, t_eval=self.request.output_times)

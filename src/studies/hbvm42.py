@@ -367,8 +367,8 @@ def _reference_solution(
 ) -> np.ndarray:
 	"""Compute an independent high-accuracy DOP853 reference on fixed times."""
 	request: SimulationRequest = SimulationRequest((float(times[0]), float(times[-1])),  times)
-	return simulate(problem, DOP853(max_step=maximum_step, relative_tolerance=relative_tolerance,
-		absolute_tolerance=absolute_tolerance), request).states
+	return simulate(problem.with_request(request), DOP853(max_step=maximum_step, relative_tolerance=relative_tolerance,
+		absolute_tolerance=absolute_tolerance)).states
 
 
 def _hbvm_method(
@@ -392,12 +392,12 @@ def _timed_simulations(
 ) -> tuple[float, float, States]:
 	"""Return median/minimum wall time and the last repeated solution."""
 	for _ in range(warmups):
-		simulate(problem, replace(method_factory(), step=step), request)
+		simulate(problem.with_request(request), replace(method_factory(), step=step))
 	timings: np.ndarray = np.empty(repeats, dtype=float)
 	last_solution: States | None = None
 	for index in range(repeats):
 		started: float = perf_counter()
-		last_solution = simulate(problem, replace(method_factory(), step=step), request)
+		last_solution = simulate(problem.with_request(request), replace(method_factory(), step=step))
 		timings[index] = perf_counter() - started
 	assert last_solution is not None
 	return float(np.median(timings)), float(np.min(timings)), last_solution
@@ -427,9 +427,8 @@ def _flow_jacobian(
 			perturbed_problem: InitialValueProblem = InitialValueProblem(problem.dynamics, np.array(perturbed, dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 			endpoints.append(
 				simulate(
-					perturbed_problem,
+					perturbed_problem.with_request(request),
 					replace(method_factory(), step=step),
-					request,
 				).states[:, -1]
 			)
 		jacobian[:, column] = (endpoints[0] - endpoints[1]) / (2.0 * increment)
@@ -490,7 +489,7 @@ def run_hbvm42_evaluation(
 			t_span=config.t_span,
 			output_times=times,
 		)
-		solution: States = simulate(problem, replace(_hbvm_method(config), step=step), request, observers=(EnergyObserver(),))
+		solution: States = simulate(problem.with_request(request), replace(_hbvm_method(config), step=step), observers=(EnergyObserver(),))
 		solutions[step] = solution
 		differences = solution.states - reference_states
 		distances: np.ndarray = np.linalg.norm(differences, axis=0)

@@ -46,10 +46,13 @@ class Execution:
 
 	def run(
 		self, problem: InitialValueProblem, method: NumericalMethod,
-		request: SimulationRequest, *, options: ExecutionOptions | None = None,
+		*, options: ExecutionOptions | None = None,
 		observers: Sequence[EnergyObserver | Callable[[Any], None]] = (),
 	) -> States:
 		"""Prepare once, advance using the selected worker, then seal one result."""
+		if not isinstance(problem, InitialValueProblem):
+			raise TypeError("`problem` must be an InitialValueProblem.")
+		request: SimulationRequest = problem.request
 		if options is not None and not isinstance(options, ExecutionOptions):
 			raise TypeError("`options` must be an ExecutionOptions instance or None.")
 		if not isinstance(method, NumericalMethod):

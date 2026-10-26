@@ -10,7 +10,7 @@ from methods.classical.rk4 import RK4
 from simulation.runner import simulate
 
 executor = Execution()
-solution = simulate(problem, RK4(), request, execution=executor)
+solution = simulate(problem.with_request(request), RK4(), execution=executor)
 ```
 
 Omitting `execution` creates a reusable local executor. It prepares a fresh
@@ -23,13 +23,16 @@ The default is NumPy/SciPy on the host CPU; a single physical core is not enforc
 
 ## Job and result boundary
 
-`run(problem, method, request, *, options=None, observers=())` receives:
+`run(problem, method, *, options=None, observers=())` receives:
 
-- `InitialValueProblem`: physical dynamics, initial array and layout.
+- `InitialValueProblem`: physical dynamics, initial array, layout and `request`.
 - `NumericalMethod`: a reusable provider of fresh numerical runs and capabilities.
-- `SimulationRequest`: time interval and requested saved times.
 - Optional `ExecutionOptions`: backend and device selection for this job.
 - `observers`: passive energy configuration and accepted-step callbacks.
+
+The executor reads the interval and saved times from `problem.request`, a
+`SimulationRequest` defined in `request.py`, and passes it separately to
+`method.new_run`. Subclasses override the same two-input signature.
 
 The executor calls `method.new_run`, validates the fresh run once and owns its
 running/finished transitions, including kernel preparation and result failures.
@@ -71,7 +74,7 @@ from execution.options import ExecutionOptions
 
 jax.config.update("jax_enable_x64", True)
 solution = simulate(
-    problem, RK4(), request,
+    problem.with_request(request), RK4(),
     execution=executor,
     options=ExecutionOptions(backend="jax", device="cpu"),
 )
@@ -114,8 +117,8 @@ sampling controls, and propagate failures.
 ## Migration
 
 Replace `method.integrate(problem, request, execution=options)` with
-`simulate(problem, method, request, options=options)` or
-`Execution().run(problem, method, request, options=options)`.
+`simulate(problem, method, options=options)` or
+`Execution().run(problem, method, options=options)`.
 `IntegrationMethod.integrate`, `_integrate_jax`, `CompiledFixedMethod` and its
 `methods._compiled` module are removed. `new_run(execution=...)` is also retired:
 backend selection belongs to the executor. External integrate-only methods must

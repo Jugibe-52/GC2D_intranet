@@ -120,10 +120,10 @@ class PalindromicOperationTests(unittest.TestCase):
 			self.assertIs(method.recipe, recipe)
 			generic = PalindromicMidpoint if cls in (ABBA2Midpoint, BM4Midpoint) else PalindromicImplicit
 			self.assertIs(cls.advance, generic.advance)
-			actual = simulate(p, replace(method, step=0.02), request, observers=(EnergyObserver(),))
+			actual = simulate(p.with_request(request), replace(method, step=0.02), observers=(EnergyObserver(),))
 			self.assertEqual(json.loads(actual.diagnostics['operation_coefficients']),
 				[op.coefficient for op in recipe])
-			expected = simulate(p, replace(generic(recipe), step=0.02), request, observers=(EnergyObserver(),))
+			expected = simulate(p.with_request(request), replace(generic(recipe), step=0.02), observers=(EnergyObserver(),))
 			np.testing.assert_array_equal(actual.states, expected.states)
 			np.testing.assert_array_equal(actual.diagnostics['extended_momentum'], expected.diagnostics['extended_momentum'])
 
@@ -132,8 +132,8 @@ class PalindromicOperationTests(unittest.TestCase):
 		class EndTimeMidpoint(ABBA2Midpoint):
 			recipe = EDGES
 		p = problem(); request = SimulationRequest((.3, .34),  np.array([.3, .34]))
-		np.testing.assert_array_equal(simulate(p, replace(EndTimeMidpoint(), step=0.02), request).states,
-			simulate(p, PalindromicMidpoint(EDGES, step=0.02), request).states)
+		np.testing.assert_array_equal(simulate(p.with_request(request), replace(EndTimeMidpoint(), step=0.02)).states,
+			simulate(p.with_request(request), PalindromicMidpoint(EDGES, step=0.02)).states)
 		for method in (PalindromicMidpoint(COUPLED), PalindromicImplicit(COUPLED),
 			PalindromicMidpoint(EDGES, coupling=HarmonicCoupling(.7))):
 			with self.assertRaisesRegex(ValueError, 'configured together'):
@@ -154,7 +154,7 @@ class PalindromicOperationTests(unittest.TestCase):
 				errors, balances = [], []
 				for h in (.1, .05, .025):
 					r = SimulationRequest((0., end),  np.array([0., end]))
-					s = simulate(p, replace(cls(recipe), step=h), r, observers=(EnergyObserver(),))
+					s = simulate(p.with_request(r), replace(cls(recipe), step=h), observers=(EnergyObserver(),))
 					errors.append(np.max(abs(s.states[:, -1]-exact)))
 					balances.append(np.max(abs(s.diagnostics['generalized_energy_error'][:, -1])))
 					if h == .1: coarse.append(s.states[:, -1])
@@ -179,8 +179,8 @@ class PalindromicOperationTests(unittest.TestCase):
 		with jax.experimental.enable_x64():
 			for index, method in enumerate(methods):
 				observers = (EnergyObserver(),) if index < 4 else ()
-				cpu = simulate(p, replace(method, step=0.02), request, observers=observers)
-				compiled = simulate(p, replace(method, step=0.02), request, options=ExecutionOptions(backend='jax'), observers=observers)
+				cpu = simulate(p.with_request(request), replace(method, step=0.02), observers=observers)
+				compiled = simulate(p.with_request(request), replace(method, step=0.02), options=ExecutionOptions(backend='jax'), observers=observers)
 				np.testing.assert_allclose(compiled.states, cpu.states, rtol=0, atol=3e-12)
 				if index < 4:
 					np.testing.assert_allclose(compiled.diagnostics['extended_momentum'],

@@ -16,6 +16,7 @@ import methods
 import formulations
 import execution
 import diagnostics
+import problem
 from dynamics import GuidingCenterDynamics
 
 from potential import Potential
@@ -102,12 +103,16 @@ class PackageLayoutTests(unittest.TestCase):
 		self.assertIsNone(importlib.util.find_spec('studies.abba6_accuracy'))
 
 	def test_public_exports_are_explicit_and_resolve(self) -> None:
-		for namespace in (simulation, methods, extended, classical, formulations, execution, diagnostics):
+		for namespace in (simulation, methods, extended, classical, formulations, execution, diagnostics, problem):
 			with self.subTest(namespace=namespace.__name__):
 				self.assertEqual(len(namespace.__all__), len(set(namespace.__all__)))
 				for name in namespace.__all__:
 					self.assertFalse(name.startswith("_"), name)
 					self.assertTrue(hasattr(namespace, name), name)
+		for name in problem.__all__:
+			self.assertIs(getattr(simulation, name), getattr(problem, name))
+		self.assertEqual(simulation.SimulationRequest.__module__, "request")
+		self.assertIsNotNone(importlib.util.find_spec("request"))
 
 	def test_diagnostic_public_names_resolve_to_process_implementations(self) -> None:
 		"""Public observers and persistence keep one implementation after relocation."""
@@ -208,7 +213,7 @@ for method in (RK4(step=.01), DOP853(max_step=.01)):
     run = restored.new_run(problem.dynamics.vector_field, problem.initial_conditions, request,
         jacobian=problem.dynamics.particle_vector_field_jacobians, jacobian_structure='particle')
     assert isinstance(run, IntegrationMethod)
-    result = Execution().run(problem, restored, request)
+    result = Execution().run(problem.with_request(request), restored)
     np.testing.assert_array_equal(result.times, request.output_times)
 assert isinstance(RK4().controller(), FixedStepController)
 state = pickle.loads(pickle.dumps(IntegrationState(0., np.array([1., 2.]))))

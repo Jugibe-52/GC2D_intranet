@@ -629,12 +629,11 @@ class GC2DH5ImportTests(unittest.TestCase):
 		self.assertTrue(np.all(np.isfinite(jacobians)))
 
 		solution = simulate(
-			InitialValueProblem(dynamics, configuration, layout=GuidingCenterDynamics.coordinates),
-			ABBA4Implicit(step=0.0005 / (2.0 * np.pi), solver=NewtonSolver(max_iterations=20, jacobian_method='analytic')),
-			SimulationRequest.uniform(
+			InitialValueProblem(dynamics, configuration, layout=GuidingCenterDynamics.coordinates).with_request(SimulationRequest.uniform(
 				t_span=(0.0, 1e-3 / (2.0 * np.pi)),
 				sample_count=3,
-			),
+			)),
+			ABBA4Implicit(step=0.0005 / (2.0 * np.pi), solver=NewtonSolver(max_iterations=20, jacobian_method='analytic')),
 		)
 		self.assertEqual(solution.states.shape, (10, 3))
 		self.assertTrue(np.all(np.isfinite(solution.states)))

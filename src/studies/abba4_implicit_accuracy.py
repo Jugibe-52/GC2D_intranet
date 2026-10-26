@@ -354,13 +354,12 @@ def run_abba4_implicit_accuracy_study(
 		)
 		started: float = perf_counter()
 		solution: States = simulate(
-			problem,
+			problem.with_request(request),
 			ABBA4Implicit(
 				step=step,
 				progress=config.progress,
 				solver=(NewtonSolver if config.nonlinear_solver == 'newton' else BroydenSolver)(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic'),
 			),
-			request,
 		)
 		runtimes[step] = perf_counter() - started
 		solutions[step] = solution

@@ -363,9 +363,8 @@ def _run_gc_symplecticity_study(
 			)
 			started: float = perf_counter()
 			solution: States = simulate(
-				problem,
-				replace(method_factory(), step=step.value),
-				request, observers=(timed_observer,))
+				problem.with_request(request),
+				replace(method_factory(), step=step.value), observers=(timed_observer,))
 			total_simulation_time = perf_counter() - started
 			method_runtime = total_simulation_time - timed_observer.elapsed_seconds
 			if method_runtime <= 0:
@@ -489,7 +488,7 @@ def _run_gc_symplecticity_observers(
 			)
 			fanout: _StepObserverFanout = _StepObserverFanout(tuple(timed_observers.values()))
 			started: float = perf_counter()
-			solution: States = simulate(problem, replace(method_factory(), step=step.value), request, observers=(fanout,))
+			solution: States = simulate(problem.with_request(request), replace(method_factory(), step=step.value), observers=(fanout,))
 			total_simulation_time = perf_counter() - started
 			observer_time: float | Literal[0] = sum(
 				timed.elapsed_seconds for timed in timed_observers.values()

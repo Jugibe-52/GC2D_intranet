@@ -22,7 +22,7 @@ def main() -> None:
 	request = SimulationRequest.uniform(t_span=(0., .1),  sample_count=3)
 	for method in (PalindromicImplicit, PalindromicMidpoint):
 		for name, recipe in (('ABBA-center', center), ('ABBA-edges', edges)):
-			result = simulate(problem, replace(method(recipe, composition_name=name), step=0.01), request, observers=(EnergyObserver(),))
+			result = simulate(problem.with_request(request), replace(method(recipe, composition_name=name), step=0.01), observers=(EnergyObserver(),))
 			operations = ' '.join(f'{op.name}({op.coefficient:g})' for op in recipe)
 			print(f'{method.__name__}, {name}: {operations}')
 			print(f'Final physical state: {result.states[:, -1]}')

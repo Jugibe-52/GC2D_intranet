@@ -45,7 +45,7 @@ def baseline(indices: np.ndarray, xy: np.ndarray, meta: dict[str, Any]) -> tuple
         )
     else:
         method=BM4Midpoint(progress=False)
-    with threadpool_limits(limits=1): solution: States=simulate(problem,replace(method, step=meta['step']),request)
+    with threadpool_limits(limits=1): solution: States=simulate(problem.with_request(request),replace(method, step=meta['step']))
     return solution.t,np.stack(solution.positions(),axis=-1).transpose(1,0,2),dict(solution.diagnostics)
 
 def main() -> None:

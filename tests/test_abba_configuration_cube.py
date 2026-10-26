@@ -114,13 +114,13 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 				track_energy,
 			)
 			try:
-				cls.implicit_solutions[key] = simulate(problem, replace(method_type(projection_formulation=formulation, state_extension=extension, solver=(NewtonSolver if solver == 'newton' else BroydenSolver)(jacobian_method='analytic', absolute_tolerance=1e-12, relative_tolerance=1e-12, max_iterations=50)), step=0.02), request, observers=(EnergyObserver(),) if track_energy else ())
+				cls.implicit_solutions[key] = simulate(problem.with_request(request), replace(method_type(projection_formulation=formulation, state_extension=extension, solver=(NewtonSolver if solver == 'newton' else BroydenSolver)(jacobian_method='analytic', absolute_tolerance=1e-12, relative_tolerance=1e-12, max_iterations=50)), step=0.02), observers=(EnergyObserver(),) if track_energy else ())
 			except Exception as exc:  # pragma: no cover - reported by the smoke test
 				cls.configuration_failures[key] = exc
 		for method_type, extension, track_energy in _MIDPOINT_CONFIGURATIONS:
 			key = (method_type.__name__, extension, track_energy)
 			try:
-				cls.midpoint_solutions[(extension, track_energy)] = simulate(problem, replace(method_type(state_extension=extension), step=0.02), request, observers=(EnergyObserver(),) if track_energy else ())
+				cls.midpoint_solutions[(extension, track_energy)] = simulate(problem.with_request(request), replace(method_type(state_extension=extension), step=0.02), observers=(EnergyObserver(),) if track_energy else ())
 			except Exception as exc:  # pragma: no cover - reported by the smoke test
 				cls.configuration_failures[key] = exc
 
@@ -388,7 +388,7 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 			("reduced_multiplier", 6),
 			("simultaneous_state_multiplier", 18),
 		):
-			solution = simulate(problem, ABBA2Implicit(step=0.02, projection_formulation=formulation), _request())
+			solution = simulate(problem.with_request(_request()), ABBA2Implicit(step=0.02, projection_formulation=formulation))
 			diagnostics = solution.diagnostics
 			self.assertEqual(diagnostics["accepted_internal_state_dimension"], 6)
 			self.assertEqual(diagnostics["base_splitting_state_dimension"], 12)
@@ -398,7 +398,7 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 				expected_unknown,
 			)
 
-		midpoint = simulate(problem, ABBA2Midpoint(step=0.02), _request())
+		midpoint = simulate(problem.with_request(_request()), ABBA2Midpoint(step=0.02))
 		self.assertEqual(midpoint.diagnostics["accepted_internal_state_dimension"], 6)
 		self.assertEqual(midpoint.diagnostics["base_splitting_state_dimension"], 12)
 		self.assertEqual(midpoint.diagnostics["nonlinear_unknown_dimension"], 0)
@@ -440,7 +440,7 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 			),
 		):
 			events = []
-			simulate(physical_problem, replace(method_type(projection_formulation='simultaneous_state_multiplier', state_extension='physical', solver=NewtonSolver(jacobian_method='analytic', absolute_tolerance=1e-13, relative_tolerance=1e-13)), step=0.02), _request(), observers=(events.append,))
+			simulate(physical_problem.with_request(_request()), replace(method_type(projection_formulation='simultaneous_state_multiplier', state_extension='physical', solver=NewtonSolver(jacobian_method='analytic', absolute_tolerance=1e-13, relative_tolerance=1e-13)), step=0.02), observers=(events.append,))
 			with self.subTest(method=method_type.__name__, extension="physical"):
 				self.assertEqual(len(events), 1)
 				event = events[0]
@@ -460,7 +460,7 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 
 		# The energy variant exposes the same physical Jacobian domain.
 		events = []
-		simulate(_problem(), ABBA4Implicit(step=0.02, projection_formulation='simultaneous_state_multiplier'), _request(), observers=(EnergyObserver(),) + (events.append,))
+		simulate(_problem().with_request(_request()), ABBA4Implicit(step=0.02, projection_formulation='simultaneous_state_multiplier'), observers=(EnergyObserver(),) + (events.append,))
 		self.assertEqual(events[0].state_before.shape, (2,))
 		analytic = _dense_component_major_jacobian(abba4_implicit_step_particle_jacobians(events[0]))
 		numerical = central_difference_jacobian(events[0].map_state, events[0].state_before, relative_step=1e-5)

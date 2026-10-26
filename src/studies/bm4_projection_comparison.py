@@ -247,14 +247,14 @@ def run_bm4_projection_comparison(
 		for _ in range(config.timing_warmups):
 			for name in BM4_PROJECTION_METHODS:
 				log(f"Warming up {name}.")
-				simulate(problem, replace(methods[name], step=config.integration_step), request)
+				simulate(problem.with_request(request), replace(methods[name], step=config.integration_step))
 		runtime_samples: dict[str, list[float]] = {name: [] for name in methods}
 		solutions = {}
 		for repeat in range(config.timing_repeats):
 			order = BM4_PROJECTION_METHODS if repeat % 2 == 0 else BM4_PROJECTION_METHODS[::-1]
 			for name in order:
 				start: float = perf_counter()
-				solution: States = simulate(problem, replace(methods[name], step=config.integration_step), request)
+				solution: States = simulate(problem.with_request(request), replace(methods[name], step=config.integration_step))
 				elapsed = perf_counter() - start
 				assert solution.diagnostics["step_count"] == config.step_count
 				assert np.array_equal(solution.t, times)
@@ -269,7 +269,7 @@ def run_bm4_projection_comparison(
 			assert len(event.base_stages) == 12
 			multipliers.append(event.multiplier.copy())
 		log("Capturing signed per-particle multipliers in an untimed replay.")
-		replay: States = simulate(problem, replace(implicit, step=config.integration_step), request, observers=(observe,))
+		replay: States = simulate(problem.with_request(request), replace(implicit, step=config.integration_step), observers=(observe,))
 		np.testing.assert_array_equal(replay.states, solutions["BM4Implicit"].states)
 		arrays["BM4Implicit.mu"] = np.stack(multipliers, axis=1)
 

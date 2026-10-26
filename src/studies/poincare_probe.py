@@ -118,7 +118,7 @@ def integrate_rk4_probe(potential: Potential, settings: RK4ProbeSettings, *,
         initial: np.ndarray = GuidingCenterDynamics.coordinates.pack_components(xy[start, :, 0], xy[start, :, 1])
         request: SimulationRequest = SimulationRequest.uniform(t_span=(times[start], times[end]),
                                             sample_count=end - start + 1)
-        solution: States = simulate(InitialValueProblem(dynamics, initial, layout=GuidingCenterDynamics.coordinates), RK4(step=step), request)
+        solution: States = simulate(InitialValueProblem(dynamics, initial, layout=GuidingCenterDynamics.coordinates).with_request(request), RK4(step=step))
         if solution.diagnostics['step_count'] != end - start:
             raise RuntimeError('RK4 did not preserve the requested number of steps.')
         xy[start:end + 1, 0] = solution.states.T

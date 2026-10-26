@@ -31,13 +31,13 @@ class EnergyBalanceTests(unittest.TestCase):
         dynamics = GuidingCenterDynamics(self.potential, rho=.05)
         request = SimulationRequest.uniform(t_span=(0., .02),  sample_count=3)
         observer = BM4EnergyBalanceObserver(dynamics, 3, 2)
-        simulate(InitialValueProblem(dynamics, self.configuration, layout=GuidingCenterDynamics.coordinates),
-                 BM4Implicit(step=0.005), request, observers=(observer,))
+        simulate(InitialValueProblem(dynamics, self.configuration, layout=GuidingCenterDynamics.coordinates).with_request(request),
+                 BM4Implicit(step=0.005), observers=(observer,))
         for p in range(3):
             z = self.configuration[[p, p+3]]
             scalar = GCGeneralizedEnergyObserver(dynamics, initial_time=0., initial_state=z)
-            simulate(InitialValueProblem(dynamics, np.array(z, dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates),
-                     BM4Implicit(step=0.005), request, observers=(scalar,))
+            simulate(InitialValueProblem(dynamics, np.array(z, dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates).with_request(request),
+                     BM4Implicit(step=0.005), observers=(scalar,))
             np.testing.assert_allclose(np.asarray(observer.momenta)[:, p],
                                        [r.kappa for r in scalar.records][::2], atol=2e-14, rtol=1e-10)
         self.assertEqual(observer.step_count, 4)

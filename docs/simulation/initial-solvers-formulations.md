@@ -1,7 +1,7 @@
 # Initial data, projection equations and algebraic solvers
 
 `InitialConditions` owns the initial physical values and their coordinate layout.
-`InitialValueProblem` associates those values with compatible dynamics. The
+`InitialValueProblem` associates those values with compatible dynamics and a temporal request. The
 integration method supplies its step equations, a projection formulation builds
 the selected constraint system, and an algebraic solver finds its root. Execution
 continues to own the complete run and returns the same completed `States`.
@@ -14,8 +14,8 @@ from simulation import InitialValueProblem, SimulationRequest, simulate
 from dynamics import GuidingCenterDynamics
 
 initial = InitialConditions.gc(x=[0.2, 0.7], y=[0.3, 0.6])
-problem = InitialValueProblem(GuidingCenterDynamics(potential), initial)
 request = SimulationRequest.uniform(t_span=(0.2, 1.2))
+problem = InitialValueProblem(GuidingCenterDynamics(potential), initial, request=request)
 ```
 
 The GC factory packs `[x, y]` blocks; `InitialConditions.fc` packs `[x, y, vx, vy]`.
@@ -53,7 +53,7 @@ from methods import ABBA4Implicit, GaussLegendre4
 solver = NewtonSolver(absolute_tolerance=1e-12,
                       relative_tolerance=1e-11, max_iterations=40)
 method = ABBA4Implicit(step=0.02, projection_formulation=ReducedProjection(), solver=solver)
-result = simulate(problem, method, request)
+result = simulate(problem, method)
 gauss = GaussLegendre4(step=0.02, solver=solver)
 ```
 

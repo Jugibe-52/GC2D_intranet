@@ -501,15 +501,14 @@ def run_implicit_generalized_energy_study(
 				initial_state=candidate_state,
 			)
 			candidate_solution: States = simulate(
-				candidate_problem,
+				candidate_problem.with_request(SimulationRequest.uniform(
+					t_span=(start_time, start_time + duration),
+					sample_count=2,
+				)),
 				replace(_method_for_run(
 					method_name,
 					config,
 				), step=duration),
-				SimulationRequest.uniform(
-					t_span=(start_time, start_time + duration),
-					sample_count=2,
-				),
 				observers=(candidate_energy_observer,),
 			)
 			return (
@@ -530,9 +529,8 @@ def run_implicit_generalized_energy_study(
 			sample_count=config.output_sample_count,
 		)
 		solution: States = simulate(
-			problem,
+			problem.with_request(request),
 			replace(_method_for_run(method_name, config), step=step),
-			request,
 			observers=(energy_observer, symplecticity_observer, reduced_symplecticity_observer),
 		)
 		records = energy_observer.records

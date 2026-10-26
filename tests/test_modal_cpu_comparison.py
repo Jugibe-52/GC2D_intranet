@@ -82,10 +82,11 @@ class ModalCPUComparisonTests(unittest.TestCase):
                 self.last_call_id = f'fc-{self.cores}'
                 self.last_record_path = Path(record_directory) / f'{self.cores}.json'
 
-            def run(self, problem, method, request, *, options=None, observers=()):
+            def run(self, problem, method, *, options=None, observers=()):
+                request = problem.request
                 # Numerical work uses the real local NumPy method; only the
                 # transport and timer are substituted in this orchestration test.
-                data = Execution().run(problem, method, request, observers=observers)
+                data = Execution().run(problem.with_request(request), method, observers=observers)
                 diagnostics = dict(data.diagnostics)
                 diagnostics.update(benchmark_cpu_cores=self.cores, benchmark_repetitions=3,
                                    benchmark_wall_seconds=np.array([3., 2., 4.]) / self.cores,
@@ -109,7 +110,7 @@ class ModalCPUComparisonTests(unittest.TestCase):
         import jax
         config = replace(settings(), cycles=1, steps_per_cycle=2)
         problem, request = build_star_problem(field(), config)
-        payload = encode_job(problem, BM4Midpoint(), request, ExecutionOptions(backend='jax'))
+        payload = encode_job(problem.with_request(request), BM4Midpoint(), ExecutionOptions(backend='jax'))
         with jax.experimental.enable_x64():
             _, digest, single = execute_payload(payload)
             _, measured_digest, measured = benchmark_payload(payload, cpu_cores=2, repetitions=3)
