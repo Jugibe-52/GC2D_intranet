@@ -81,7 +81,7 @@ def plot_cpu_comparison(comparison: ModalCPUComparison) -> Any:
     baseline = comparison.solutions[1]
     period = comparison.potential.grid.period
     for core, solution in comparison.solutions.items():
-        delta = (solution.states - baseline.states + period / 2) % period - period / 2
+        delta = (solution.states.T - baseline.states.T + period / 2) % period - period / 2
         dx: np.ndarray
         dy: np.ndarray
         dx, dy = solution.layout.positions(delta)
@@ -108,7 +108,7 @@ def export_cpu_star_poincare(comparison: ModalCPUComparison, path: str | Path) -
     for cores, solution in comparison.solutions.items():
         x: np.ndarray
         y: np.ndarray
-        x, y = solution.layout.positions(solution.states[:, step::step])
+        x, y = solution.layout.positions(solution.states[step::step].T)
         coordinates: np.ndarray = np.stack(((x.T - grid.x0) / grid.period % 1,
                                 (y.T - grid.y0) / grid.period % 1), axis=-1)
         panels.append(dict(coordinates=coordinates, particle_ids=ids, colors=colors,

@@ -139,7 +139,7 @@ class ABBAStateExtensionTests(unittest.TestCase):
 				untracked_options = dict(kwargs)
 				untracked = simulate(problem.with_request(request), replace(method_type(**untracked_options), step=0.02))
 				np.testing.assert_array_equal(tracked.states, untracked.states)
-				self.assertEqual(tracked.states.shape, (6, 2))
+				self.assertEqual(tracked.states.shape, (2, 6))
 				self.assertEqual(
 					np.asarray(tracked.diagnostics["extended_momentum"]).shape,
 					(3, 2),

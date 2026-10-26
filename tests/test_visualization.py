@@ -139,12 +139,12 @@ class NotebookPresentationTests(unittest.TestCase):
 			interpolation_order=3,
 		)
 		source = GuidingCenterDynamics.coordinates.pack_components(np.asarray([1.0]), np.asarray([1.2]))
-		solution = States(t=np.asarray([0.0, 0.1, 0.2]), states=np.asarray(
+		solution = States(t=np.asarray([0.0, 0.1, 0.2]), states=(np.asarray(
 				[
 					[1.0, 1.1, 1.2],
 					[1.2, 1.25, 1.3],
 				]
-			), initial_state=source, layout=GuidingCenterDynamics.coordinates)
+			)).T, initial_state=source, layout=GuidingCenterDynamics.coordinates)
 
 		animation = animate_gc_particle_solution(
 			potential,
@@ -177,14 +177,14 @@ class NotebookPresentationTests(unittest.TestCase):
 			interpolation_order=3,
 		)
 		source = GuidingCenterDynamics.coordinates.pack_components(np.asarray([1.0, 1.4]), np.asarray([1.2, 1.6]))
-		solution = States(t=np.asarray([0.0, 0.1, 0.2]), states=np.asarray(
+		solution = States(t=np.asarray([0.0, 0.1, 0.2]), states=(np.asarray(
 				[
 					[1.0, 1.1, 1.2],
 					[1.4, 1.5, 1.6],
 					[1.2, 1.25, 1.3],
 					[1.6, 1.65, 1.7],
 				]
-			), initial_state=source, layout=GuidingCenterDynamics.coordinates)
+			)).T, initial_state=source, layout=GuidingCenterDynamics.coordinates)
 
 		animation = animate_gc_particle_trajectories(
 			potential,

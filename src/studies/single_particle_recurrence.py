@@ -188,7 +188,7 @@ def run_single_particle_recurrence(
             t_span=(0.0, config.final_time),  output_times=times)), replace(configured, max_step=options['max_step']), observers=(observer,))
         dense = observer.evaluate
         solutions[label] = dense
-        arrays[label + ".states"] = data.states.copy()
+        arrays[label + ".states"] = data.states.T.copy()
         arrays[label + ".states"][:, 0] = initial
         arrays[label + ".cycle_states"] = dense(arrays["cycle_times"])
         roots: np.ndarray = locate_returns(dense, dynamics, initial, period, search_times,

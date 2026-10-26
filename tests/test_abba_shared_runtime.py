@@ -94,7 +94,7 @@ class SharedABBARuntimeTests(unittest.TestCase):
 				main_events, dense_events = [], []
 				main = simulate(problem.with_request(_request([0.0, 0.02, 0.04])), ABBA4Implicit(step=0.02, **options), observers=(EnergyObserver(), main_events.append))
 				dense = simulate(problem.with_request(_request([0.0, 0.009, 0.02, 0.031, 0.04])), ABBA4Implicit(step=0.02, **options), observers=(EnergyObserver(), dense_events.append))
-				np.testing.assert_array_equal(main.states, dense.states[:, [0, 2, 4]])
+				np.testing.assert_array_equal(main.states, dense.states[[0, 2, 4]])
 				for key in ("nonlinear_iterations", "residual_evaluations", "nonlinear_residual_norms",
 					"nonlinear_tolerances", "projection_multiplier_norms"):
 					np.testing.assert_array_equal(main.diagnostics[key], dense.diagnostics[key])

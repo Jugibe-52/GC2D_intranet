@@ -124,7 +124,7 @@ def _write_archive(
         }
         np.savez_compressed(directory / "potential.npz", **potential_arrays)
     _write_json(directory / "metadata.json", {
-        "schema_version": 1, "artifact_kind": "gc2d_solution",
+        "schema_version": 2, "artifact_kind": "gc2d_solution",
         "created_utc": datetime.now(timezone.utc).isoformat(),
         "layout": layout_name, "diagnostics": diagnostics,
         "has_initial_state": initial_state is not None,
@@ -136,7 +136,7 @@ def _write_archive(
     if potential is not None:
         files.append("potential.npz")
     _write_json(directory / "manifest.json", {
-        "schema_version": 1, "artifact_kind": "gc2d_solution",
+        "schema_version": 2, "artifact_kind": "gc2d_solution",
         "files": {name: {"sha256": _digest(directory / name),
                          "bytes": (directory / name).stat().st_size} for name in files},
     })
@@ -192,7 +192,7 @@ def save_solution(
 
 def _manifest_inventory(manifest: Mapping[str, Any]) -> dict[str, Any]:
     """Validate a solution manifest and return its fixed artifact inventory."""
-    if manifest.get("schema_version") != 1 or manifest.get("artifact_kind") != "gc2d_solution":
+    if manifest.get("schema_version") not in (1, 2) or manifest.get("artifact_kind") != "gc2d_solution":
         raise ValueError("Unsupported solution manifest.")
     records: Any = manifest.get("files", {})
     required = {"solution.npz", "metadata.json"}
@@ -203,7 +203,7 @@ def _manifest_inventory(manifest: Mapping[str, Any]) -> dict[str, Any]:
 
 def _load_solution_arrays(directory: Path, description: Mapping[str, Any]) -> States:
     """Validate solution metadata and reconstruct its canonical state layout."""
-    if description.get("schema_version") != 1 or description.get("artifact_kind") != "gc2d_solution":
+    if description.get("schema_version") not in (1, 2) or description.get("artifact_kind") != "gc2d_solution":
         raise ValueError("Unsupported solution metadata.")
     with np.load(directory / "solution.npz", allow_pickle=False) as saved:
         initial = saved["initial_state"] if description["has_initial_state"] else None
@@ -217,7 +217,10 @@ def _load_solution_arrays(directory: Path, description: Mapping[str, Any]) -> St
             name: saved[value["array"]] if "array" in value else value["scalar"]
             for name, value in description["diagnostics"].items()
         }
-        solution: States = States(t=saved["t"], states=saved["states"], initial_state=initial, layout=layout, diagnostics=diagnostics)
+        values: np.ndarray = saved["states"]
+        if description["schema_version"] == 1:
+            values = values.T
+        solution: States = States(t=saved["t"], states=values, initial_state=initial, layout=layout, diagnostics=diagnostics)
     return solution
 
 
@@ -239,6 +242,8 @@ def load_solution(source: str | Path) -> StoredSolution:
             if path.stat().st_size != record["bytes"] or _digest(path) != record["sha256"]:
                 raise ValueError(f"Artifact integrity check failed: {name}.")
         description: Any = json.loads((directory / "metadata.json").read_text(encoding="utf-8"))
+        if description.get("schema_version") != manifest["schema_version"]:
+            raise ValueError("Solution metadata and manifest versions disagree.")
         solution: States = _load_solution_arrays(directory, description)
         potential: Potential | None = None
         field = description["potential"]

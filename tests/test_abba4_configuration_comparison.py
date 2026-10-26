@@ -224,7 +224,7 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 		for key in ABBA4_CONFIGURATION_KEYS:
 			actual = np.stack(
 				[
-					solution.states[:, 0]
+					solution.states[0]
 					for solution in self.parallel_result.solutions[key]
 				]
 			)
@@ -248,7 +248,7 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 			self.assertEqual(self.result.runtimes[key].shape, (10,))
 			self.assertFalse(self.result.runtimes[key].flags.writeable)
 			for solution in self.result.solutions[key]:
-				self.assertEqual(solution.states.shape, (2, 3))
+				self.assertEqual(solution.states.shape, (3, 2))
 
 	def test_summaries_contain_exactly_five_finite_metrics(self) -> None:
 		"""Reduce particle-time errors, runtime, solver work, and energy."""
@@ -281,10 +281,10 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 			squared_distances = np.asarray(
 				[
 					(
-						solution.states[0] - reference[particle]
+						solution.states[:, 0] - reference[particle]
 					) ** 2
 					+ (
-						solution.states[1]
+						solution.states[:, 1]
 						- reference[self.config.particle_count + particle]
 					) ** 2
 					for particle, solution in enumerate(
@@ -358,7 +358,7 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 				diagnostics = solution.diagnostics
 				times = solution.t
 				hamiltonian = np.asarray(
-					self.result.dynamics.hamiltonian(times, solution.states),
+					self.result.dynamics.hamiltonian(times, solution.states.T),
 					dtype=float,
 				).reshape(-1)
 				momentum = np.asarray(

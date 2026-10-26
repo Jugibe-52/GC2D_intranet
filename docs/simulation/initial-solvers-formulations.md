@@ -99,3 +99,25 @@ adaptive controller. Move former request `max_step` arguments to the method:
 accept a step argument. A non-divisible interval intentionally gives a different
 main grid from the former uniform rescaling policy; old saved results retain
 their recorded grids.
+
+## Time rows in saved results (2026-10-26)
+
+`States.states` and its alias `values` have shape `(samples, state_size)`.
+Use `states[i]` for the complete physical state at `t[i]`, `states[:, j]`
+for one component through time, and `zip(t, states)` to iterate samples.
+Construction and `record_history` require this orientation, even for square
+arrays. Each physical vector keeps its component-major order.
+
+`positions()`, `velocities()`, `components()` and `split()` still return
+component arrays of shape `(particles, samples)`. The coordinate classes,
+Hamiltonian evaluation, geometry functions, study reference arrays and
+specialized CSV/NPZ/HDF5 study formats retain their component-first contracts.
+Pass `solution.states.T` when those consumers need a packed history.
+`select(indices)` selects rows; independent diagnostic axes are unchanged.
+
+`save_solution` writes schema 2 time rows. `load_solution` converts schema 1
+columns using the archive version, never shape inference. Old files are not
+rewritten. Completed States pickles also carry a history version; older
+States pickles with the supported restoration function decode as columns.
+Compiled kernels may keep component-first work arrays and transpose once
+at the recording boundary. Physical integration and tolerances are unchanged.

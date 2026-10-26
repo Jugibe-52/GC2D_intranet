@@ -469,7 +469,7 @@ def run_gauss_bm4_comparison(
 			solutions[method_name][step] = solution
 			accuracy_by_method[method_name][step] = accuracy_series(
 				method_name,
-				solution.states,
+				solution.states.T,
 				reference.states,
 				period=potential.grid.period,
 				distance_convention="periodic",

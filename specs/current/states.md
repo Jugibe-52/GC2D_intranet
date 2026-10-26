@@ -7,7 +7,7 @@ documents = ["docs/simulation/initial-solvers-formulations.md", "docs/simulation
 
 [[requirements]]
 id = "STA-001"
-tests = ["tests/test_initial_solvers_formulations.py", "tests/test_states.py", "tests/test_state_ownership.py", "tests/test_physical_workspaces.py", "tests/test_shared_array_dynamics.py", "tests/test_core.py"]
+tests = ["tests/test_initial_solvers_formulations.py", "tests/test_states.py", "tests/test_time_row_states.py", "tests/test_state_ownership.py", "tests/test_physical_workspaces.py", "tests/test_shared_array_dynamics.py", "tests/test_core.py"]
 
 [[requirements]]
 id = "STA-002"
@@ -22,7 +22,7 @@ tests = ["tests/test_states.py", "tests/test_method_integration.py", "tests/test
 
 ## STA-001: Owned physical history and reusable layouts
 
-`states.States` owns physical samples of shape `(d*N,T)`, their times `(T,)`, a structural layout snapshot and an optional independent initial array. The recording lifecycle is `prepare -> record/record_step -> finalize`; only recorded columns are exposed. Recording validates time order, shape and finite values. Finalization requires all requested columns, seals the same object and rejects later recording. Direct array construction produces a completed result, including a single sample. Inputs and returned layout or initial-array copies cannot mutate stored data.
+`states.States` owns physical samples of shape `(T,d*N)`, their times `(T,)`, a structural layout snapshot and an optional independent initial array. The recording lifecycle is `prepare -> record/record_step -> finalize`; only recorded rows are exposed. Recording validates time order, shape and finite values. Finalization requires all requested rows, seals the same object and rejects later recording. Direct array construction produces a completed result, including a single sample. Inputs and returned layout or initial-array copies cannot mutate stored data.
 
 Use `.times`, `.values`, `.components()`, `.split()`, `.positions()`, `.velocities()`, `.particle_count` and `.select(indices)`. Velocity access is supplied by the FC convention and fails for GC. Selection retains original times, layout and initial snapshot; whole-run diagnostics remain attached on their own axes. `components()` and `split()` return ordinary tuples of component views.
 
@@ -34,13 +34,13 @@ another convention compatible with either model.
 
 `InitialValueProblem` takes the dynamics declaration or requires an explicit layout. It never infers a model from dimension. `StateLayout.snapshot()` explicitly supplies an immutable NumPy convention; `describe_coordinates` validates that snapshot and its dimension. Compatibility compares the snapshot class and equality, even for equally sized arrays. Initial conditions and results own their arrays and conventions without retaining live dynamics or a potential. Custom conventions derive from `PhysicalCoordinates` and implement fixed operations instead of role tables; external adapters may supply these snapshots without inheritance. Packing and views preserve `(d*N,*samples)`, `(d,N,*samples)` and `(N,*samples)`. The respective JAX classes support tracing; incomplete blocks are rejected.
 
-Built-in dynamics keep physical parameters immutable. A new problem is required for revised initial values. Saved numerical archives retain existing GC/FC schemas and can be interpreted without constructing dynamics or loading a field.
+Built-in dynamics keep physical parameters immutable. A new problem is required for revised initial values. States stores time rows `(T,d*N)`, with `states[i]` at `t[i]`; component accessors retain `(N,T)`. New solution archives use schema 2; the reader converts schema 1 columns explicitly. Archives can be interpreted without constructing dynamics or loading a field.
 
 ## STA-002: Independent initial geometry and diagnostics
 
 `states.generators` exposes `circle`, `square`, `radial_star` and `ranked_radial_star`, returning packed NumPy physical arrays. Generator parameters, defaults, validation, particle ordering, endpoint/center conventions and coordinate units remain unchanged. Arrays enter `InitialValueProblem` directly with an optional explicit layout; generators own no time.
 
-`diagnostics.states.geometry.calculate_area(values, layout=..., period=None)` evaluates signed polygon area for at least three ordered GC vertices, implicitly closing the contour. Histories retain trailing sample axes. A positive finite period enables minimum-image reconstruction, not a general rule for winding torus contours. Geometry labels belong in study metadata, defaulting to `polygon`. `save_solution` and `load_solution` retain their names and archive schemas and preserve absent initial snapshots when loading legacy archives.
+`diagnostics.states.geometry.calculate_area(values, layout=..., period=None)` evaluates signed polygon area for at least three ordered GC vertices, implicitly closing the contour. Histories retain trailing sample axes. A positive finite period enables minimum-image reconstruction, not a general rule for winding torus contours. Geometry labels belong in study metadata, defaulting to `polygon`. `save_solution` and `load_solution` retain their names, write schema 2 time rows, read schema 1 columns and preserve absent initial snapshots when loading legacy archives.
 
 ## STA-003: Current internal state and independent sampling
 
@@ -88,4 +88,4 @@ Dynamics declare `GCCoordinates()` for fixed `(x, y)` blocks or `FCCoordinates()
 
 `InitialValueProblem` takes the dynamics declaration or requires an explicit layout. It never infers a model from dimension. `StateLayout.snapshot()` explicitly supplies an immutable NumPy convention; `describe_coordinates` validates that snapshot and its dimension. Compatibility compares the snapshot class and equality, even for equally sized arrays. Initial conditions and results own their arrays and conventions without retaining live dynamics or a potential. Custom conventions derive from `PhysicalCoordinates` and implement fixed operations instead of role tables; external adapters may supply these snapshots without inheritance. Packing and views preserve `(d*N,*samples)`, `(d,N,*samples)` and `(N,*samples)`. The respective JAX classes support tracing; incomplete blocks are rejected.
 
-Built-in dynamics keep physical parameters immutable. A new problem is required for revised initial values. Saved numerical archives retain existing GC/FC schemas and can be interpreted without constructing dynamics or loading a field.
+Built-in dynamics keep physical parameters immutable. A new problem is required for revised initial values. States stores time rows `(T,d*N)`, with `states[i]` at `t[i]`; component accessors retain `(N,T)`. New solution archives use schema 2; the reader converts schema 1 columns explicitly. Archives can be interpreted without constructing dynamics or loading a field.

@@ -53,7 +53,7 @@ class ExplicitEulerTests(unittest.TestCase):
 		expected = initial + 0.1 * problem.dynamics.vector_field(0.0, initial)
 		solution = simulate(problem.with_request(request), ExplicitEuler(step=0.1))
 		np.testing.assert_allclose(
-			solution.states[:, -1],
+			solution.states[-1],
 			expected,
 			atol=0.0,
 			rtol=0.0,

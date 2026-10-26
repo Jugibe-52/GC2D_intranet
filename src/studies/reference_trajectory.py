@@ -241,7 +241,7 @@ def _solve_adaptive(
 	result: States = simulate(problem.with_request(request), replace(configured, max_step=maximum_step), observers=(report,) if progress_callback is not None else ())
 
 	runtime = perf_counter() - started
-	states: np.ndarray = np.array(result.states, dtype=float, copy=True)
+	states: np.ndarray = np.array(result.states.T, dtype=float, copy=True)
 	if states.shape != (initial_state.size, times.size) or not np.all(
 		np.isfinite(states)
 	):

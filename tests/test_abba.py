@@ -180,7 +180,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 			[start + start + step, start**2 + (start + step) ** 2]
 		)
 		np.testing.assert_allclose(
-			solution.states[:, -1],
+			solution.states[-1],
 			initial_state + expected_increment,
 			rtol=0.0,
 			atol=1e-15,
@@ -277,7 +277,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 		problem = InitialValueProblem(dynamics, source, layout=GuidingCenterDynamics.coordinates)
 
 		def final_state(step: float) -> np.ndarray:
-			return simulate(problem.with_request(SimulationRequest.uniform(t_span=(0.0, 0.4), sample_count=2)), ABBA2Implicit(step=step, solver=NewtonSolver(jacobian_method='analytic', absolute_tolerance=1e-14, relative_tolerance=1e-14))).states[:, -1]
+			return simulate(problem.with_request(SimulationRequest.uniform(t_span=(0.0, 0.4), sample_count=2)), ABBA2Implicit(step=step, solver=NewtonSolver(jacobian_method='analytic', absolute_tolerance=1e-14, relative_tolerance=1e-14))).states[-1]
 
 		reference = final_state(5e-4)
 		coarse_error = float(np.linalg.norm(final_state(0.1) - reference))
@@ -295,7 +295,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 		self.assertEqual(observed.n_steps, 3)
 		self.assertEqual(len(events), observed.n_steps)
 		self.assertEqual(observed.diagnostics["newton_iterations"].shape, (3,))
-		np.testing.assert_array_equal(observed.states[:, -1], sparse.states[:, -1])
+		np.testing.assert_array_equal(observed.states[-1], sparse.states[-1])
 		for event in events:
 			np.testing.assert_allclose(
 				event.map_state(event.state_before),
@@ -317,7 +317,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 		zero_problem = InitialValueProblem(GuidingCenterDynamics(zero_potential, rho=0.05), source, layout=GuidingCenterDynamics.coordinates)
 		solution = simulate(zero_problem.with_request(SimulationRequest.uniform(t_span=(0.0, 0.1), sample_count=3)), ABBA2Implicit(step=0.02))
 		np.testing.assert_array_equal(
-			solution.states,
+			solution.states.T,
 			np.repeat(source[:, None], 3, axis=1),
 		)
 		np.testing.assert_array_equal(solution.diagnostics["newton_iterations"], 0)

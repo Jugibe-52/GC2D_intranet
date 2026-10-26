@@ -129,7 +129,7 @@ def integrate_local_star(
         if (data['step_count'] != last - first or data['output_interpolation_count'] != 0
                 or data['projection_kind'] != 'arithmetic_mean' or data['nonlinear_unknown_dimension'] != 0):
             raise RuntimeError('The block does not match the BM4Midpoint step and sampling contract.')
-        states[:, first + 1:last + 1] = block.states[:, 1:]
+        states[:, first + 1:last + 1] = block.states[1:].T
         for key, value in data.items():
             if isinstance(value, np.ndarray):
                 if value.ndim == 0 or value.shape[0] != last - first:
@@ -148,7 +148,7 @@ def integrate_local_star(
                        execution_block_cycles=config.block_cycles,
                        execution_block_end_cycles=np.asarray(block_ends),
                        execution_block_wall_seconds=np.asarray(block_seconds))
-    solution: States = States(t=times, states=states, initial_state=problem.initial_state, diagnostics=diagnostics, layout=GuidingCenterDynamics.coordinates)
+    solution: States = States(t=times, states=states.T, initial_state=problem.initial_state, diagnostics=diagnostics, layout=GuidingCenterDynamics.coordinates)
     x: np.ndarray
     y: np.ndarray
     x, y = problem.layout.positions(problem.initial_state)

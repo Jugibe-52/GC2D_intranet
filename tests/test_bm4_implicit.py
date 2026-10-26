@@ -151,7 +151,7 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 		problem = _problem()
 
 		def final_state(step: float) -> np.ndarray:
-			return simulate(problem.with_request(SimulationRequest.uniform(t_span=(0.0, 0.4), sample_count=2)), BM4Implicit(step=step, solver=NewtonSolver(jacobian_method='analytic', absolute_tolerance=1e-14, relative_tolerance=1e-14))).states[:, -1]
+			return simulate(problem.with_request(SimulationRequest.uniform(t_span=(0.0, 0.4), sample_count=2)), BM4Implicit(step=step, solver=NewtonSolver(jacobian_method='analytic', absolute_tolerance=1e-14, relative_tolerance=1e-14))).states[-1]
 
 		reference = final_state(0.00625)
 		coarse_error = float(np.linalg.norm(final_state(0.1) - reference))

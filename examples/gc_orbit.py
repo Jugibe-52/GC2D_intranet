@@ -33,4 +33,4 @@ problem = InitialValueProblem(
 solution = simulate(problem, RK4(step=0.01))
 
 print(f"steps: {solution.diagnostics['step_count']}")
-print(f"final state: {solution.states[:, -1]}")
+print(f"final state: {solution.states[-1]}")

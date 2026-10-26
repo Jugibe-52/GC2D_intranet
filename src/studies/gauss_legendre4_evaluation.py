@@ -573,7 +573,7 @@ def run_gauss_legendre4_evaluation(
 		solutions[step] = solution
 		accuracy_by_step[step] = accuracy_series(
 			"GaussLegendre4",
-			solution.states,
+			solution.states.T,
 			reference.states,
 			period=potential.grid.period,
 			distance_convention="periodic",
@@ -601,7 +601,7 @@ def run_gauss_legendre4_evaluation(
 			raise RuntimeError("Gauss4 energy tracking did not return momentum.")
 		energy_times_by_step[step] = energy_solution.t
 		energies_by_step[step] = np.asarray(
-			dynamics.hamiltonian(energy_solution.t, energy_solution.states) + momentum,
+			dynamics.hamiltonian(energy_solution.t, energy_solution.states.T) + momentum,
 			dtype=float,
 		)
 		geometry_by_step[step] = collector.result()
@@ -615,8 +615,8 @@ def run_gauss_legendre4_evaluation(
 		)
 		newton_audit_series: TrajectoryAccuracySeries = accuracy_series(
 			"GaussLegendre4 tighter Newton audit",
-			solution.states,
-			newton_audit_solution.states,
+			solution.states.T,
+			newton_audit_solution.states.T,
 			period=potential.grid.period,
 			distance_convention="periodic",
 		)

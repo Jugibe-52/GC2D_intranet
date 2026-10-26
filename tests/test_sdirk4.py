@@ -141,7 +141,7 @@ class SDIRK4Tests(unittest.TestCase):
 			finest = simulate(problem.with_request(SimulationRequest.uniform(t_span=(0.0, 1.0), sample_count=int(round(1.0 / step)) + 1)), SDIRK4(step=step, solver=NewtonSolver(max_iterations=20, absolute_tolerance=1e-15, relative_tolerance=1e-14, jacobian_method='analytic')))
 			angles = np.linspace(0.0, 0.4, 2) + 1.0
 			expected = np.concatenate((np.cos(angles), np.sin(angles)))
-			errors.append(float(np.linalg.norm(finest.states[:, -1] - expected)))
+			errors.append(float(np.linalg.norm(finest.states[-1] - expected)))
 		for coarse, fine in zip(errors, errors[1:]):
 			self.assertGreater(coarse / fine, 13.0)
 			self.assertLess(coarse / fine, 19.0)
@@ -165,7 +165,7 @@ class SDIRK4Tests(unittest.TestCase):
 	def test_generic_time_dependent_field_uses_sdirk_stage_times(self) -> None:
 		problem = InitialValueProblem(_CubicTimeField(), np.array(np.zeros(2), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 		solution = simulate(problem.with_request(SimulationRequest.uniform(t_span=(0.0, 1.0), sample_count=2)), SDIRK4(step=1.0, solver=NewtonSolver(absolute_tolerance=1e-14, relative_tolerance=1e-13, max_iterations=20, jacobian_method='auto')))
-		np.testing.assert_allclose(solution.states[:, -1], (0.25, 0.0), atol=2e-14)
+		np.testing.assert_allclose(solution.states[-1], (0.25, 0.0), atol=2e-14)
 		self.assertEqual(
 			solution.diagnostics["newton_jacobian_method"],
 			"finite_difference",

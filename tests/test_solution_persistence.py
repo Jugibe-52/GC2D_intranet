@@ -46,7 +46,7 @@ class SolutionPersistenceTests(unittest.TestCase):
     def solution(self, full: bool = False) -> States:
         layout = FullCyclotronDynamics.coordinates if full else GuidingCenterDynamics.coordinates
         state = np.arange(8 if full else 4, dtype=float) / 10
-        return States(t=np.array([0.0, 0.1, 0.2]), states=np.column_stack([state, state + 0.01, state + 0.02]), initial_state=np.array(state, dtype=float, copy=True), diagnostics={"step_count": 2, "label": "example", "enabled": True,
+        return States(t=np.array([0.0, 0.1, 0.2]), states=(np.column_stack([state, state + 0.01, state + 0.02])).T, initial_state=np.array(state, dtype=float, copy=True), diagnostics={"step_count": 2, "label": "example", "enabled": True,
                                      "error": 1e-5, "work": np.array([1, 2], dtype=np.int64),
                                      "complex": np.array([1 + 2j]), "missing": np.array([np.nan])}, layout=layout)
 

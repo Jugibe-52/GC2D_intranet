@@ -82,7 +82,7 @@ class _FixedOutputExecution(Execution):
 		request = _problem.request
 		return States(layout=_problem.layout, initial_state=_problem.initial_state,
 			t=request.output_times if self.times is None else self.times,
-			states=self.states,
+			states=self.states.T,
 			diagnostics={},
 		)
 
@@ -156,7 +156,7 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		source = _ExternalParticleConfiguration()
 		self.assertIsInstance(source.initial_state, np.ndarray)
 		self.assertIsInstance(GuidingCenterDynamics.coordinates, StateLayout)
-		solution = States(t=np.asarray([0.0, 1.0]), states=np.asarray([[1.0, 2.0], [3.0, 4.0]]), initial_state=source.initial_state, layout=source.layout)
+		solution = States(t=np.asarray([0.0, 1.0]), states=(np.asarray([[1.0, 2.0], [3.0, 4.0]])).T, initial_state=source.initial_state, layout=source.layout)
 		self.assertEqual(solution.components()[0].shape, (1, 2))
 		self.assertEqual(solution.positions()[0].shape, (1, 2))
 
@@ -174,7 +174,7 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 				)),
 				RK4(step=max_step),
 			)
-			errors.append(float(np.linalg.norm(solution.states[:, -1] - exact)))
+			errors.append(float(np.linalg.norm(solution.states[-1] - exact)))
 		self.assertGreater(errors[0] / errors[1], 14.0)
 		self.assertLess(errors[0] / errors[1], 18.0)
 
@@ -187,8 +187,8 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 			)),
 			RK4(step=0.1),
 		)
-		self.assertLess(abs(float(solution.states[0, -1]) - 0.2), 1e-6)
-		self.assertEqual(float(solution.states[1, -1]), 0.0)
+		self.assertLess(abs(float(solution.states[-1, 0]) - 0.2), 1e-6)
+		self.assertEqual(float(solution.states[-1, 1]), 0.0)
 
 	def test_rk4_step_observer_receives_only_main_grid_steps(self) -> None:
 		source = np.array(np.asarray([1.0, 0.0]), dtype=float, copy=True)
@@ -238,9 +238,9 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 					InitialValueProblem(dynamics, source).with_request(request),
 					replace(method, step=0.01),
 				)
-				self.assertEqual(solution.states.shape, (physical_size, 5))
+				self.assertEqual(solution.states.shape, (5, physical_size))
 				np.testing.assert_array_equal(
-					solution.states[:, 0],
+					solution.states[0],
 					source,
 				)
 				self.assertTrue(np.all(np.isfinite(solution.states)))
@@ -288,7 +288,7 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		np.testing.assert_array_equal(solution.initial_state, area)
 		np.testing.assert_array_equal(solution.initial_state, area)
 		self.assertIs(solution.values, solution.states)
-		self.assertEqual(calculate_area(solution.states, layout=GuidingCenterDynamics.coordinates).shape, (3,))
+		self.assertEqual(calculate_area(solution.states.T, layout=GuidingCenterDynamics.coordinates).shape, (3,))
 		self.assertEqual(solution.positions()[0].shape, (16, 3))
 
 
@@ -372,7 +372,7 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		times = np.asarray([0.0, 0.1])
 		states = np.asarray([[1.0, 0.9], [0.0, -0.1]])
 		momentum = np.asarray([[0.0, 0.01]])
-		solution = States(t=times, states=states, initial_state=source, diagnostics={
+		solution = States(t=times, states=states.T, initial_state=source, diagnostics={
 				"step_count": 1,
 				"extended_momentum": momentum,
 				"energy_error": 0.02,

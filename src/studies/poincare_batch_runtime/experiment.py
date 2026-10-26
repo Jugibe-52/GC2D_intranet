@@ -69,7 +69,7 @@ def compute_and_save(parameters: dict[str, Any], run_id: str, validation_run: bo
     solution: ParallelSolution = simulate_parallel(xy0, settings, processes=workers)
     states: Any
     times: Any
-    states, times = solution.states, solution.t
+    states, times = solution.states.T, solution.t
     cycle_xy: np.ndarray
     cycle_times: np.ndarray
     cycle_xy, cycle_times = _validated_cycle_samples(states, times, initial_state, n, steps, spc, cycles)

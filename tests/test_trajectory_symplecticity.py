@@ -179,11 +179,11 @@ class ExactTrajectoryJacobianTests(unittest.TestCase):
 						solution = result.solutions[step.label]
 						records = result.records[step.label]
 						self.assertEqual(solution.n_steps, expected_steps)
-						self.assertEqual(solution.states.shape, (10, 3))
+						self.assertEqual(solution.states.shape, (3, 10))
 						self.assertEqual(len(records), 3)
 						self.assertEqual(records[0].particle_count, 5)
 						np.testing.assert_array_equal(
-							solution.states[:, 0],
+							solution.states[0],
 							configuration,
 						)
 					output = result.output_directories[result.steps[0].label]

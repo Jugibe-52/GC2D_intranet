@@ -90,7 +90,7 @@ class GapProbeViewerTests(unittest.TestCase):
                 _, probe_xy = folded_rho_positions(probe.solution, probe.metadata)
                 np.testing.assert_array_equal(xy[:, :40], base_xy.astype('<f4'))
                 np.testing.assert_array_equal(xy[:, 40:], probe_xy.astype('<f4'))
-                self.assertEqual(original.solution.states.shape, (80, 3))
+                self.assertEqual(original.solution.states.shape, (3, 80))
             self.assertEqual(dataset['panels'][-1]['shape'], [1, 48, 2])
         for arm, group in enumerate(config['particleGroups'][:8], 1):
             self.assertEqual(group['label'], f'Arm {arm}')

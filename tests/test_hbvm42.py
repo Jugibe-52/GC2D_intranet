@@ -101,7 +101,7 @@ class HBVM42MethodTests(unittest.TestCase):
 		errors: list[float] = []
 		for step in (0.2, 0.1):
 			solution = simulate(self.problem.with_request(SimulationRequest.uniform(t_span=(0.0, 2.0), sample_count=11)), HBVM42(step=step, solver=NewtonSolver(max_iterations=12, backtracking=True, absolute_tolerance=1e-14, relative_tolerance=1e-13, jacobian_method='analytic')), observers=(EnergyObserver(),))
-			errors.append(float(np.linalg.norm(solution.states[:, -1] - reference)))
+			errors.append(float(np.linalg.norm(solution.states[-1] - reference)))
 			self.assertLess(float(solution.diagnostics["energy_error"]), 2e-13)
 			self.assertEqual(
 				np.asarray(solution.diagnostics["nonlinear_iterations"]).shape,

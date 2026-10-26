@@ -37,14 +37,14 @@ def _validate_solution_matches_request(
 	initial_state = problem.initial_state
 	if (
 		not np.array_equal(solution.t, problem.request.output_times)
-		or solution.states.shape[0] != initial_state.size
+		or solution.states.shape[1] != initial_state.size
 		or solution.layout != problem.layout
 	):
 		raise ValueError("The numerical method returned incompatible physical output.")
 	snapshot = solution.initial_state
 	if snapshot is None or not np.array_equal(snapshot, initial_state):
 		raise ValueError("The numerical method returned an incompatible initial state snapshot.")
-	if not np.array_equal(solution.states[:, 0], initial_state):
+	if not np.array_equal(solution.states[0], initial_state):
 		raise ValueError("The numerical method did not preserve the initial state.")
 
 

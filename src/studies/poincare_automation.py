@@ -313,10 +313,10 @@ def validate_automation_solution(solution: States, prepared: PreparedAutomationC
 	d: Mapping[str, DiagnosticValue]
 	method: str
 	c, d, method = prepared.config, solution.diagnostics, prepared.case.method
-	if (solution.states.shape != (96, c.cycles+1) or solution.states.dtype != np.float64
+	if (solution.states.shape != (c.cycles+1, 96) or solution.states.dtype != np.float64
 			or not np.isfinite(solution.states).all()
 			or not np.array_equal(solution.t, prepared.request.output_times)
-			or not np.array_equal(solution.states[:, 0], prepared.problem.initial_state)
+			or not np.array_equal(solution.states[0], prepared.problem.initial_state)
 			or d.get("step_count") != c.cycles*c.steps_per_cycle
 			or d.get("output_interpolation_count") != 0):
 		raise ValueError("Incomplete or incompatible 48-particle cycle solution.")

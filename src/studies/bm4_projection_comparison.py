@@ -291,11 +291,11 @@ def run_bm4_projection_comparison(
 	method_summaries = {}
 	for name in BM4_PROJECTION_METHODS:
 		solution = solutions[name]
-		arrays[f"{name}.states"] = solution.states
+		arrays[f"{name}.states"] = solution.states.T
 		arrays[f"{name}.runtime_samples"] = np.asarray(runtime_samples[name])
-		arrays[f"{name}.distance"] = particle_distances(solution.states, reference.states,
+		arrays[f"{name}.distance"] = particle_distances(solution.states.T, reference.states,
 			period=period, distance_convention=config.distance_convention)
-		arrays[f"{name}.energy_error"] = np.asarray(dynamics.hamiltonian(times, solution.states)) - arrays["DOP853.H"]
+		arrays[f"{name}.energy_error"] = np.asarray(dynamics.hamiltonian(times, solution.states.T)) - arrays["DOP853.H"]
 		for key, value in solution.diagnostics.items():
 			if isinstance(value, np.ndarray):
 				arrays[f"{name}.{key}"] = value

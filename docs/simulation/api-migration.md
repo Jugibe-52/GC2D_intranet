@@ -115,7 +115,7 @@ Initial configurations are now packed NumPy arrays. Use `from dynamics import Gu
 
 Remove imports of `states.State`, `solution.Solution`, `contracts.result.IntegrationData`, `integration.IntegrationCollector`, `states.layout` and `contracts.request`. There are no compatibility modules. `InitialValueProblem.initial_configuration`, result `.source`, `.y` and `.trajectory` are removed. Compare initial snapshots by value rather than object identity. An executor must return complete `States`; `simulate` validates and returns it without creating another container. For changes to diagnostic metadata, use `.with_diagnostics(...)`.
 
-`save_solution` and `load_solution` keep their names and numerical archive schemas. Legacy files remain readable, including those without an initial snapshot. `calculate_area(values, layout=..., period=...)` stays in `diagnostics.states.geometry`. Geometry labels remain study metadata. Fixed shadow samples never replace the main state; adaptive dense output and the numerical algorithms are unchanged. JAX constructs the same `States` at its host boundary.
+`save_solution` and `load_solution` keep their names; new archives use schema 2 time rows and schema 1 columns are converted on reading. Legacy files remain readable, including those without an initial snapshot. `calculate_area(values, layout=..., period=...)` stays in `diagnostics.states.geometry`. Geometry labels remain study metadata. Fixed shadow samples never replace the main state; adaptive dense output and the numerical algorithms are unchanged. JAX constructs the same `States` at its host boundary.
 
 ## Explicit initial, solver and projection objects
 
@@ -209,7 +209,7 @@ Dynamics declare `GCCoordinates()` for fixed `(x, y)` blocks or `FCCoordinates()
 
 `InitialValueProblem` takes the dynamics declaration or requires an explicit layout. It never infers a model from dimension. `StateLayout.snapshot()` explicitly supplies an immutable NumPy convention; `describe_coordinates` validates that snapshot and its dimension. Compatibility compares the snapshot class and equality, even for equally sized arrays. Initial conditions and results own their arrays and conventions without retaining live dynamics or a potential. Custom conventions derive from `PhysicalCoordinates` and implement fixed operations instead of role tables; external adapters may supply these snapshots without inheritance. Packing and views preserve `(d*N,*samples)`, `(d,N,*samples)` and `(N,*samples)`. The respective JAX classes support tracing; incomplete blocks are rejected.
 
-Built-in dynamics keep physical parameters immutable. A new problem is required for revised initial values. Saved numerical archives retain existing GC/FC schemas and can be interpreted without constructing dynamics or loading a field.
+Built-in dynamics keep physical parameters immutable. A new problem is required for revised initial values. States stores time rows `(T,d*N)`, with `states[i]` at `t[i]`; component accessors retain `(N,T)`. New solution archives use schema 2; the reader converts schema 1 columns explicitly. Archives can be interpreted without constructing dynamics or loading a field.
 
 The former GC/FC wrappers and internal state containers are removed without aliases. Maps belong to `methods.extended.maps.GCDoubledMaps` and `methods.splitting.FCSplitMaps`; equations to `methods.projection`; projected observation to `diagnostics.methods.projection`.
 
@@ -316,3 +316,25 @@ Modal payload version 3 carries the request only inside the problem and rejects
 older versions. Recreate older configured problems and receipts; redeploy workers
 from the same revision as clients. Numerical result archives keep their schemas.
 The preceding module-move record is preserved as history and superseded by this API.
+
+## Time rows in saved results (2026-10-26)
+
+`States.states` and its alias `values` have shape `(samples, state_size)`.
+Use `states[i]` for the complete physical state at `t[i]`, `states[:, j]`
+for one component through time, and `zip(t, states)` to iterate samples.
+Construction and `record_history` require this orientation, even for square
+arrays. Each physical vector keeps its component-major order.
+
+`positions()`, `velocities()`, `components()` and `split()` still return
+component arrays of shape `(particles, samples)`. The coordinate classes,
+Hamiltonian evaluation, geometry functions, study reference arrays and
+specialized CSV/NPZ/HDF5 study formats retain their component-first contracts.
+Pass `solution.states.T` when those consumers need a packed history.
+`select(indices)` selects rows; independent diagnostic axes are unchanged.
+
+`save_solution` writes schema 2 time rows. `load_solution` converts schema 1
+columns using the archive version, never shape inference. Old files are not
+rewritten. Completed States pickles also carry a history version; older
+States pickles with the supported restoration function decode as columns.
+Compiled kernels may keep component-first work arrays and transpose once
+at the recording boundary. Physical integration and tolerances are unchanged.

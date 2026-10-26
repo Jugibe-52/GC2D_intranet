@@ -59,7 +59,7 @@ class ExecutionTests(unittest.TestCase):
         self.assertIsInstance(first, States)
         np.testing.assert_array_equal(first.t, self.request.output_times)
         expected = np.array([np.cos(first.t), -np.sin(first.t)])
-        np.testing.assert_allclose(first.states, expected, rtol=1e-9, atol=1e-10)
+        np.testing.assert_allclose(first.states.T, expected, rtol=1e-9, atol=1e-10)
         np.testing.assert_array_equal(first.states, second.states)
         self.assertIsNot(first.states, second.states)
         self.assertEqual(self.method._status, "configuration")
@@ -84,17 +84,17 @@ class ExecutionTests(unittest.TestCase):
         np.testing.assert_array_equal(solution.states, data.states)
         self.assertIs(solution, data)
         with self.assertRaises(ValueError):
-            data.states[0, -1] = 99.
+            data.states[-1, 0] = 99.
 
     def test_subclass_results_still_undergo_simulation_validation(self):
         data = Execution().run(self.problem.with_request(self.request), self.method)
-        bad_initial = data.states.copy()
+        bad_initial = data.states.T.copy()
         bad_initial[0, 0] += 1.
-        nonfinite = data.states.copy()
+        nonfinite = data.states.T.copy()
         nonfinite[0, -1] = np.nan
-        for times, values in ((data.t+1., data.states), (data.t, bad_initial), (data.t, nonfinite)):
+        for times, values in ((data.t+1., data.states.T), (data.t, bad_initial), (data.t, nonfinite)):
             with self.subTest(times=times), self.assertRaises(ValueError):
-                invalid = States(times, values, layout=self.problem.layout, initial_state=self.problem.initial_state)
+                invalid = States(times, values.T, layout=self.problem.layout, initial_state=self.problem.initial_state)
                 simulate(self.problem.with_request(self.request), self.method, execution=ReturnedExecution(invalid))
 
     def test_executor_cannot_relabel_a_valid_physical_history(self):
@@ -105,7 +105,7 @@ class ExecutionTests(unittest.TestCase):
         for layout, initial in ((FullCyclotronDynamics.coordinates, problem.initial_state),
                                 (GuidingCenterDynamics.coordinates, None),
                                 (GuidingCenterDynamics.coordinates, problem.initial_state + 1)):
-            invalid = States(self.request.output_times, values, layout=layout, initial_state=initial)
+            invalid = States(self.request.output_times, values.T, layout=layout, initial_state=initial)
             with self.subTest(layout=layout, initial=initial), self.assertRaises(ValueError):
                 simulate(problem.with_request(self.request), self.method, execution=ReturnedExecution(invalid))
 
@@ -120,7 +120,7 @@ class ExecutionTests(unittest.TestCase):
         controller.assert_called_once_with()
         self.assertEqual(run._status, "finished")
         self.assertEqual(result.diagnostics["execution_backend"], "scipy")
-        np.testing.assert_allclose(result.values[:, -1], [np.cos(.2), -np.sin(.2)], atol=1e-10)
+        np.testing.assert_allclose(result.values[-1], [np.cos(.2), -np.sin(.2)], atol=1e-10)
 
     def test_external_provider_prepares_a_run_without_an_integration_entry_point(self):
         calls = []
@@ -134,7 +134,7 @@ class ExecutionTests(unittest.TestCase):
         for options in (None, ExecutionOptions()):
             with self.subTest(options=options):
                 result = simulate(self.problem.with_request(self.request), ExternalMethod(), options=options)
-                np.testing.assert_allclose(result.values[:, -1], [np.cos(.2), -np.sin(.2)], atol=1e-10)
+                np.testing.assert_allclose(result.values[-1], [np.cos(.2), -np.sin(.2)], atol=1e-10)
         self.assertEqual(len(calls), 2)
         self.assertEqual(calls[0][0], self.problem.dynamics.vector_field)
 

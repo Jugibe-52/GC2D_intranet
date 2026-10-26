@@ -101,7 +101,7 @@ class ThreeMethodNewtonComparisonTests(unittest.TestCase):
 		self.assertGreater(result.total_study_runtime_seconds, 0.0)
 		for method_name in THREE_METHOD_NEWTON_METHODS:
 			solution = result.solutions[method_name]
-			self.assertEqual(solution.states.shape, (6, 3))
+			self.assertEqual(solution.states.shape, (3, 6))
 			self.assertEqual(solution.diagnostics["step_count"], 2)
 			self.assertEqual(
 				np.asarray(solution.diagnostics["nonlinear_iterations"]).shape,
@@ -109,7 +109,7 @@ class ThreeMethodNewtonComparisonTests(unittest.TestCase):
 			)
 			self.assertEqual(result.runtime_samples[method_name].shape, (1,))
 			self.assertFalse(result.runtime_samples[method_name].flags.writeable)
-			delta = solution.states - result.reference.states
+			delta = solution.states.T - result.reference.states
 			expected_distances = np.hypot(delta[:3], delta[3:])
 			np.testing.assert_allclose(
 				result.accuracy[method_name].distances,
@@ -118,7 +118,7 @@ class ThreeMethodNewtonComparisonTests(unittest.TestCase):
 				atol=0.0,
 			)
 			expected_energies = np.asarray(
-				result.dynamics.hamiltonian(result.reference.times, solution.states),
+				result.dynamics.hamiltonian(result.reference.times, solution.states.T),
 				dtype=float,
 			)
 			expected_energy_errors = expected_energies - result.reference_energies

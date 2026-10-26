@@ -274,7 +274,7 @@ def _validate_rho_cycle_solution(solution: States, config: RhoStarConfig, *,
                                 options: ExecutionOptions | None = None) -> None:
     """Share cycle and solver checks with explicit-seed saved-data consumers."""
     diagnostics = solution.diagnostics
-    if (solution.states.shape != (2 * config.particles, config.cycles + 1)
+    if (solution.states.shape != (config.cycles + 1, 2 * config.particles)
             or not np.array_equal(solution.t, output_times)
             or not np.isfinite(solution.states).all()
             or solution.states.dtype != np.dtype("float64")
@@ -311,7 +311,7 @@ def _validate_rho_cycle_solution(solution: States, config: RhoStarConfig, *,
     if config.method in ("RK4", "GaussLegendre4") and any(
             key in diagnostics for key in ("projection_kind", "projection_solver_formulation", "coupling_frequency")):
         raise ValueError("Classical methods must not report doubled-copy projection.")
-    if not np.array_equal(solution.states[:, 0], initial_state):
+    if not np.array_equal(solution.states[0], initial_state):
         raise ValueError("Result does not match the requested initial positions.")
 
 

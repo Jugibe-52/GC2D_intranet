@@ -62,8 +62,8 @@ class RadialCycleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             saved = run_and_save_radial_cycle(self.prepared, Path(tmp)/"result")
             reference = run_rho_star(star, executor=Execution(), options=ExecutionOptions())
-            np.testing.assert_allclose(saved.solution.states[:, ::20], reference.solution.states, atol=1e-12)
-            self.assertEqual(saved.solution.states.shape, (96, 41))
+            np.testing.assert_allclose(saved.solution.states[::20], reference.solution.states, atol=1e-12)
+            self.assertEqual(saved.solution.states.shape, (41, 96))
             with patch("studies.poincare_radial_cycle_time.simulate", side_effect=AssertionError("must reuse")):
                 again = run_and_save_radial_cycle(self.prepared, Path(tmp)/"result")
             np.testing.assert_array_equal(again.solution.states, saved.solution.states)

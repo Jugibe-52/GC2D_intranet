@@ -26,7 +26,7 @@ class StateTests(unittest.TestCase):
 		with self.assertRaises(ValueError): exposed[:] = 0
 		state.record(.7, np.array([2.,3.,4.,5.]))
 		self.assertIs(state.finalize(), state)
-		np.testing.assert_array_equal(state.values[:,0], [1,2,3,4])
+		np.testing.assert_array_equal(state.values[0], [1,2,3,4])
 		with self.assertRaises(AttributeError): state.layout.state_dimension = 7
 		np.testing.assert_array_equal(state.positions()[0][:,0], [1,2])
 		self.assertEqual(state.particle_count, 2)
@@ -36,7 +36,7 @@ class StateTests(unittest.TestCase):
 	def test_one_class_supports_both_models_and_pickle(self) -> None:
 		for layout in (GuidingCenterDynamics.coordinates, FullCyclotronDynamics.coordinates):
 			values = layout.pack_components(*(np.arange(3.)+i for i in range(layout.state_dimension)))
-			state = States(np.array([5.]), values[:,None], layout=layout, initial_state=values)
+			state = States(np.array([5.]), (values[:,None]).T, layout=layout, initial_state=values)
 			self.assertIs(type(state), States)
 			self.assertIs(type(state.components()), tuple)
 			restored = pickle.loads(pickle.dumps(state))
@@ -57,9 +57,9 @@ class StateTests(unittest.TestCase):
 				States.prepare(np.array([0.,1.]), np.asarray(values), layout=GuidingCenterDynamics.coordinates)
 		with self.assertRaises(ValueError): IntegrationState(np.nan, np.ones(2))
 
-	def test_recording_does_not_publish_unfilled_columns_or_finalize_partial_result(self) -> None:
+	def test_recording_does_not_publish_unfilled_rows_or_finalize_partial_result(self) -> None:
 		result = States.prepare(np.array([2.,2.3,3.]), np.array([1.,2.]), layout=GuidingCenterDynamics.coordinates)
-		self.assertEqual(result.values.shape, (2,0))
+		self.assertEqual(result.values.shape, (0,2))
 		with self.assertRaises(RuntimeError): result.finalize()
 		with self.assertRaises(ValueError): result.record(2.3, np.ones(2))
 		result.record(2., np.ones(2), auxiliary={'momentum':np.zeros(1)})
@@ -74,14 +74,14 @@ class StateTests(unittest.TestCase):
 			history = np.tile(values, (layout.state_dimension // 2, 1))
 			original = history.copy()
 			result = States.prepare(times, history[:, 0], layout=layout)
-			result.record_history(history)
+			result.record_history(history.T)
 			history[:] = -999
 			self.assertFalse(result.complete)
-			np.testing.assert_array_equal(result.values, original)
+			np.testing.assert_array_equal(result.values, original.T)
 			with self.assertRaises(TypeError): pickle.dumps(result)
 			self.assertIs(result.finalize({'step_count': 2}), result)
 			self.assertFalse(result.values.flags.writeable)
-			with self.assertRaises(RuntimeError): result.record_history(original)
+			with self.assertRaises(RuntimeError): result.record_history(original.T)
 
 	def test_invalid_bulk_recording_leaves_the_recorder_empty(self) -> None:
 		times = np.array([0., .5, 1.])
@@ -89,12 +89,12 @@ class StateTests(unittest.TestCase):
 		for invalid in (np.zeros((3, 3)), np.zeros((2, 2)), np.zeros((6,)), np.full((2, 3), np.nan)):
 			with self.subTest(shape=invalid.shape), self.assertRaises(ValueError):
 				result.record_history(invalid)
-			self.assertEqual(result.values.shape, (2, 0))
+			self.assertEqual(result.values.shape, (0, 2))
 			self.assertFalse(result.complete)
 		result.record(0., np.array([1., 2.]))
 		with self.assertRaisesRegex(RuntimeError, "empty"):
 			result.record_history(np.ones((2, 3)))
-		np.testing.assert_array_equal(result.values, [[1.], [2.]])
+		np.testing.assert_array_equal(result.values, [[1., 2.]])
 
 	def test_sample_and_main_step_axes_remain_independent(self) -> None:
 		values=np.array([1.,2.]); result=States.prepare(np.array([0.,.03,.07,.1]),values,layout=GuidingCenterDynamics.coordinates)
@@ -103,7 +103,7 @@ class StateTests(unittest.TestCase):
 		metric[:]=-1
 		result.finalize()
 		self.assertEqual(result.n_steps,1)
-		self.assertEqual(result.values.shape,(2,4))
+		self.assertEqual(result.values.shape,(4,2))
 		np.testing.assert_array_equal(result.diagnostics['work'],[[3.]])
 		with self.assertRaises(ValueError): result.diagnostics['work'][:]=0
 		np.testing.assert_array_equal(result.select([1,3]).times,[.03,.1])
@@ -113,7 +113,7 @@ class StateTests(unittest.TestCase):
 		result.record(0., np.array([1, 2]))
 		result.record(1., np.array([1.5, 2.5]))
 		result.finalize()
-		np.testing.assert_array_equal(result.values[:, 1], [1.5, 2.5])
+		np.testing.assert_array_equal(result.values[1], [1.5, 2.5])
 
 	def test_internal_snapshot_does_not_alias_input(self) -> None:
 		values=np.arange(6.);current=IntegrationState(.3,values);values[:]=-1

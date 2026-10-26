@@ -89,7 +89,7 @@ class PhysicalWorkspaceTests(unittest.TestCase):
 			initial = np.arange(3 * count, dtype=float)
 			problem = InitialValueProblem(dynamics, initial)
 			result = simulate(problem.with_request(SimulationRequest((.15, .255), np.array([.15, .153, .255]))), RK4(step=.02))
-			np.testing.assert_allclose(result.values, initial[:, None] + result.times - .15, rtol=0, atol=4e-15)
+			np.testing.assert_allclose(result.values, initial[None, :] + result.times[:, None] - .15, rtol=0, atol=4e-15)
 			self.assertEqual(result.layout.state_dimension, 3)
 			self.assertIs(type(result.layout), ThreeCoordinates)
 			self.assertEqual(result.diagnostics['accepted_internal_state_dimension'], initial.size)
@@ -126,7 +126,7 @@ class PhysicalWorkspaceTests(unittest.TestCase):
 		with tempfile.TemporaryDirectory() as directory:
 			for name, layout in (('gc', GuidingCenterDynamics.coordinates), ('fc', FullCyclotronDynamics.coordinates)):
 				values = np.arange(layout.state_dimension * 3 * 2).reshape(-1, 2)
-				save_solution(States(np.array([.1, .2]), values, layout=layout), Path(directory) / name, metadata={})
+				save_solution(States(np.array([.1, .2]), values.T, layout=layout), Path(directory) / name, metadata={})
 			script = '''
 import sys
 from unittest.mock import patch

@@ -121,7 +121,7 @@ def integrate_rk4_probe(potential: Potential, settings: RK4ProbeSettings, *,
         solution: States = simulate(InitialValueProblem(dynamics, initial, layout=GuidingCenterDynamics.coordinates).with_request(request), RK4(step=step))
         if solution.diagnostics['step_count'] != end - start:
             raise RuntimeError('RK4 did not preserve the requested number of steps.')
-        xy[start:end + 1, 0] = solution.states.T
+        xy[start:end + 1, 0] = solution.states
         if progress is not None:
             progress(end, count)
     return dict(times=times, xy=xy, runtime_seconds=time.perf_counter() - started,

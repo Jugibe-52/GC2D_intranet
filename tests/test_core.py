@@ -169,7 +169,7 @@ class TrajectoryTests(unittest.TestCase):
 	def test_state_configuration_requires_a_concrete_layout(self) -> None:
 		"""Prevent storage from being instantiated without state interpretation."""
 		with self.assertRaises(TypeError):
-			States(t=np.array([0.]), states=np.array([[1.],[2.]]))
+			States(t=np.array([0.]), states=(np.array([[1.],[2.]])).T)
 
 	def test_canonical_configurations_contain_no_physical_parameters(self) -> None:
 		"""Keep state layout independent from the selected dynamical model."""
@@ -312,7 +312,7 @@ class TrajectoryTests(unittest.TestCase):
 			)),
 			RK4(step=0.01),
 		)
-		transported_area = calculate_area(solution.values, period=2 * np.pi, layout=GuidingCenterDynamics.coordinates)
+		transported_area = calculate_area(solution.values.T, period=2 * np.pi, layout=GuidingCenterDynamics.coordinates)
 		self.assertEqual(transported_area.shape, (3,))
 		self.assertTrue(np.all(np.isfinite(transported_area)))
 
@@ -351,7 +351,7 @@ class SimulationTests(unittest.TestCase):
 		artists = animation._func(2)
 		self.assertEqual(len(artists), 6)
 		self.assertEqual(artists[1].__class__.__name__, "Quiver")
-		expected_area = calculate_area(solution.values, period=2 * np.pi, layout=GuidingCenterDynamics.coordinates)
+		expected_area = calculate_area(solution.values.T, period=2 * np.pi, layout=GuidingCenterDynamics.coordinates)
 		expected_error = (expected_area - expected_area[0]) / abs(expected_area[0])
 		np.testing.assert_allclose(artists[3].get_xdata(), solution.t)
 		np.testing.assert_allclose(artists[3].get_ydata(), expected_error)

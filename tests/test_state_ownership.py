@@ -149,11 +149,11 @@ class StateOwnershipTests(unittest.TestCase):
 		solution = simulate(problem.with_request(SimulationRequest.uniform(t_span=(0.0, 0.01), sample_count=2)), RK4(step=0.1))
 		self.assertFalse(np.shares_memory(solution.initial_state, source.state))
 		np.testing.assert_array_equal(solution.initial_state, state)
-		np.testing.assert_array_equal(solution.positions()[0], solution.states[:1])
+		np.testing.assert_array_equal(solution.positions()[0], solution.states[:, :1].T)
 		returned_layout = solution.layout
 		with self.assertRaises(AttributeError):
 			returned_layout.state_dimension = 7
-		np.testing.assert_array_equal(solution.positions()[0], solution.states[:1])
+		np.testing.assert_array_equal(solution.positions()[0], solution.states[:, :1].T)
 
 	def test_saved_solution_uses_initial_snapshot_after_source_changes(self) -> None:
 		from diagnostics.io.persistence import load_solution, save_solution

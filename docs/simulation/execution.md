@@ -39,7 +39,7 @@ running/finished transitions, including kernel preparation and result failures.
 It allocates one result with `States.prepare`. The `run_steps` worker in
 `execution._host` records streaming samples; the worker in `execution._jax_fixed`
 records a validated physical history through `States.record_history`, without a
-Python loop over output columns. Both return numerical diagnostics without
+Python loop over output rows. Both return numerical diagnostics without
 sealing the result. Execution combines metadata and diagnostics and calls
 `States.finalize` once, applying the same legacy aliases to both paths.
 Numerical formulas, nonlinear solves, observations and convergence checks retain
@@ -61,7 +61,7 @@ is stored on the executor. Method metadata is combined with execution metadata
 and then step diagnostics, preserving the existing precedence and aliases.
 
 The returned `states.States` contains physical arrays of shape
-`(physical_state_size, saved_time_count)`, saved times, an independent layout and
+`(saved_time_count, physical_state_size)`, saved times, an independent layout and
 initial snapshot, and read-only diagnostics. `simulate` calls the executor once,
 requires a complete result, checks exact requested times and initial values, and
 returns that same object. These checks also apply to executor subclasses.

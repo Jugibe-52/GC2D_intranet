@@ -69,7 +69,7 @@ class CompiledStepContractTests(unittest.TestCase):
 			with patch("execution._jax_step.prepare_step", return_value=ConstantDrift(self.jax.devices("cpu")[0])):
 				data = Execution().run(self.problem.with_request(self.request), RK4(step=0.1), options=self.execution)
 		expected = self.problem.initial_state[:, None] + np.array([2., -1.])[:, None] * data.t
-		np.testing.assert_allclose(data.states, expected, rtol=0., atol=1e-15)
+		np.testing.assert_allclose(data.states.T, expected, rtol=0., atol=1e-15)
 		self.assertEqual(data.diagnostics["step_count"], 2)
 		self.assertEqual(data.diagnostics["output_interpolation_count"], 1)
 		self.assertEqual(run._status, "finished")

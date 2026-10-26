@@ -324,7 +324,7 @@ def run_ten_method_accuracy_study(
 	series = {
 		label: _accuracy_series(
 			label,
-			comparison.solutions[label].states,
+			comparison.solutions[label].states.T,
 			reference_states,
 			period=period,
 			distance_convention=distance_convention,

@@ -66,7 +66,7 @@ class RK4ExecutionComparison:
 
 def periodic_discrepancy(reference: States, candidate: States, period: float) -> np.ndarray:
     """Per-particle minimum-image distance, shaped (particles, saved_times)."""
-    delta = candidate.states - reference.states
+    delta = candidate.states.T - reference.states.T
     delta = (delta + period / 2) % period - period / 2
     dx: np.ndarray
     dy: np.ndarray
@@ -136,7 +136,7 @@ def run_rk4_execution_comparison(
             "q25_seconds": float(q25), "q75_seconds": float(q75),
             "maximum_periodic_discrepancy": float(np.max(discrepancy)),
             "rms_periodic_discrepancy": float(np.sqrt(np.mean(discrepancy**2))),
-            "maximum_component_discrepancy": float(np.max(np.abs(solution.states-baseline.states))),
+            "maximum_component_discrepancy": float(np.max(np.abs(solution.states.T-baseline.states.T))),
             "device_kind": solution.diagnostics.get("execution_device_kind", platform.processor() or platform.machine()),
         }
     for record in records.values():

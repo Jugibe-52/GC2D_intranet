@@ -313,7 +313,7 @@ def _generalized_energy_history(
 	"""
 	diagnostics = solution.diagnostics
 	hamiltonian: np.ndarray = np.asarray(
-		dynamics.hamiltonian(solution.t, solution.states),
+		dynamics.hamiltonian(solution.t, solution.states.T),
 		dtype=float,
 	).reshape(-1)
 	momentum: np.ndarray = np.asarray(
@@ -347,7 +347,7 @@ def _validated_configuration_trajectory(
 		(initial_x[particle], initial_y[particle]),
 		dtype=float,
 	)
-	if not np.array_equal(solution.states[:, 0], expected_initial):
+	if not np.array_equal(solution.states[0], expected_initial):
 		raise ValueError("A trajectory used the wrong initial condition.")
 	if common_times is None:
 		common_times = solution.t
@@ -464,8 +464,8 @@ class ABBA4ConfigurationComparisonResult:
 			dtype=float,
 		)
 		for particle, solution in enumerate(self.solutions[key]):
-			delta_x = solution.states[0] - reference[particle]
-			delta_y = solution.states[1] - reference[particle_count + particle]
+			delta_x = solution.states[:, 0] - reference[particle]
+			delta_y = solution.states[:, 1] - reference[particle_count + particle]
 			distances[particle] = np.hypot(delta_x, delta_y)
 		return distances
 
@@ -666,7 +666,7 @@ def _run_abba4_trajectory_task(
 		variant_key=task.variant_key,
 		particle=task.particle,
 		times=solution.t,
-		states=solution.states,
+		states=solution.states.T,
 		diagnostics=dict(solution.diagnostics),
 		runtime_seconds=runtime_seconds,
 	)
@@ -997,7 +997,7 @@ def _run_parallel_trajectories(
 						raise RuntimeError(
 							"An ABBA4 worker returned a trajectory for the wrong task."
 						)
-					solution_rows[task.variant_key][task.particle] = States(layout=GuidingCenterDynamics.coordinates, t=payload.times, states=payload.states, initial_state=particle_configurations[task.particle], diagnostics=payload.diagnostics)
+					solution_rows[task.variant_key][task.particle] = States(layout=GuidingCenterDynamics.coordinates, t=payload.times, states=payload.states.T, initial_state=particle_configurations[task.particle], diagnostics=payload.diagnostics)
 					runtime_rows[task.variant_key][task.particle] = (
 						payload.runtime_seconds
 					)

@@ -113,7 +113,7 @@ class ABBA2MidpointTests(unittest.TestCase):
 			[start + start + step, start**2 + (start + step) ** 2]
 		)
 		np.testing.assert_allclose(
-			solution.states[:, -1],
+			solution.states[-1],
 			initial_state + expected_increment,
 			rtol=0.0,
 			atol=1e-15,
@@ -150,7 +150,7 @@ class ABBA2MidpointTests(unittest.TestCase):
 
 		def final_state(step: float) -> np.ndarray:
 			"""Return one final state on a fixed integration interval."""
-			return simulate(problem.with_request(SimulationRequest.uniform(t_span=(0.0, 0.4), sample_count=2)), ABBA2Midpoint(step=step)).states[:, -1]
+			return simulate(problem.with_request(SimulationRequest.uniform(t_span=(0.0, 0.4), sample_count=2)), ABBA2Midpoint(step=step)).states[-1]
 
 		reference = final_state(5e-4)
 		coarse_error = float(np.linalg.norm(final_state(0.1) - reference))
@@ -168,7 +168,7 @@ class ABBA2MidpointTests(unittest.TestCase):
 			observed.diagnostics["copy_separation_norms"].shape,
 			(observed.n_steps,),
 		)
-		np.testing.assert_array_equal(observed.states[:, -1], sparse.states[:, -1])
+		np.testing.assert_array_equal(observed.states[-1], sparse.states[-1])
 		for event in events:
 			np.testing.assert_array_equal(
 				event.map_state(event.state_before),

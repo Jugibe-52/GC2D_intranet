@@ -199,7 +199,7 @@ def run_gc_energy_bound_study(
                     solution: States = simulate(problem.with_request(request), replace(methods[name], step=step))
                     elapsed = perf_counter()-started
                     assert solution.diagnostics["step_count"] == count
-                    assert solution.states.shape == (2, count+1)
+                    assert solution.states.shape == (count+1, 2)
                     np.testing.assert_array_equal(solution.t, times)
                     solutions[name] = solution
                     timing[name].append(elapsed)
@@ -219,15 +219,15 @@ def run_gc_energy_bound_study(
             }
             for name in METHODS:
                 solution = solutions[name]
-                H: np.ndarray = np.asarray(dynamics.hamiltonian(times, solution.states)).reshape(-1)
+                H: np.ndarray = np.asarray(dynamics.hamiltonian(times, solution.states.T)).reshape(-1)
                 K_error = H+momenta[name]-H[0]
                 H_error = H[method_indices]-ref_H
-                distance = particle_distances(solution.states[:, method_indices], ref_states,
+                distance = particle_distances(solution.states[method_indices].T, ref_states,
                     distance_convention="periodic", period=potential.grid.period)[0]
                 prefix = f"h{level}/{name}"
                 values: Any
                 for label, values in {
-                    "states": solution.states, "H": H, "H_change": H-H[0],
+                    "states": solution.states.T, "H": H, "H_change": H-H[0],
                     "kappa": momenta[name], "K_error": K_error,
                     "H_reference_error": H_error, "distance": distance,
                     "K_envelope": np.maximum.accumulate(np.abs(K_error)),

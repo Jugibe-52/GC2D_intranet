@@ -118,9 +118,9 @@ class AutomationTests(unittest.TestCase):
 				c=replace(self.config,methods=(method,),spatial_rescaling=spatial,temporal_rescaling=temporal,
 					newton_absolute_tolerance=1e-13 if spatial else 5e-14,newton_relative_tolerance=1e-13)
 				p=self.prepared(c); saved=run_automation_case(p)
-				self.assertEqual(saved.solution.states.shape,(96,3))
+				self.assertEqual(saved.solution.states.shape,(3, 96))
 				self.assertEqual(saved.solution.diagnostics['step_count'],100)
-				q=saved.solution.states if spatial else (saved.solution.states-np.repeat([.2,-.1],48)[:,None])/.5
+				q=saved.solution.states.T if spatial else (saved.solution.states.T-np.repeat([.2,-.1],48)[:,None])/.5
 				if baseline is None: baseline=q
 				equivalence=max(equivalence,float(np.max(abs(q-baseline))))
 				maximum=max(maximum,float(np.max(abs(q-reference.y))))

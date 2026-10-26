@@ -78,7 +78,7 @@ class FourMethodSDIRKComparisonTests(unittest.TestCase):
 
 		for method_name in FOUR_METHOD_SDIRK_METHODS:
 			solution = result.solutions[method_name]
-			self.assertEqual(solution.states.shape, (6, 3))
+			self.assertEqual(solution.states.shape, (3, 6))
 			self.assertEqual(solution.diagnostics["step_count"], 2)
 			self.assertEqual(
 				np.asarray(solution.diagnostics["nonlinear_iterations"]).shape,

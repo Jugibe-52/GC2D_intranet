@@ -25,7 +25,7 @@ def main() -> None:
 			result = simulate(problem.with_request(request), replace(method(recipe, composition_name=name), step=0.01), observers=(EnergyObserver(),))
 			operations = ' '.join(f'{op.name}({op.coefficient:g})' for op in recipe)
 			print(f'{method.__name__}, {name}: {operations}')
-			print(f'Final physical state: {result.states[:, -1]}')
+			print(f'Final physical state: {result.states[-1]}')
 
 
 if __name__ == '__main__':

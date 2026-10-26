@@ -106,7 +106,7 @@ class AdaptiveIntegrationTests(unittest.TestCase):
                     events = []
                     plain = simulate(self.problem.with_request(request), cls(max_step=.08))
                     observed = simulate(self.problem.with_request(request), cls(max_step=.08), observers=(events.append,))
-                    np.testing.assert_array_equal(plain.states, reference.y)
+                    np.testing.assert_array_equal(plain.states.T, reference.y)
                     np.testing.assert_array_equal(observed.states, plain.states)
                     for key, total in zip(('function_evaluations', 'jacobian_evaluations', 'lu_decompositions'),
                                           (reference.nfev, reference.njev, reference.nlu)):
@@ -121,7 +121,7 @@ class AdaptiveIntegrationTests(unittest.TestCase):
                     x, y = np.split(self.problem.initial_state, 2)
                     exact = np.vstack((x[:, None] * np.cos(angle) - y[:, None] * np.sin(angle),
                                        y[:, None] * np.cos(angle) + x[:, None] * np.sin(angle)))
-                    np.testing.assert_allclose(plain.states, exact, rtol=0, atol=2e-11)
+                    np.testing.assert_allclose(plain.states.T, exact, rtol=0, atol=2e-11)
 
     def test_run_runs_are_fresh_and_snapshots_are_independent(self):
         for cls in (DOP853, Radau):
@@ -225,7 +225,7 @@ class AdaptiveIntegrationTests(unittest.TestCase):
         reference = solve_ivp(problem.dynamics.vector_field, self.request.t_span, problem.initial_state,
             method='Radau', rtol=1e-10, atol=1e-12, max_step=.08, first_step=.01,
             jac=method.jacobian, t_eval=self.request.output_times)
-        np.testing.assert_array_equal(actual.states, reference.y)
+        np.testing.assert_array_equal(actual.states.T, reference.y)
         self.assertEqual(actual.diagnostics['first_step'], .01)
 
 

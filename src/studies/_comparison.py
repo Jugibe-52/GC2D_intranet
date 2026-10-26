@@ -577,7 +577,7 @@ def run_alternating_comparison(
 		solution = solutions[method_name]
 		accuracy_by_method[method_name] = accuracy_series(
 			method_name,
-			solution.states,
+			solution.states.T,
 			reference.states,
 			period=(
 				potential.grid.period
@@ -587,7 +587,7 @@ def run_alternating_comparison(
 			distance_convention=config.distance_convention,
 		)
 		method_energies: np.ndarray = readonly_energy_history(
-			dynamics.hamiltonian(request.output_times, solution.states),
+			dynamics.hamiltonian(request.output_times, solution.states.T),
 			expected_shape=energy_shape,
 		)
 		energy_accuracy_by_method[method_name] = EnergyAccuracySeries(

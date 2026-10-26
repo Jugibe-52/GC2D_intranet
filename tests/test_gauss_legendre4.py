@@ -149,7 +149,7 @@ class GaussLegendre4Tests(unittest.TestCase):
 		for step in (0.2, 0.1, 0.05):
 			solution = simulate(problem.with_request(SimulationRequest.uniform(t_span=(0.0, 1.0), sample_count=2)), GaussLegendre4(step=step, solver=NewtonSolver(absolute_tolerance=1e-14, relative_tolerance=1e-13, max_iterations=20, jacobian_method='analytic')))
 			expected = np.asarray((np.cos(1.0), np.sin(1.0)))
-			errors.append(float(np.linalg.norm(solution.states[:, -1] - expected)))
+			errors.append(float(np.linalg.norm(solution.states[-1] - expected)))
 		for coarse, fine in zip(errors, errors[1:]):
 			self.assertGreater(coarse / fine, 14.0)
 			self.assertLess(coarse / fine, 18.0)
@@ -157,7 +157,7 @@ class GaussLegendre4Tests(unittest.TestCase):
 	def test_generic_time_dependent_field_uses_gauss_stage_times(self) -> None:
 		problem = InitialValueProblem(_CubicTimeField(), np.array(np.zeros(2), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 		solution = simulate(problem.with_request(SimulationRequest.uniform(t_span=(0.0, 1.0), sample_count=2)), GaussLegendre4(step=1.0, solver=NewtonSolver(absolute_tolerance=1e-14, relative_tolerance=1e-13, max_iterations=20, jacobian_method='auto')))
-		np.testing.assert_allclose(solution.states[:, -1], (0.25, 0.0), atol=2e-14)
+		np.testing.assert_allclose(solution.states[-1], (0.25, 0.0), atol=2e-14)
 		self.assertEqual(
 			solution.diagnostics["newton_jacobian_method"],
 			"finite_difference",
@@ -254,7 +254,7 @@ class GaussLegendre4Tests(unittest.TestCase):
 		assert finest is not None and finest.k is not None
 		angle = float(np.e - 1.0)
 		np.testing.assert_allclose(
-			finest.states[:, -1],
+			finest.states[-1],
 			(np.cos(angle), np.sin(angle)),
 			atol=1e-6,
 		)
@@ -306,7 +306,7 @@ class GaussLegendre4Tests(unittest.TestCase):
 			)),
 			replace(method, step=0.1),
 		)
-		np.testing.assert_array_equal(sparse.states, dense.states[:, ::2])
+		np.testing.assert_array_equal(sparse.states, dense.states[::2])
 
 
 if __name__ == "__main__":

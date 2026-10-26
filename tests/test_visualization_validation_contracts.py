@@ -67,8 +67,8 @@ class VisualizationValidationContracts(unittest.TestCase):
 		bad = dict(good, nonlinear_iterations=np.ones(1))
 		with self.assertRaisesRegex(ValueError, "complete integration step count"):
 			plot_implicit_method_iterations({
-				"first": States(t=times, states=states, initial_state=source, diagnostics=good, layout=GuidingCenterDynamics.coordinates),
-				"second": States(t=times, states=states, initial_state=source, diagnostics=bad, layout=GuidingCenterDynamics.coordinates),
+				"first": States(t=times, states=states.T, initial_state=source, diagnostics=good, layout=GuidingCenterDynamics.coordinates),
+				"second": States(t=times, states=states.T, initial_state=source, diagnostics=bad, layout=GuidingCenterDynamics.coordinates),
 			})
 		self.assertEqual(plt.get_fignums(), [])
 
@@ -76,7 +76,7 @@ class VisualizationValidationContracts(unittest.TestCase):
 		potential = Potential.random(A=0.03, M=2, nx=8, ny=8, seed=9)
 		times = np.array([0.0, 0.1, 0.2])
 		states = np.array([[1.0, 1.1, 1.2], [1.2, 1.3, 1.4]])
-		solution = States(t=times, states=states, initial_state=np.array(states[:, 0], dtype=float, copy=True), diagnostics={}, layout=GuidingCenterDynamics.coordinates)
+		solution = States(t=times, states=states.T, initial_state=np.array(states[:, 0], dtype=float, copy=True), diagnostics={}, layout=GuidingCenterDynamics.coordinates)
 		animation = animate_gc_particle_solution(potential, solution, frames=np.int64(2), interval=200.5)
 		animation._draw_was_started = True
 		self.assertEqual(animation._save_count, 2)
@@ -95,7 +95,7 @@ class VisualizationValidationContracts(unittest.TestCase):
 		assert initial is not None
 		times = np.array([0.0, 0.1, 0.2])
 		states = np.repeat(initial[:, np.newaxis], 3, axis=1)
-		solution = States(t=times, states=states, initial_state=area, diagnostics={}, layout=GuidingCenterDynamics.coordinates)
+		solution = States(t=times, states=states.T, initial_state=area, diagnostics={}, layout=GuidingCenterDynamics.coordinates)
 		animation = animate_gc_area_solution(potential, area, solution, frames=np.int64(20))
 		animation._draw_was_started = True
 		self.assertEqual(animation._save_count, 3)

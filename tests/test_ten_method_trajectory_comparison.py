@@ -60,7 +60,7 @@ class TenMethodTrajectoryComparisonTests(unittest.TestCase):
 		for solution in result.solutions.values():
 			np.testing.assert_array_equal(solution.initial_state, configuration)
 			np.testing.assert_array_equal(solution.t, reference_times)
-			self.assertEqual(solution.states.shape, (6, 2))
+			self.assertEqual(solution.states.shape, (2, 6))
 		self.assertEqual(len(result.trajectory_difference_summaries()), 21)
 		self.assertEqual(len(result.runtime_summaries()), 7)
 		self.assertEqual(len(result.nonlinear_work_summaries()), 6)

@@ -55,7 +55,7 @@ class BM4MidpointTests(unittest.TestCase):
 				value = prepared.adjoint_map(duration, time, value)
 			time += duration
 		solution = simulate(problem.with_request(SimulationRequest.uniform(t_span=(0.3, 0.5), sample_count=2)), BM4Midpoint(step=0.2))
-		np.testing.assert_allclose(solution.states[:, -1], (value[:2] + value[2:]) / 2, atol=1e-15)
+		np.testing.assert_allclose(solution.states[-1], (value[:2] + value[2:]) / 2, atol=1e-15)
 		np.testing.assert_allclose(solution.diagnostics["copy_separation_norms"],
 			[np.linalg.norm(value[:2] - value[2:], ord=np.inf)])
 		self.assertEqual(solution.diagnostics["vector_field_evaluations_per_step"], 24)
@@ -66,7 +66,7 @@ class BM4MidpointTests(unittest.TestCase):
 		errors = []
 		for step in (0.2, 0.1):
 			solution = simulate(problem.with_request(SimulationRequest.uniform(t_span=(0.0, 1.0), sample_count=2)), BM4Midpoint(step=step))
-			errors.append(np.linalg.norm(solution.states[:, -1] - [np.cos(1.), np.sin(1.)]))
+			errors.append(np.linalg.norm(solution.states[-1] - [np.cos(1.), np.sin(1.)]))
 		self.assertGreater(errors[0] / errors[1], 14.)
 		self.assertLess(errors[0] / errors[1], 18.)
 
@@ -79,7 +79,7 @@ class BM4MidpointTests(unittest.TestCase):
 				errors = []
 				for step in (0.1, 0.05):
 					solution = simulate(problem.with_request(SimulationRequest.uniform(t_span=(0.0, 0.4), sample_count=2)), BM4Midpoint(step=step, state_extension=extension))
-					errors.append(np.linalg.norm(solution.states[:, -1] - reference))
+					errors.append(np.linalg.norm(solution.states[-1] - reference))
 				self.assertGreater(errors[0] / errors[1], 13.)
 				self.assertLess(errors[0] / errors[1], 19.)
 
@@ -92,7 +92,7 @@ class BM4MidpointTests(unittest.TestCase):
 		for particle in range(2):
 			indices = [particle, particle + 2]
 			scalar = simulate(InitialValueProblem(problem.dynamics, np.array(problem.initial_state[indices], dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates).with_request(request), BM4Midpoint(step=0.05), observers=(EnergyObserver(),))
-			np.testing.assert_allclose(tracked.states[indices], scalar.states, atol=2e-15)
+			np.testing.assert_allclose(tracked.states[:, indices], scalar.states, atol=2e-15)
 			np.testing.assert_allclose(tracked.diagnostics["extended_momentum"][particle],
 				scalar.diagnostics["extended_momentum"][0], atol=2e-15)
 		# Independent augmented ODE checks the factor-of-two momentum convention.
@@ -116,7 +116,7 @@ class BM4MidpointTests(unittest.TestCase):
 					np.testing.assert_array_equal(event.map_state(event.state_before), event.state_after)
 					self.assertEqual(event.state_before.size, 4 if extension == "fully_extended" else 2)
 				sparse = simulate(problem.with_request(SimulationRequest.uniform(t_span=(0.3, 0.5), sample_count=2)), BM4Midpoint(extension, step=0.1), observers=(EnergyObserver(),) if tracking else ())
-				np.testing.assert_array_equal(dense.states[:, -1], sparse.states[:, -1])
+				np.testing.assert_array_equal(dense.states[-1], sparse.states[-1])
 				if tracking:
 					np.testing.assert_array_equal(dense.diagnostics["extended_time"], dense.t[None, :])
 					self.assertEqual(dense.diagnostics["extended_momentum_normalization"], "physical_kappa")

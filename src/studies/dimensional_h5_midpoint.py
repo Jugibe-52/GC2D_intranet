@@ -120,7 +120,7 @@ def run_dimensional_bm4_midpoint(
     request: SimulationRequest = SimulationRequest.uniform(t_span=(0.0, float(cycles)),
                                         sample_count=count + 1)
     solution: States = simulate(problem.with_request(request), BM4Midpoint(step=1.0 / steps_per_cycle))
-    if solution.diagnostics["step_count"] != count or solution.states.shape != (2, count + 1):
+    if solution.diagnostics["step_count"] != count or solution.states.shape != (count + 1, 2):
         raise RuntimeError("BM4Midpoint did not save every complete step.")
     return solution
 

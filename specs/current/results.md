@@ -24,7 +24,7 @@ tests = ["tests/test_extensible_architecture.py::ExtensibleArchitectureTests.tes
 
 ## SOL-001: Finite physical history and layout
 
-Times have shape `(T,)` with at least one finite, strictly increasing sample. Physical values have shape `(physical_state_size,T)`, with finite, nonempty complete particle blocks accepted by the layout. No unit conversion occurs. Internal duplicated coordinates are not stored as physical results. `States` validates structure; the simulation boundary checks agreement with the particular request, layout dimension and initial state. Simulation requests still require both endpoints and at least two samples.
+Times have shape `(T,)` with at least one finite, strictly increasing sample. Physical values have shape `(T,physical_state_size)`, with finite, nonempty complete particle blocks accepted by the layout. No unit conversion occurs. Internal duplicated coordinates are not stored as physical results. `States` validates structure; the simulation boundary checks agreement with the particular request, layout dimension and initial state. Simulation requests still require both endpoints and at least two samples.
 
 ## SOL-002: Owned arrays, layout and initial snapshot
 
@@ -52,3 +52,25 @@ covered by `tests/test_study_result_contracts.py`.
 ## Energy extraction responsibility
 
 Methods evaluate saved physical H once. `states.energy.energy_diagnostics` combines supplied H and physical kappa without dynamics evaluation. Existing energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. Numerical archives require no migration; old pickled configured objects should be recreated.
+
+## Time rows in saved results (2026-10-26)
+
+`States.states` and its alias `values` have shape `(samples, state_size)`.
+Use `states[i]` for the complete physical state at `t[i]`, `states[:, j]`
+for one component through time, and `zip(t, states)` to iterate samples.
+Construction and `record_history` require this orientation, even for square
+arrays. Each physical vector keeps its component-major order.
+
+`positions()`, `velocities()`, `components()` and `split()` still return
+component arrays of shape `(particles, samples)`. The coordinate classes,
+Hamiltonian evaluation, geometry functions, study reference arrays and
+specialized CSV/NPZ/HDF5 study formats retain their component-first contracts.
+Pass `solution.states.T` when those consumers need a packed history.
+`select(indices)` selects rows; independent diagnostic axes are unchanged.
+
+`save_solution` writes schema 2 time rows. `load_solution` converts schema 1
+columns using the archive version, never shape inference. Old files are not
+rewritten. Completed States pickles also carry a history version; older
+States pickles with the supported restoration function decode as columns.
+Compiled kernels may keep component-first work arrays and transpose once
+at the recording boundary. Physical integration and tolerances are unchanged.

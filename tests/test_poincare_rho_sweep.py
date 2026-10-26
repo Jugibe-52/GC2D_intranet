@@ -55,7 +55,7 @@ class RhoSweepTests(unittest.TestCase):
                     np.testing.assert_allclose(compiled.solution.states, scipy.solution.states, rtol=1e-11, atol=1e-13)
                     np.testing.assert_array_equal(loaded.solution.states, compiled.solution.states)
                     self.assertEqual(loaded.metadata['method'], name)
-                    self.assertEqual(loaded.solution.states.shape, (8, 2))
+                    self.assertEqual(loaded.solution.states.shape, (2, 8))
                     arrays = {key for key, value in loaded.solution.diagnostics.items() if isinstance(value, np.ndarray)}
                     self.assertEqual(arrays, {'cycle_positions_wrapped', 'cycle_positions_cell_fraction'})
                     if name != 'RK4':
@@ -156,14 +156,14 @@ class RhoSweepTests(unittest.TestCase):
                                      options=ExecutionOptions(), save_folded_returns=True)
             # Use known returns on both sides of a nonzero-origin cell, including
             # an exact boundary. Every particle has the same synthetic excursion.
-            states = saved.solution.states.copy()
+            states = saved.solution.states.T.copy()
             states[:40, 1:] = np.array([.09, .315])
             states[40:, 1:] = np.array([-.135, -.225])
-            synthetic = States(layout=saved.solution.layout, t=saved.solution.t, states=states, initial_state=saved.solution.initial_state, diagnostics=saved.solution.diagnostics)
+            synthetic = States(layout=saved.solution.layout, t=saved.solution.t, states=states.T, initial_state=saved.solution.initial_state, diagnostics=saved.solution.diagnostics)
             wrapped, fractions = folded_rho_positions(synthetic, saved.metadata)
             np.testing.assert_allclose(wrapped[1:, 0], [[-.09, .045], [-.045, -.045]], atol=1e-15)
             np.testing.assert_allclose(fractions[1:, 0], [[0., .75], [.25, .25]], atol=1e-14)
-            np.testing.assert_array_equal(synthetic.states, states)
+            np.testing.assert_array_equal(synthetic.states.T, states)
             path = export_rho_sweep({.3: replace(saved, solution=synthetic)}, Path(tmp)/'folded.html',
                                     rho_values=(.3,), fold_to_cell=True)
             cfg = json.loads(re.search(r'const cfg=(.*);', path.read_text()).group(1))
@@ -217,7 +217,7 @@ class RhoSweepTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             dest = str(Path(tmp)/'rho_030')
             saved = run_and_save_rho_star(prepared, dest, executor=executor, options=ExecutionOptions())
-            self.assertEqual(saved.solution.states.shape, (80, 3))
+            self.assertEqual(saved.solution.states.shape, (3, 80))
             self.assertEqual(saved.solution.diagnostics['step_count'], 100)
             self.assertFalse(any(isinstance(v, np.ndarray) for v in saved.solution.diagnostics.values()))
             with patch.object(executor, 'run', side_effect=AssertionError('must not resubmit')):

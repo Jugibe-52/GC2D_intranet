@@ -85,7 +85,7 @@ class ABBAComparisonStudyTests(unittest.TestCase):
 				0.0,
 			)
 			self.assertEqual(
-				study.solutions[config.step_label].states.shape[1],
+				study.solutions[config.step_label].states.shape[0],
 				config.output_sample_count,
 			)
 		for method_name in ABBA_METHOD_NAMES:

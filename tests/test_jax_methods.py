@@ -49,7 +49,7 @@ class JaxMethodTests(unittest.TestCase):
         result = simulate(problem.with_request(self.request), method, options=execution or self.execution, observers=observers)
         np.testing.assert_allclose(result.states, reference.states, rtol=3e-10, atol=3e-11)
         np.testing.assert_array_equal(result.t, reference.t)
-        np.testing.assert_array_equal(result.states[:, 0], problem.initial_state)
+        np.testing.assert_array_equal(result.states[0], problem.initial_state)
         self.assertFalse(result.states.flags.writeable)
         if tracking:
             for name in ('extended_momentum', 'physical_hamiltonian', 'generalized_energy_error'):
@@ -105,7 +105,7 @@ class JaxMethodTests(unittest.TestCase):
         dense = simulate(self.gc.with_request(self.request), method, options=self.execution, observers=(EnergyObserver(),))
         sparse_request = replace(self.request, output_times=np.array([.3, .4]))
         sparse = simulate(self.gc.with_request(sparse_request), method, options=self.execution, observers=(EnergyObserver(),))
-        np.testing.assert_allclose(sparse.states, dense.states[:, [0, -1]], rtol=0, atol=2e-15)
+        np.testing.assert_allclose(sparse.states, dense.states[[0, -1]], rtol=0, atol=2e-15)
         np.testing.assert_array_equal(sparse.diagnostics['nonlinear_iterations'], dense.diagnostics['nonlinear_iterations'])
         self.assertFalse(hasattr(method, 'initial_state'))
         again = simulate(self.gc.with_request(self.request), method, options=self.execution, observers=(EnergyObserver(),))

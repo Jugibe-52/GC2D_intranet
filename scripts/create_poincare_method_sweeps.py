@@ -175,7 +175,7 @@ Changing rho updates both panels. Colors remain attached to radial particle IDs.
                 assert saved.metadata['execution_options']['device'] == 'cpu'
                 assert saved.metadata['execution_executor'] == 'modal'
                 assert saved.metadata['config']['hamiltonian_convention'] == 'radial'
-                assert saved.solution.states.shape == (80, 5001)
+                assert saved.solution.states.shape == (5001, 80)
                 assert saved.solution.states.dtype == np.float64
                 assert saved.solution.diagnostics['step_count'] == 250000
                 np.testing.assert_array_equal(saved.solution.t, np.arange(5001, dtype=float))

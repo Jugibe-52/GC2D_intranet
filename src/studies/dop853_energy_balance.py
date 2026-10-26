@@ -71,7 +71,7 @@ def run_energy_balance(potential: Potential, configuration: np.ndarray, config: 
     print('Starting DOP853', flush=True)
     reference: States = simulate(problem.with_request(request), DOP853(max_step=h,
         relative_tolerance=config['reference_rtol'], absolute_tolerance=config['reference_atol']), observers=(EnergyObserver(),))
-    arrays['DOP853.states'] = reference.states
+    arrays['DOP853.states'] = reference.states.T
     arrays['DOP853.kappa'] = np.asarray(reference.diagnostics['extended_momentum'])
     solver = NewtonSolver(absolute_tolerance=config['newton_atol'],
         relative_tolerance=config['newton_rtol'], max_iterations=config['newton_max_iterations'],
@@ -87,7 +87,7 @@ def run_energy_balance(potential: Potential, configuration: np.ndarray, config: 
         solution: States = simulate(problem.with_request(request), replace(method, step=h),
             observers=(observer,) if name == 'BM4Implicit' else (EnergyObserver(),))
         assert solution.diagnostics['step_count'] == cycles*steps
-        arrays[name+'.states'] = solution.states
+        arrays[name+'.states'] = solution.states.T
         if name == 'BM4Implicit':
             assert not observer.block and observer.step_count == cycles*steps
             arrays[name+'.kappa'] = np.asarray(observer.momenta).T

@@ -186,7 +186,7 @@ class ImplicitABBASymplecticityComparison:
 					"Implicit ABBA comparison trajectories must have equal shapes."
 				)
 			differences[step.label] = float(
-				np.max(np.abs(first_solution.states - second_solution.states))
+				np.max(np.abs(first_solution.states.T - second_solution.states.T))
 			)
 		return MappingProxyType(differences)
 

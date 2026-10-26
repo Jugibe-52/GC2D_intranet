@@ -370,7 +370,7 @@ def run_abba4_implicit_accuracy_study(
 			raise ValueError("ABBA4 refinements do not share reference sample indices.")
 		series[step] = accuracy_series(
 			"ABBA4Implicit",
-			solution.states,
+			solution.states.T,
 			reference.states[:, indices],
 			period=float(potential.grid.period),
 			distance_convention=distance_convention,

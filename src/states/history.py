@@ -40,8 +40,8 @@ def _validated_history(values: np.ndarray, shape: tuple[int, ...], layout: State
 	"""Validate a complete physical history without converting its dtype."""
 	value: np.ndarray = np.asarray(values)
 	if value.shape != shape or not np.all(np.isfinite(value)):
-		raise ValueError("Physical states must be finite with shape (state_size, samples).")
-	layout.validate_packed_state_layout(value)
+		raise ValueError("Physical states must be finite with shape (samples, state_size).")
+	layout.validate_packed_state_layout(value.T)
 	return value
 
 
@@ -67,10 +67,10 @@ def _owned_diagnostics(diagnostics: Mapping[str, DiagnosticValue]) -> dict[str, 
 
 
 class States:
-	"""Own physical columns and timestamps, first recording and then read-only.
+	"""Own physical rows and timestamps, first recording and then read-only.
 
-	``prepare`` reserves a schedule; ``record`` fills its columns in order.
-	Only recorded columns are exposed. ``finalize`` rejects incomplete output
+	``prepare`` reserves a schedule; ``record`` fills its rows in order.
+	Only recorded rows are exposed. ``finalize`` rejects incomplete output
 	and seals the same object. Direct construction accepts complete arrays,
 	including archives and device results, and produces an already sealed result.
 	The class knows neither numerical methods nor internal coordinate extensions.
@@ -80,7 +80,7 @@ class States:
 	             diagnostics: Mapping[str, DiagnosticValue] | None = None, *,
 	             layout: StateLayout, initial_state: np.ndarray | None = None) -> None:
 		self._allocate(t, layout, np.asarray(states).dtype,
-		               np.asarray(states).shape[0] if np.ndim(states) else 0, initial_state)
+		               np.asarray(states).shape[1] if np.ndim(states) == 2 else 0, initial_state)
 		value: np.ndarray = _validated_history(states, self._values.shape, self._layout)
 		self._values[:] = value
 		self._count = self._times.size
@@ -92,7 +92,7 @@ class States:
 		owned_layout: PhysicalCoordinates
 		t, owned_layout = _prepared_recording_inputs(times, layout, state_size, initial)
 		self._times = t
-		self._values = np.empty((state_size, t.size), dtype=dtype)
+		self._values = np.empty((t.size, state_size), dtype=dtype)
 		self._layout = owned_layout
 		self._count = 0
 		self._complete = False
@@ -107,7 +107,7 @@ class States:
 
 	@classmethod
 	def prepare(cls, times: np.ndarray, initial: np.ndarray, *, layout: StateLayout) -> States:
-		"""Reserve one result without publishing any unrecorded columns."""
+		"""Reserve one result without publishing any unrecorded rows."""
 		value: np.ndarray = np.asarray(initial, dtype=float)
 		if value.ndim != 1 or not value.size or not np.all(np.isfinite(value)):
 			raise ValueError("The initial physical state must be a finite non-empty vector.")
@@ -126,7 +126,7 @@ class States:
 		if self._count >= self._times.size or time != self._times[self._count]:
 			raise ValueError("Record samples in the requested time order.")
 		value: np.ndarray = np.asarray(values)
-		if value.shape != (self._values.shape[0],) or not np.all(np.isfinite(value)):
+		if value.shape != (self._values.shape[1],) or not np.all(np.isfinite(value)):
 			raise ValueError("A physical sample changed shape or became non-finite.")
 		parts: dict[str, np.ndarray] = dict(auxiliary or {})
 		if self._count == 0:
@@ -137,7 +137,7 @@ class States:
 		for key, part in parts.items():
 			if np.shape(part) != self._auxiliary[key].shape[:-1] or not np.all(np.isfinite(part)):
 				raise ValueError("Sample auxiliary data changed shape or became non-finite.")
-		self._values[:, self._count] = value
+		self._values[self._count] = value
 		for key, part in parts.items():
 			self._auxiliary[key][..., self._count] = part
 		self._count += 1
@@ -145,7 +145,7 @@ class States:
 	def record_history(self, values: np.ndarray) -> None:
 		"""Copy a complete physical history into an empty, still-open recorder.
 
-		Compiled execution returns shape (state_size, samples) in one transfer.
+		The execution boundary supplies shape (samples, state_size) in bulk.
 		Diagnostics are supplied at finalization; this operation never seals the
 		result or overwrites samples already recorded by a streaming controller.
 		"""
@@ -201,7 +201,7 @@ class States:
 	def __reduce__(self) -> tuple[Any, tuple[Any, ...]]:
 		if not self.complete:
 			raise TypeError("Only completed States can cross an execution boundary.")
-		return (_restore_states, (self.times, self.values, self._diagnostics, self._layout, self._initial))
+		return (_restore_states, (self.times, self.values, self._diagnostics, self._layout, self._initial, 2))
 
 	@property
 	def complete(self) -> bool:
@@ -213,7 +213,8 @@ class States:
 
 	@property
 	def values(self) -> np.ndarray:
-		return self._values if self._complete else _readonly(self._values[:, :self._count])
+		"""Read-only physical rows: values[i] is the state at times[i]."""
+		return self._values if self._complete else _readonly(self._values[:self._count])
 
 	@property
 	def t(self) -> np.ndarray:
@@ -235,7 +236,7 @@ class States:
 
 	@property
 	def particle_count(self) -> int:
-		return self._values.shape[0] // self._layout.state_dimension
+		return self._values.shape[1] // self._layout.state_dimension
 
 	@property
 	def auxiliary(self) -> Mapping[str, np.ndarray]:
@@ -247,20 +248,21 @@ class States:
 		return MappingProxyType(self._diagnostics)
 
 	def components(self, layout: StateLayout | None = None) -> tuple[np.ndarray, ...]:
+		"""Component views of shape (particles, samples) for vectorized physics."""
 		selected = self._layout if layout is None else layout
 		if not isinstance(selected, StateLayout) or describe_coordinates(selected) != self._layout:
 			raise TypeError("The supplied layout is incompatible with these states.")
-		return selected.split(self.values)
+		return selected.split(self.values.T)
 
 	def split(self) -> tuple[np.ndarray, ...]:
 		return self.components()
 
 	def positions(self) -> tuple[np.ndarray, np.ndarray]:
-		return self._layout.positions(self.values)
+		return self._layout.positions(self.values.T)
 
 	def velocities(self) -> tuple[np.ndarray, np.ndarray]:
 		try:
-			return self._layout.velocities(self.values)
+			return self._layout.velocities(self.values.T)
 		except ValueError as error:
 			# Preserve the result accessor's error for conventions without velocities.
 			raise TypeError(str(error)) from error
@@ -271,7 +273,7 @@ class States:
 	Whole-run diagnostics remain attached unchanged; they have independent axes.
 	"""
 		chosen: np.ndarray = np.atleast_1d(np.arange(self._count)[indices])
-		return States(self.times[chosen], self.values[:, chosen], self.diagnostics, layout=self._layout, initial_state=self._initial)
+		return States(self.times[chosen], self.values[chosen], self.diagnostics, layout=self._layout, initial_state=self._initial)
 
 	def with_diagnostics(self, diagnostics: Mapping[str, DiagnosticValue], *, replace: bool = False) -> States:
 		"""Return a sealed copy with execution metadata added by a boundary."""
@@ -296,8 +298,11 @@ class States:
 
 
 def _restore_states(times: np.ndarray, values: np.ndarray, diagnostics: dict[str, DiagnosticValue],
-                    layout: StateLayout, initial: np.ndarray | None) -> States:
-	return States(times, values, diagnostics, layout=layout, initial_state=initial)
+                    layout: StateLayout, initial: np.ndarray | None, history_version: int = 1) -> States:
+	"""Decode pre-row pickles explicitly; square histories cannot reveal their axes."""
+	if history_version not in (1, 2):
+		raise ValueError("Unsupported pickled States history version.")
+	return States(times, values.T if history_version == 1 else values, diagnostics, layout=layout, initial_state=initial)
 
 
 __all__ = ["States"]

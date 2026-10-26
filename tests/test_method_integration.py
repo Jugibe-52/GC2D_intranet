@@ -100,7 +100,7 @@ class MethodIntegrationTests(unittest.TestCase):
 				for key in dense.diagnostics:
 					np.testing.assert_equal(dense.diagnostics[key], again.diagnostics[key])
 				sparse = simulate(problem.with_request(_request()), replace(method, step=(0.34 - 0.3) / 2), observers=(EnergyObserver(),) if tracking else ())
-				np.testing.assert_array_equal(dense.states[:, [0, 2, 4]], sparse.states)
+				np.testing.assert_array_equal(dense.states[[0, 2, 4]], sparse.states)
 				for key in ("step_times", "step_start_times", "step_sizes"):
 					np.testing.assert_array_equal(dense.diagnostics[key], sparse.diagnostics[key])
 				self.assertEqual(dense.diagnostics["output_interpolation_count"], 2)
@@ -146,7 +146,7 @@ class MethodIntegrationTests(unittest.TestCase):
 		state = run.initial_state.copy()
 		for t, end in zip((0.3, 0.31, 0.33), (0.31, 0.33, 0.34)):
 			state = run.advance(t, state, end - t).state
-		np.testing.assert_array_equal(data.states[:, -1], state)
+		np.testing.assert_array_equal(data.states[-1], state)
 		np.testing.assert_array_equal(data.diagnostics["step_times"], [0.31, 0.33, 0.34])
 		self.assertEqual(data.diagnostics["step_count"], 3)
 

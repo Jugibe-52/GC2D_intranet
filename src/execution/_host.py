@@ -254,7 +254,7 @@ def run_steps(
 		raise RuntimeError("The integration did not cover the requested interval.")
 	diagnostics: dict[str, DiagnosticValue] = {}
 	if energy is not None:
-		diagnostics.update(energy.diagnose_history(saved.times, saved.values, dict(saved.auxiliary)))
+		diagnostics.update(energy.diagnose_history(saved.times, saved.values.T, dict(saved.auxiliary)))
 	diagnostics["output_interpolation_count"] = interior_sample_count
 	return diagnostics
 

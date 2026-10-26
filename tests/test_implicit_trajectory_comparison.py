@@ -64,7 +64,7 @@ class ImplicitTrajectoryComparisonTests(unittest.TestCase):
 			10,
 		)
 		for solution in result.solutions.values():
-			self.assertEqual(solution.states.shape, (20, 3))
+			self.assertEqual(solution.states.shape, (3, 20))
 			self.assertEqual(solution.diagnostics["nonlinear_solver"], "broyden")
 			self.assertEqual(
 				np.asarray(solution.diagnostics["nonlinear_iterations"]).shape,

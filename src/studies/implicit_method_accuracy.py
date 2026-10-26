@@ -620,7 +620,7 @@ def run_implicit_method_accuracy_study(
 				raise ValueError("Implicit refinements do not share reference samples.")
 			series[method_name][step] = accuracy_series(
 				method_name,
-				solution.states,
+				solution.states.T,
 				reference.states[:, indices],
 				period=float(potential.grid.period),
 				distance_convention=distance_convention,

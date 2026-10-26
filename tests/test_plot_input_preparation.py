@@ -32,7 +32,7 @@ from visualization.trajectory_accuracy import plot_accuracy_runtime_tradeoff
 
 
 def _solution(**diagnostics: np.ndarray) -> States:
-	return States(np.array([0., 1., 2.]), np.zeros((2, 3)), diagnostics,
+	return States(np.array([0., 1., 2.]), (np.zeros((2, 3))).T, diagnostics,
 		layout=GuidingCenterDynamics.coordinates)
 
 

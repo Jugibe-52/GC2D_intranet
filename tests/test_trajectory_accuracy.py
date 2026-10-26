@@ -152,7 +152,7 @@ class TrajectoryAccuracyTests(unittest.TestCase):
 				float(np.sqrt(np.mean(loaded.audit_distances[:, ::2] ** 2))),
 			)
 			first_label = next(iter(accuracy.series))
-			first_states = accuracy.comparison.solutions[first_label].states
+			first_states = accuracy.comparison.solutions[first_label].states.T
 			first_difference = first_states - loaded.states[:, ::2]
 			expected_distances = np.hypot(
 				first_difference[:2],

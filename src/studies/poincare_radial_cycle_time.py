@@ -165,8 +165,8 @@ def validate_radial_solution(solution: States, prepared: PreparedRadialCycle) ->
     c, d = prepared.config, solution.diagnostics
     count = c.cycles * c.steps_per_cycle
     np.testing.assert_array_equal(solution.t, prepared.request.output_times)
-    np.testing.assert_array_equal(solution.states[:, 0], prepared.problem.initial_state)
-    if (solution.states.shape != (2 * len(c.radial_fractions), count + 1)
+    np.testing.assert_array_equal(solution.states[0], prepared.problem.initial_state)
+    if (solution.states.shape != (count + 1, 2 * len(c.radial_fractions))
             or not np.isfinite(solution.states).all() or d["step_count"] != count
             or d["projection_kind"] != "arithmetic_mean"
             or d["coupling_frequency"] != c.coupling_frequency

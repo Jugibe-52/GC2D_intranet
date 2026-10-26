@@ -40,4 +40,4 @@ solution = simulate(
 print(f"steps: {solution.diagnostics['step_count']}")
 print(f"formulation: {solution.diagnostics['projection_formulation']}")
 print(f"Newton iterations: {solution.diagnostics['newton_iterations']}")
-print(f"final state: {solution.states[:, -1]}")
+print(f"final state: {solution.states[-1]}")

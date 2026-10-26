@@ -204,7 +204,7 @@ class AreaComparisonStudyTests(unittest.TestCase):
 			self.assertEqual(config.output_sample_count, 2)
 			for step in config.steps:
 				label = step.label
-				self.assertEqual(result.solutions[label].states.shape[1], 2)
+				self.assertEqual(result.solutions[label].states.shape[0], 2)
 				self.assertEqual(
 					result.solutions[label].diagnostics[
 						"projection_solver_formulation"

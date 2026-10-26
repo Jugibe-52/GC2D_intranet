@@ -149,7 +149,7 @@ class ABBA4ImplicitSingleProjectionTests(unittest.TestCase):
 		errors = []
 		for step in (0.2, 0.1, 0.05):
 			solution = simulate(problem.with_request(SimulationRequest.uniform(t_span=(start, end), sample_count=2)), ABBA4Implicit(step=step, projection_placement='around_complete_composition', solver=NewtonSolver(jacobian_method='analytic', absolute_tolerance=1e-14, relative_tolerance=1e-14)))
-			errors.append(float(np.linalg.norm(solution.states[:, -1] - exact)))
+			errors.append(float(np.linalg.norm(solution.states[-1] - exact)))
 		for gain in np.asarray(errors[:-1]) / np.asarray(errors[1:]):
 			self.assertGreater(float(gain), 14.0)
 			self.assertLess(float(gain), 18.0)
@@ -267,8 +267,8 @@ class ABBA4ImplicitSingleProjectionTests(unittest.TestCase):
 			t_span=(0.2, 0.35),
 			sample_count=2,
 		)
-		old = simulate(problem.with_request(request), ABBA4Implicit(step=0.15)).states[:, -1]
-		new = simulate(problem.with_request(request), ABBA4Implicit(step=0.15, projection_placement='around_complete_composition')).states[:, -1]
+		old = simulate(problem.with_request(request), ABBA4Implicit(step=0.15)).states[-1]
+		new = simulate(problem.with_request(request), ABBA4Implicit(step=0.15, projection_placement='around_complete_composition')).states[-1]
 		np.testing.assert_array_equal(new, old)
 
 	def test_broyden_matches_the_newton_root(self) -> None:

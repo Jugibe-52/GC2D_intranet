@@ -238,7 +238,7 @@ def _append_method_columns(
 	diagnostic_substeps: dict[str, dict[str, int]] = {}
 	for method_name in method_names:
 		solution = result.solutions[method_name]
-		states: np.ndarray = np.asarray(solution.states, dtype=float)
+		states: np.ndarray = np.asarray(solution.states.T, dtype=float)
 		if states.shape != (2 * particle_count, sample_count):
 			raise ValueError("Every method trajectory must share the reference grid.")
 		values: np.ndarray
@@ -591,7 +591,7 @@ def load_five_method_comparison_csv(path: str | Path) -> StoredFiveMethodCompari
 			if not np.array_equal(states[:, 0], source_initial_state):
 				raise ValueError("Stored method trajectories have different origins.")
 		diagnostics: dict[str, Any] = _diagnostics_from_columns(columns, payload, method_name)
-		solutions[method_name] = States(t=times, states=states, initial_state=source, diagnostics=diagnostics, layout=GuidingCenterDynamics.coordinates)
+		solutions[method_name] = States(t=times, states=states.T, initial_state=source, diagnostics=diagnostics, layout=GuidingCenterDynamics.coordinates)
 		distances: np.ndarray = _stack_particle_columns(
 			columns,
 			scope=method_name,

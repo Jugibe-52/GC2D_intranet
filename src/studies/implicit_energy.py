@@ -512,7 +512,7 @@ def run_implicit_generalized_energy_study(
 				observers=(candidate_energy_observer,),
 			)
 			return (
-				np.asarray(candidate_solution.states[:, -1], dtype=float),
+				np.asarray(candidate_solution.states[-1], dtype=float),
 				float(candidate_energy_observer.records[-1].kappa),
 			)
 

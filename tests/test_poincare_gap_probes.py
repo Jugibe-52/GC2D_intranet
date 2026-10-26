@@ -65,7 +65,7 @@ class GapProbeTests(unittest.TestCase):
             loaded = load_solution(path)
             validate_gap_solution(loaded.solution, prepared)
             self.assertEqual(validate_saved_gap_probes(loaded, background=background), seeds())
-            self.assertEqual(loaded.solution.states.shape, (16, 2))
+            self.assertEqual(loaded.solution.states.shape, (2, 16))
             np.testing.assert_array_equal(stored.solution.states, loaded.solution.states)
             with patch("studies.poincare_rho_sweep.run_rho_star", side_effect=AssertionError("must not run")):
                 again = run_and_save_rho_star(prepared, path, executor=Execution(), options=ExecutionOptions())

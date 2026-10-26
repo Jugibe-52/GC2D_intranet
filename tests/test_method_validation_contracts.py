@@ -105,14 +105,14 @@ class MethodValidationContractTests(unittest.TestCase):
 		times = np.asarray((0.0, 1.0))
 		states = np.asarray(((0, 1), (1, 2)), dtype=np.int16)
 		metric = np.asarray((1, 2), dtype=np.int64)
-		solution = States(t=times, states=states, initial_state=np.array(states[:, 0], dtype=float, copy=True), diagnostics={"metric": metric}, layout=GuidingCenterDynamics.coordinates)
+		solution = States(t=times, states=states.T, initial_state=np.array(states[:, 0], dtype=float, copy=True), diagnostics={"metric": metric}, layout=GuidingCenterDynamics.coordinates)
 		times[0], states[0, 0], metric[0] = -1.0, -1, -1
 		self.assertEqual(solution.t[0], 0.0)
 		self.assertEqual(solution.states[0, 0], 0)
 		self.assertEqual(solution.states.dtype, np.dtype(np.int16))
 		stored = np.asarray(solution.diagnostics["metric"])
 		self.assertEqual(stored[0], 1)
-		for array in (solution.t, solution.states, stored):
+		for array in (solution.t, solution.states.T, stored):
 			self.assertFalse(array.flags.writeable)
 		with self.assertRaises(TypeError):
 			solution.diagnostics["other"] = 1  # type: ignore[index]

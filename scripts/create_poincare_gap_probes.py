@@ -281,8 +281,8 @@ across phase samples. The two seeds in each gap can be selected together.
             assert set(runs) == set(probe_runs) == set(RHO_VALUES), 'Some requested archives are missing.'
             for rho in RHO_VALUES:
                 original, probes = runs[rho], probe_runs[rho]
-                assert original.solution.states.shape == (80, 5001)
-                assert probes.solution.states.shape == (16, 5001)
+                assert original.solution.states.shape == (5001, 80)
+                assert probes.solution.states.shape == (5001, 16)
                 assert original.metadata['source_sha256'] == EXPECTED_SOURCE_SHA256
                 assert original.metadata['method'] == METHOD
                 assert original.metadata['config']['hamiltonian_convention'] == 'radial'

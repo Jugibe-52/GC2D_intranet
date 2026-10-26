@@ -101,7 +101,7 @@ class JaxRK4Tests(unittest.TestCase):
         result = simulate(p.with_request(request), method, options=execution or self.execution, observers=observers)
         np.testing.assert_allclose(result.states, reference.states, rtol=2e-12, atol=2e-12)
         np.testing.assert_array_equal(result.t, reference.t)
-        np.testing.assert_array_equal(result.states[:, 0], p.initial_state)
+        np.testing.assert_array_equal(result.states[0], p.initial_state)
         self.assertFalse(result.states.flags.writeable)
         self.assertFalse(hasattr(method, "initial_state"))
         for key in reference.diagnostics:
@@ -146,13 +146,13 @@ class JaxRK4Tests(unittest.TestCase):
         dense = np.unique(np.concatenate((nodes, [.02, .08, .21, .22, .49])))
         sampled = simulate(p.with_request(SimulationRequest((0., .5),  dense)), RK4(step=0.1), options=self.execution)
         sparse = self.assert_equivalent(p, SimulationRequest((0., .5),  nodes[[0, 2, 5]]), False)
-        np.testing.assert_allclose(sampled.states[:, np.searchsorted(dense, sparse.t)], sparse.states,
+        np.testing.assert_allclose(sampled.states[np.searchsorted(dense, sparse.t)], sparse.states,
                                    rtol=1e-14, atol=1e-14)
         x, y = GuidingCenterDynamics.coordinates.split(p.initial_state)
         for i in range(3):
             one = InitialValueProblem(p.dynamics, GuidingCenterDynamics.coordinates.pack_components(x[i:i+1], y[i:i+1]), layout=GuidingCenterDynamics.coordinates)
             solo = simulate(one.with_request(SimulationRequest((0., .5),  sparse.t)), RK4(step=0.1))
-            np.testing.assert_allclose(sparse.states[[i, i+3]], solo.states, rtol=1e-13, atol=1e-13)
+            np.testing.assert_allclose(sparse.states[:, [i, i + 3]], solo.states, rtol=1e-13, atol=1e-13)
 
     def test_fourth_order_against_an_exact_time_dependent_shear(self):
         grid = Grid.periodic(24, 16)
@@ -165,7 +165,7 @@ class JaxRK4Tests(unittest.TestCase):
         errors = []
         for h in (.2, .1, .05):
             result = simulate(p.with_request(SimulationRequest((0., 1.),  np.array([0., 1.]))), RK4(step=h), options=self.execution)
-            errors.append(abs(result.states[1, -1] - exact))
+            errors.append(abs(result.states[-1, 1] - exact))
         self.assertTrue(all(14 < a/b < 18 for a, b in zip(errors[:-1], errors[1:])), errors)
 
     def test_precision_and_unsupported_capabilities_fail_explicitly(self):

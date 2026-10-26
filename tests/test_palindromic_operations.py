@@ -155,9 +155,9 @@ class PalindromicOperationTests(unittest.TestCase):
 				for h in (.1, .05, .025):
 					r = SimulationRequest((0., end),  np.array([0., end]))
 					s = simulate(p.with_request(r), replace(cls(recipe), step=h), observers=(EnergyObserver(),))
-					errors.append(np.max(abs(s.states[:, -1]-exact)))
+					errors.append(np.max(abs(s.states[-1]-exact)))
 					balances.append(np.max(abs(s.diagnostics['generalized_energy_error'][:, -1])))
-					if h == .1: coarse.append(s.states[:, -1])
+					if h == .1: coarse.append(s.states[-1])
 				for gains in (np.array(errors[:-1])/errors[1:], np.array(balances[:-1])/balances[1:]):
 					self.assertTrue(np.all((gains>3.5) & (gains<4.5)), gains)
 				print(f'{cls.__name__} {"center" if recipe is ABBA2Implicit.recipe else "edges"}: errors={errors}, balance={balances}')

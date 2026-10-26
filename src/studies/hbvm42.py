@@ -368,7 +368,7 @@ def _reference_solution(
 	"""Compute an independent high-accuracy DOP853 reference on fixed times."""
 	request: SimulationRequest = SimulationRequest((float(times[0]), float(times[-1])),  times)
 	return simulate(problem.with_request(request), DOP853(max_step=maximum_step, relative_tolerance=relative_tolerance,
-		absolute_tolerance=absolute_tolerance)).states
+		absolute_tolerance=absolute_tolerance)).states.T
 
 
 def _hbvm_method(
@@ -429,7 +429,7 @@ def _flow_jacobian(
 				simulate(
 					perturbed_problem.with_request(request),
 					replace(method_factory(), step=step),
-				).states[:, -1]
+				).states[-1]
 			)
 		jacobian[:, column] = (endpoints[0] - endpoints[1]) / (2.0 * increment)
 	return jacobian
@@ -491,7 +491,7 @@ def run_hbvm42_evaluation(
 		)
 		solution: States = simulate(problem.with_request(request), replace(_hbvm_method(config), step=step), observers=(EnergyObserver(),))
 		solutions[step] = solution
-		differences = solution.states - reference_states
+		differences = solution.states.T - reference_states
 		distances: np.ndarray = np.linalg.norm(differences, axis=0)
 		trajectory_rms_error: float = float(
 			np.sqrt(
@@ -659,7 +659,7 @@ def run_hbvm42_bm4_comparison(
 					step=step,
 					step_count=int(solution.diagnostics["step_count"]),
 					final_error=float(
-						np.linalg.norm(solution.states[:, -1] - reference_final_state)
+						np.linalg.norm(solution.states[-1] - reference_final_state)
 					),
 					median_runtime_seconds=median_runtime,
 					minimum_runtime_seconds=minimum_runtime,

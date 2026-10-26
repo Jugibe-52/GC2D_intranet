@@ -100,7 +100,7 @@ def run_poincare_star(source: str | Path, config: PoincareStarConfig, *,
     solution: States = simulate(problem.with_request(request), replace(method, step=1.0 / config.steps_per_cycle), options=execution)
     elapsed = perf_counter() - start
     particles = config.arms * config.particles_per_arm
-    if (solution.states.shape != (2 * particles, config.cycles + 1)
+    if (solution.states.shape != (config.cycles + 1, 2 * particles)
             or solution.diagnostics["step_count"] != config.cycles * config.steps_per_cycle
             or solution.diagnostics["output_interpolation_count"] != 0
             or solution.diagnostics["projection_kind"] != "arithmetic_mean"):

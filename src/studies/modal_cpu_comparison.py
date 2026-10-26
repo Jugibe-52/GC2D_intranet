@@ -152,7 +152,7 @@ def run_cpu_star_comparison(
     for cores, solution in solutions.items():
         np.testing.assert_allclose(solution.states, baseline.states,
                                    rtol=config.equivalence_rtol, atol=config.equivalence_atol)
-        delta = (solution.states - baseline.states + period / 2) % period - period / 2
+        delta = (solution.states.T - baseline.states.T + period / 2) % period - period / 2
         dx: np.ndarray
         dy: np.ndarray
         dx, dy = solution.layout.split(delta)

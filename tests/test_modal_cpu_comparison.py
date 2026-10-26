@@ -115,7 +115,7 @@ class ModalCPUComparisonTests(unittest.TestCase):
             _, digest, single = execute_payload(payload)
             _, measured_digest, measured = benchmark_payload(payload, cpu_cores=2, repetitions=3)
         self.assertEqual(digest, measured_digest)
-        self.assertIsInstance(measured.states, np.ndarray)
+        self.assertIsInstance(measured.states.T, np.ndarray)
         self.assertEqual(measured.states.dtype, np.float64)
         np.testing.assert_allclose(single.states, measured.states, rtol=1e-13, atol=1e-13)
         self.assertEqual(measured.diagnostics['benchmark_wall_seconds'].shape, (3,))

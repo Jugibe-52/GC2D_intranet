@@ -23,7 +23,7 @@ def _check(saved: StoredSolution) -> None:
     config = saved.metadata['config']
     count = config['arms'] * config['particles_per_arm'] + int(config['include_center'])
     steps = config['cycles'] * config['steps_per_cycle']
-    if saved.solution.states.shape != (2 * count, steps + 1):
+    if saved.solution.states.shape != (steps + 1, 2 * count):
         raise ValueError('The archive does not contain every requested state.')
     np.testing.assert_array_equal(saved.solution.t, np.arange(steps + 1) / config['steps_per_cycle'])
 

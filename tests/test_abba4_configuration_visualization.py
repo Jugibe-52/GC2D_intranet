@@ -87,7 +87,7 @@ def _solution(
 	x = x0 + 0.015 * time_values + model_shift
 	y = y0 - 0.010 * time_values - 0.5 * model_shift
 	source = GuidingCenterDynamics.coordinates.pack_components(np.asarray([x0]), np.asarray([y0]))
-	return States(t=time_values, states=np.vstack((x, y)), initial_state=source, layout=GuidingCenterDynamics.coordinates)
+	return States(t=time_values, states=(np.vstack((x, y))).T, initial_state=source, layout=GuidingCenterDynamics.coordinates)
 
 
 def _result(*, particle_count: int = 10) -> SimpleNamespace:

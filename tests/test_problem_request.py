@@ -73,7 +73,7 @@ class ProblemRequestTests(unittest.TestCase):
 				times = problem.request.output_times
 				expected = self.initial.values[:, None] + (times**2 - times[0]**2) / 2
 				np.testing.assert_array_equal(result.t, times)
-				np.testing.assert_allclose(result.states, expected, rtol=0, atol=3e-15)
+				np.testing.assert_allclose(result.states.T, expected, rtol=0, atol=3e-15)
 				np.testing.assert_array_equal(result.states, direct.states)
 		self.assertEqual(method.step, 0.07)
 

@@ -33,7 +33,7 @@ def validated_solution_series(
 		if not isinstance(solution, States):
 			raise TypeError("Every animated solution must be a States instance.")
 		times: np.ndarray = np.asarray(solution.t, dtype=float)
-		states: np.ndarray = np.asarray(solution.values, dtype=float)
+		states: np.ndarray = np.asarray(solution.values.T, dtype=float)
 		if (
 			times.ndim != 1
 			or times.size < 2

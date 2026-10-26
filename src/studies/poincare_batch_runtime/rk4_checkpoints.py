@@ -56,7 +56,7 @@ def calculate_checkpointed_group(indices: np.ndarray, initial_xy: np.ndarray,
             request: SimulationRequest=SimulationRequest.uniform(t_span=(t0+completed*h,t0+end*h),sample_count=length+1)
             solution: States=simulate(problem.with_request(request),RK4(step=h, progress=False))
             assert solution.diagnostics['step_count']==length
-            part=solution.states;assert part.shape==(2*count,length+1) and np.isfinite(part).all()
+            part=solution.states.T;assert part.shape==(2*count,length+1) and np.isfinite(part).all()
             np.testing.assert_array_equal(part[:,0],value)
             file=folder/f'chunk_{end:08d}.npz';temporary: Path=file.with_suffix('.npz.tmp')
             with temporary.open('wb') as stream:

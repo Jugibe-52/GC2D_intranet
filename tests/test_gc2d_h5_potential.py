@@ -635,7 +635,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 			)),
 			ABBA4Implicit(step=0.0005 / (2.0 * np.pi), solver=NewtonSolver(max_iterations=20, jacobian_method='analytic')),
 		)
-		self.assertEqual(solution.states.shape, (10, 3))
+		self.assertEqual(solution.states.shape, (3, 10))
 		self.assertTrue(np.all(np.isfinite(solution.states)))
 
 	def test_invalid_selection_and_incomplete_resampling_are_rejected(self) -> None:
