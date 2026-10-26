@@ -94,7 +94,10 @@ with its own evaluation guards and caches.
 
 Private backend, observer and numerical-run preparation helpers live in
 `execution.execution`. Backend preparation resolves the mode and device once
-and binds the prepared dynamics directly; other helpers read `problem.request`.
+and binds the prepared dynamics directly. Observer preparation reads
+`problem.request`; numerical-run preparation receives `InitialConditions` and
+`SimulationRequest` explicitly, with the particle count taken from the initial
+conditions rather than a complete problem object.
 They return typed results without storing job state on the executor.
 `Execution.run` retains the lifecycle and recording boundary and calls
 `execution._jax_step.prepare_step` directly inside its `try/finally`, before

@@ -52,7 +52,10 @@ Preparation is split into three private functions in the same module:
 - `_prepare_observers` binds a fresh energy accumulator and preserves callback identity and order.
 - `_prepare_numerical_run` supplies the Jacobian and quadrature requirements, validates a fresh run and returns its observation metadata.
 
-The latter two functions read the request from the supplied problem.
+`_prepare_observers` reads the request from the supplied problem.
+`_prepare_numerical_run` receives `InitialConditions` and `SimulationRequest`
+explicitly, alongside the method and prepared dynamics. It obtains the particle
+count from the initial conditions and does not receive the complete problem.
 `Execution.run` calls `execution._jax_step.prepare_step` directly for fixed JAX
 execution. That function checks supported run types and rejects Python callbacks,
 progress and iteration observers before copying resources. The local device

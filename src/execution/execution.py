@@ -17,6 +17,7 @@ from contracts.states.history import DiagnosticValue
 from execution._host import run_steps
 from request import SimulationRequest
 from states.history import States
+from states.initial import InitialConditions
 from methods.base import IntegrationMethod
 from methods.adaptive.scipy import _AdaptiveMethod
 from contracts.methods.base import NumericalMethod
@@ -69,8 +70,9 @@ class Execution:
 			problem=problem)
 		numerical_run: IntegrationMethod[Any]
 		observation_metadata: dict[str, DiagnosticValue]
-		numerical_run, observation_metadata = _prepare_numerical_run(problem, method,
-			prepared_dynamics, track_energy=energy is not None, callbacks=callbacks)
+		numerical_run, observation_metadata = _prepare_numerical_run(
+			problem.initial_conditions, request, method, prepared_dynamics,
+			track_energy=energy is not None, callbacks=callbacks)
 		metadata.update(observation_metadata)
 
 		try:
@@ -142,11 +144,11 @@ def _prepare_observers(
 
 
 def _prepare_numerical_run(
-	problem: InitialValueProblem, method: NumericalMethod,
-	prepared_dynamics: DynamicalSystem, *, track_energy: bool,
+	initial_conditions: InitialConditions, request: SimulationRequest,
+	method: NumericalMethod, prepared_dynamics: DynamicalSystem, *, track_energy: bool,
 	callbacks: Sequence[Callable[[Any], None]],
 ) -> tuple[IntegrationMethod[Any], dict[str, DiagnosticValue]]:
-	"""Bind numerical inputs, describe observation settings and validate a fresh run."""
+	"""Bind explicit initial and temporal inputs and validate a fresh numerical run."""
 	jacobian: VectorField | None = None
 	structure: JacobianStructure = "dense"
 	# Adaptive defaults retain SciPy's own derivative approximation; fixed
@@ -154,13 +156,13 @@ def _prepare_numerical_run(
 	if not isinstance(method, _AdaptiveMethod) and isinstance(prepared_dynamics, GuidingCenterJacobianSystem):
 		jacobian, structure = prepared_dynamics.particle_vector_field_jacobians, "particle"
 	numerical_run: IntegrationMethod[Any] = method.new_run(
-		prepared_dynamics.vector_field, problem.initial_conditions, problem.request,
+		prepared_dynamics.vector_field, initial_conditions, request,
 		jacobian=jacobian, jacobian_structure=structure, observe=bool(callbacks),
 		capture_quadrature=track_energy or any(getattr(callback, "requires_quadrature", False) for callback in callbacks),
 	)
 	metadata: dict[str, DiagnosticValue] = {
 		"track_energy": track_energy,
-		"momentum_state_dimension": problem.particle_count if track_energy else 0,
+		"momentum_state_dimension": initial_conditions.particle_count if track_energy else 0,
 	}
 	if track_energy:
 		metadata.update(energy_observer="EnergyObserver", energy_accumulator_owner="observer")
