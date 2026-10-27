@@ -8,7 +8,9 @@ src/contracts/
 ├── dynamics/
 │   ├── protocols.py
 │   └── coordinates.py
-├── execution/controllers.py
+├── execution/
+│   ├── controllers.py
+│   └── plan.py
 ├── methods/
 │   ├── maps.py
 │   ├── projection.py
@@ -54,7 +56,7 @@ to avoid runtime cycles.
 | Domain | Content |
 |---|---|
 | `dynamics` | Physical, Hamiltonian, Jacobian, and cyclotron capability interfaces. |
-| `execution` | `StepController`; fixed and adaptive controllers stay with their implementations. |
+| `execution` | `StepController` and the read-only `FixedStepPlan`; planning and controllers stay in `execution`. |
 | `methods` | `NumericalMethod`, function types, `CompiledStep`, quadrature, step records and family-specific observations. |
 | `solvers` | `NewtonIteration` and `NewtonObserver`. |
 | `states` | The `DiagnosticValue` alias used by physical histories. |

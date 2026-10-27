@@ -59,13 +59,16 @@ count from the initial conditions and does not receive the complete problem.
 `Execution.run` calls `execution._jax_step.prepare_step` directly for fixed JAX
 execution. That function checks supported run types and rejects Python callbacks,
 progress and iteration observers before copying resources. The local device
-reference becomes `PreparedStep.device`, used by the compiled worker for input
-placement and compilation reuse. Hybrid evaluation retains the device in its
-cached adapter. No additional context object or global device setting is needed.
+reference becomes `PreparedStep.device`. Next, `Execution.run` calls
+`execution._jax_fixed.prepare_integration` with the shared temporal plan to
+place fresh inputs and complete compilation before allocating the recorder. The returned `PreparedIntegration` holds the executable, inputs and
+recording information. The JAX `run_steps(prepared, saved)` only executes,
+synchronizes, validates and records. Hybrid evaluation retains the device in
+its cached adapter; no global device setting is needed.
 
 `Execution.run` keeps argument validation, status transitions, allocation,
-worker selection and finalization visible together. Compiled-step preparation
-remains inside its `try/finally`, so preparation failures also finish the consumed
+worker selection and finalization visible together. Step preparation and compilation
+remain inside its `try/finally`, so preparation failures also finish the consumed
 run. Helpers receive explicit inputs and return typed results; no per-run data
 is stored on the executor. Method metadata is combined with execution metadata
 and then step diagnostics, preserving the existing precedence and aliases.
@@ -75,6 +78,31 @@ The returned `states.States` contains physical arrays of shape
 initial snapshot, and read-only diagnostics. `simulate` calls the executor once,
 requires a complete result, checks exact requested times and initial values, and
 returns that same object. These checks also apply to executor subclasses.
+
+## Shared fixed-step plan
+
+Before step preparation or result allocation, `Execution.run` calls
+`execution._plan.build_fixed_step_plan(request, step)` for the built-in fixed
+controller or compiled fixed route. The returned `FixedStepPlan` owns read-only
+NumPy arrays: main-step starts, ends and durations; requested output times;
+per-step sample offsets; and sample modes and shadow durations. Modes select
+the start, end or independent shadow state. Offsets partition output indices
+starting at 1 because the initial state is saved separately.
+The plan stores O(S + T) scalar metadata for S steps and T outputs, not physical
+trajectories; the host route now prepares these sampling arrays in advance.
+
+The builder preserves the last-step adjustment, round-off tolerance and priority
+of the right endpoint. Host and JAX consume the same decisions, including empty
+sample groups for unsaved steps. Shadow maps start from the accepted left state
+and never feed back into the main trajectory or energy accumulator. Host step
+observers still run once per main step before its samples.
+
+The host fixed controller receives the plan and the JAX preparation function
+receives it explicitly as its third argument. `prepare_integration` only places
+inputs and obtains the compiled executable; neither worker rebuilds the plan.
+Custom controller subclasses retain their own interval and sampling rules.
+Standalone `FixedStepController().steps(...)` can build a plan on demand, and
+its arbitrary-time `sample(...)` operation remains available.
 
 ## Independent backend options
 
@@ -184,6 +212,9 @@ before assignment. Existing optional initializations retain their union with `No
 `_prepare_backend` returns `tuple[DynamicalSystem, Device | None, str, dict[str, DiagnosticValue]]`;
 `resolve_device` returns `jax.Device`. The coordinator checks that the device is
 not `None` before passing it to `prepare_step`, which returns `CompiledStep`.
+`prepare_integration` returns `PreparedIntegration`, with a `jax.stages.Compiled`
+executable and fresh `jax.Array` inputs. Its optional local reference selects
+the compiled worker; the default route retains `None`.
 Device imports used only for annotations
 stay under `TYPE_CHECKING`; ordinary CPU imports still do not load JAX.
 

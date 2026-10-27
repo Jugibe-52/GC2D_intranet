@@ -14,11 +14,14 @@ from contracts.methods.compiled import CompiledStep
 from execution.options import ExecutionOptions
 from problem import InitialValueProblem
 from contracts.states.history import DiagnosticValue
-from execution._host import run_steps
+from execution._host import run_steps, FixedStepController
+from execution._plan import build_fixed_step_plan
+from contracts.execution.plan import FixedStepPlan
+from contracts.execution.controllers import StepController
 from request import SimulationRequest
 from states.history import States
 from states.initial import InitialConditions
-from methods.base import IntegrationMethod
+from methods.base import IntegrationMethod, FixedStepMethod
 from methods.adaptive.scipy import _AdaptiveMethod
 from contracts.methods.base import NumericalMethod
 
@@ -26,6 +29,7 @@ from contracts.methods.base import NumericalMethod
 if TYPE_CHECKING:
 	from diagnostics.methods.energy import EnergyObserver, PreparedEnergyObserver
 	from jax import Device
+	from execution._jax_fixed import PreparedIntegration
 
 
 NEWTON_ALIASES: Mapping[str, str] = MappingProxyType({
@@ -77,18 +81,31 @@ class Execution:
 
 		try:
 			numerical_run._status = "running"
-			kernel: CompiledStep | None = None
+			prepared: PreparedIntegration | None = None
+			controller: StepController[Any] | None = None
+			plan: FixedStepPlan | None = None
+			if mode != "device_resident":
+				controller = numerical_run.controller()
+			if mode == "device_resident" or type(controller) is FixedStepController:
+				if not isinstance(numerical_run, FixedStepMethod):
+					raise TypeError("Fixed-step planning requires a FixedStepMethod.")
+				plan = build_fixed_step_plan(request, numerical_run.step)
+				if isinstance(controller, FixedStepController):
+					controller.plan = plan
 			if mode == "device_resident":
 				from execution._jax_step import prepare_step
-				assert device is not None
-				kernel = prepare_step(numerical_run, device, callbacks=callbacks)
+				from execution._jax_fixed import prepare_integration
+				assert device is not None and plan is not None
+				kernel: CompiledStep = prepare_step(numerical_run, device, callbacks=callbacks)
+				prepared = prepare_integration(numerical_run, kernel, plan, energy=energy)
 			saved: States = States.prepare(request.output_times, problem.initial_state, layout=problem.layout)
-			if kernel is None:
+			if prepared is None:
+				assert controller is not None
 				step_diagnostics: dict[str, DiagnosticValue] = run_steps(numerical_run, saved,
-					source=problem.dynamics, observers=callbacks, energy=energy)
+					source=problem.dynamics, controller=controller, observers=callbacks, energy=energy)
 			else:
 				from execution._jax_fixed import run_steps as run_compiled_steps
-				step_diagnostics = run_compiled_steps(numerical_run, kernel, saved, energy=energy)
+				step_diagnostics = run_compiled_steps(prepared, saved)
 			return saved.finalize({**numerical_run.metadata, **metadata, **step_diagnostics}, aliases=NEWTON_ALIASES)
 		finally:
 			# Include kernel/controller preparation, recording and finalization failures.

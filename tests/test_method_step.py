@@ -8,7 +8,7 @@ import numpy as np
 from dynamics import GuidingCenterDynamics
 from execution.options import ExecutionOptions
 from diagnostics.methods.energy import EnergyObserver
-from execution._host import _fixed_schedule
+from execution._plan import _fixed_schedule
 from potential import Potential
 from simulation import (
 	InitialValueProblem, SimulationRequest, simulate, ExplicitEuler, RK4, GaussLegendre4, SDIRK4,

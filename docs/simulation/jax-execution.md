@@ -123,7 +123,26 @@ result. It contains no stage equations or per-family kernels. The shared
 reject unknown overrides before compilation. The retired method-owned dispatch,
 options and alternate JAX-step modules have no aliases.
 
-The compiled worker receives `contracts.methods.compiled.CompiledStep`, which binds a physical map, explicit functions and numerical controls on the resolved device. Its call returns `(state, quadrature, statistics, valid)`. Execution owns the optional energy accumulator independently: it evaluates rates with `vmap` and reduces signed weighted stages in their original order with `lax.scan`, preserving the quadrature reduction scale. No host callback or complete stage history is required. `execution._jax_fixed` owns scheduling, sampling, convergence checks and bulk physical export. `Execution.run` owns recorder allocation, run status and finalization. Prepared maps snapshot controls; exact-type compatibility checks reject unsupported method overrides before tracing.
+The numerical map satisfies `contracts.methods.compiled.CompiledStep`, which binds a physical map, explicit functions and numerical controls on the resolved device. Its call returns `(state, quadrature, statistics, valid)`. Execution owns the optional energy accumulator independently: it evaluates rates with `vmap` and reduces signed weighted stages in their original order with `lax.scan`, preserving the quadrature reduction scale. No host callback or complete stage history is required. `execution._plan` owns fixed scheduling and sampling decisions; `execution._jax_fixed` consumes that plan and owns convergence checks and bulk physical export. `Execution.run` owns recorder allocation, run status and finalization. Prepared maps snapshot controls; exact-type compatibility checks reject unsupported method overrides before tracing.
+
+`Execution.run` calls `execution._jax_fixed.prepare_integration` before recorder
+allocation and the JAX worker, passing the common `FixedStepPlan` already built
+by `execution._plan.build_fixed_step_plan`. Preparation places fresh inputs with `jax.device_put`, and describes their shapes, dtypes,
+weak types and sharding with `jax.ShapeDtypeStruct`. `_compiled_integrator`
+binds the numerical map and optional energy functions to `_integrate`, applies
+`jax.jit`, and completes `.lower(*signature).compile()` without running the
+trajectory. The step and `lax.scan` loop are compiled together. JAX documents
+this [explicit compilation interface](https://docs.jax.dev/en/latest/aot.html).
+
+A bounded cache retains at most 16 executables, keyed by the map, energy
+functions and input signatures, including placement. Fresh initial values and
+sampling arrays belong to each `PreparedIntegration`, outside the cache.
+Changing particle, step or sample counts, input types, device or static controls
+can require another executable. `run_steps(prepared, saved)` executes it,
+synchronizes with `jax.device_get`, validates finite values and convergence,
+and records physical history and diagnostics. Both preparation and execution
+stay inside the executor's lifecycle guard; failures finish the consumed run.
+The prepared object is private and process-local; remote workers compile locally.
 
 `IntegrationMethod.new_run` receives prepared `f`, independent initial data and an optional Jacobian; it retains no dynamics object, ExecutionOptions or energy functions. Configured instances remain reusable. The fixed driver uses `lax.scan` for accepted steps and independent shortened maps for off-grid output. A shortened energy sample starts from the same accepted left accumulator and never changes it. Only requested states, auxiliary samples and small accepted-step statistics are retained. Bounded caches reuse compatible compiled functions; `JaxPotential` reuses concrete device coefficients without refitting splines or persisting traced constants.
 

@@ -2,10 +2,10 @@
 
 from dynamics.gc import GuidingCenterDynamics
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import importlib.util
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from execution import Execution
 from typing import Any, ClassVar
 
@@ -14,6 +14,7 @@ import numpy as np
 from execution.options import ExecutionOptions
 from problem import InitialValueProblem
 from request import SimulationRequest
+from execution._plan import build_fixed_step_plan
 
 from methods.classical.gauss_legendre import GaussLegendre4
 from methods.classical.rk4 import RK4
@@ -139,7 +140,7 @@ class CompiledStepContractTests(unittest.TestCase):
 
 	def test_runs_reuse_prepared_dynamics_and_bounded_compilation(self) -> None:
 		from execution._jax import prepare_dynamics
-		from execution._jax_fixed import _compiled_integrator
+		from execution._jax_fixed import _compiled_integrator, prepare_integration
 		from execution._jax_step import PreparedStep, prepare_step
 
 		_compiled_integrator.cache_clear()
@@ -150,17 +151,105 @@ class CompiledStepContractTests(unittest.TestCase):
 		assert isinstance(kernel, PreparedStep)
 		self.assertEqual(kernel.f, prepare_dynamics(self.problem.dynamics).vector_field)
 		self.assertFalse(hasattr(kernel, "dynamics"))
-		compiled = _compiled_integrator(kernel, None, None)
+		prepared = prepare_integration(run, kernel, build_fixed_step_plan(run.request, run.step))
+		compiled = prepared.executable
 		repeated = self.prepare_run(RK4(step=0.1))
-		self.assertIs(_compiled_integrator(self.prepare_kernel(repeated), None, None), compiled)
+		self.assertIs(prepare_integration(repeated, self.prepare_kernel(repeated), build_fixed_step_plan(repeated.request, repeated.step)).executable, compiled)
 
-		# New physical objects must not retain an unbounded list of JIT closures.
-		for _ in range(17):
-			problem = InitialValueProblem(GuidingCenterDynamics(self.problem.dynamics.potential), self.problem.initial_state, layout=GuidingCenterDynamics.coordinates)
-			run = self.prepare_run(RK4(step=0.1), problem)
-			_compiled_integrator(self.prepare_kernel(run), None, None)
+		# Exercise eviction without compiling seventeen redundant physical models.
+		signature = tuple(self.jax.ShapeDtypeStruct(a.shape, a.dtype, sharding=a.sharding, weak_type=a.weak_type) for a in prepared.inputs)
+		with patch('execution._jax_fixed.jax.jit'):
+			for _ in range(17):
+				problem = InitialValueProblem(GuidingCenterDynamics(self.problem.dynamics.potential), self.problem.initial_state, layout=GuidingCenterDynamics.coordinates)
+				run = self.prepare_run(RK4(step=0.1), problem)
+				_compiled_integrator(self.prepare_kernel(run), None, None, signature)
 		self.assertEqual(_compiled_integrator.cache_info().currsize, 16)
-		self.assertIsNot(_compiled_integrator(kernel, None, None), compiled)
+		self.assertIsNot(_compiled_integrator(kernel, None, None, signature), compiled)
+
+	def test_preparation_compiles_before_worker_without_executing(self) -> None:
+		from execution import _jax_fixed
+		from jax.stages import Compiled
+		from states.history import States
+
+		run = self.prepare_run(RK4(step=.1))
+		compile_integrator = _jax_fixed._compiled_integrator
+		executables = []
+		def compile_observed(*args):
+			executable = compile_integrator(*args)
+			self.assertIsInstance(executable, Compiled)
+			observed = Mock(wraps=executable)
+			executables.append(observed)
+			return observed
+		with patch.object(_jax_fixed, '_compiled_integrator', side_effect=compile_observed):
+			with patch.object(States, 'prepare', side_effect=AssertionError('Premature recorder')):
+				prepared = _jax_fixed.prepare_integration(run, self.prepare_kernel(run), build_fixed_step_plan(run.request, run.step))
+		self.assertEqual(len(executables), 1)
+		executables[0].assert_not_called()
+		saved = States.prepare(self.request.output_times, run.initial_state, layout=run.layout)
+		with patch.object(_jax_fixed, '_compiled_integrator', side_effect=AssertionError('Worker compiled')):
+			with patch('execution._plan.build_fixed_step_plan', side_effect=AssertionError('Worker prepared')):
+				with patch.object(self.jax, 'jit', side_effect=AssertionError('Worker traced')):
+					diagnostics = _jax_fixed.run_steps(prepared, saved)
+		executables[0].assert_called_once()
+		result = saved.finalize(diagnostics)
+		reference = Execution().run(self.problem.with_request(self.request), RK4(step=.1))
+		np.testing.assert_allclose(result.states, reference.states, rtol=2e-12, atol=2e-12)
+
+	def test_executable_reuse_keeps_fresh_values_and_specializes_shapes(self) -> None:
+		from execution._jax_fixed import _compiled_integrator, prepare_integration, run_steps
+		from states.history import States
+
+		_compiled_integrator.cache_clear()
+		self.addCleanup(_compiled_integrator.cache_clear)
+		method = RK4(step=.1)
+		run = self.prepare_run(method)
+		first = prepare_integration(run, self.prepare_kernel(run), build_fixed_step_plan(run.request, run.step))
+		changed = InitialValueProblem(self.problem.dynamics, self.problem.initial_state + .2)
+		new_run = self.prepare_run(method, changed)
+		# Equal shapes still need the new interval and shadow-sampling values.
+		new_run.request = SimulationRequest((.3, .5), np.array([.3, .34, .41, .5]))
+		second = prepare_integration(new_run, self.prepare_kernel(new_run), build_fixed_step_plan(new_run.request, new_run.step))
+		self.assertIs(first.executable, second.executable)
+		self.assertIsNot(first.inputs, second.inputs)
+		for prepared, numerical_run, problem in ((first, run, self.problem), (second, new_run, changed)):
+			saved = States.prepare(numerical_run.request.output_times, numerical_run.initial_state, layout=numerical_run.layout)
+			result = saved.finalize(run_steps(prepared, saved))
+			reference = Execution().run(problem.with_request(numerical_run.request), method)
+			np.testing.assert_array_equal(result.states[0], problem.initial_state)
+			np.testing.assert_allclose(result.states, reference.states, rtol=2e-12, atol=2e-12)
+
+		# Distinct saved-time, main-step and particle counts require new executables.
+		for variation in ('samples', 'steps', 'particles'):
+			with self.subTest(variation=variation):
+				other = self.problem if variation != 'particles' else InitialValueProblem(self.problem.dynamics, np.tile(self.problem.initial_state, 2))
+				run = self.prepare_run(RK4(step=.05 if variation == 'steps' else .1), other)
+				if variation == 'samples':
+					run.request = replace(self.request, output_times=np.array([0., .2]))
+				prepared = prepare_integration(run, self.prepare_kernel(run), build_fixed_step_plan(run.request, run.step))
+				self.assertIsNot(prepared.executable, first.executable)
+				saved = States.prepare(run.request.output_times, run.initial_state, layout=run.layout)
+				result = saved.finalize(run_steps(prepared, saved))
+				reference = Execution().run(other.with_request(run.request), RK4(step=run.step))
+				np.testing.assert_allclose(result.states, reference.states, rtol=2e-12, atol=2e-12)
+
+	def test_compilation_failure_finishes_run_before_worker_or_allocation(self) -> None:
+		from execution import _jax_fixed
+		from states.history import States
+
+		method = RK4()
+		run = self.prepare_run(method)
+		def fail_compilation(*args):
+			self.assertEqual(run._status, 'running')
+			raise RuntimeError('Compilation failed')
+		with patch.object(RK4, 'new_run', return_value=run):
+			with patch.object(_jax_fixed, '_compiled_integrator', side_effect=fail_compilation):
+				with patch.object(_jax_fixed, 'run_steps') as worker, patch.object(States, 'prepare') as allocate:
+					with self.assertRaisesRegex(RuntimeError, 'Compilation failed'):
+						Execution().run(self.problem.with_request(self.request), method, options=self.execution)
+					worker.assert_not_called()
+					allocate.assert_not_called()
+		self.assertEqual(run._status, 'finished')
+		self.assertEqual(method._status, 'configuration')
 
 	def test_device_index_is_validated_before_compilation(self) -> None:
 		from execution._jax_step import prepare_step

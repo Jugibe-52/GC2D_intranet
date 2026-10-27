@@ -121,7 +121,8 @@ GC/FC physical equations in `dynamics/_equations.py` into both paths.
 Execution preparation binds JAX field evaluation through `JaxPotential`, reusing
 the existing SciPy spline coefficients without refitting.
 
-The driver compiles the complete time loop using `jax.lax.scan`. Particle
+Preparation explicitly compiles the complete time loop using `jax.lax.scan`
+before `run_steps` executes it. Particle
 operations are batched within each stage; stages and successive time steps
 remain sequential. The accepted state and requested output buffer stay on one
 device. Storage scales with requested samples, rather than all internal steps.
@@ -249,7 +250,10 @@ arrays. They contain no JAX imports, backend declaration or alternate stages.
 Execution owns compatibility checks and device selection; `execution._jax_step`
 binds an isolated prepared method to `contracts.methods.compiled.CompiledStep`.
 Potential, dynamics and solvers own their internal `_as_jax()` preparation.
-The shared `execution/_jax_fixed.py` loop handles scheduling and sampling.
+`Execution.run` first builds a shared fixed-step and sampling plan for host
+and JAX execution. It passes this plan to `execution._jax_fixed.prepare_integration`
+to place inputs and compile the complete loop before `run_steps` executes the
+returned `PreparedIntegration` and records its results.
 See [JAX execution](../../../simulation/jax-execution.md).
 
 ## Potential evaluation boundary

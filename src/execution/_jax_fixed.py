@@ -5,7 +5,7 @@ sequential, while every field evaluation and RK stage batches all particles.
 """
 
 from functools import lru_cache, partial
-from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any, TYPE_CHECKING
 
 import jax
@@ -16,10 +16,31 @@ from states.history import States
 from contracts.states.history import DiagnosticValue
 from contracts.methods.compiled import CompiledStep
 from diagnostics.methods.energy import PreparedEnergyObserver, EnergyFunction, momentum_increment
-from execution._host import _fixed_schedule, _time_tolerance
+from contracts.execution.plan import FixedStepPlan
 
 if TYPE_CHECKING:
     from methods.base import IntegrationMethod
+    from jax.stages import Compiled
+
+
+@dataclass(frozen=True)
+class PreparedIntegration:
+    """A compiled loop with fresh device inputs and host recording information.
+
+    Inputs contain physical state (d*N), optional momentum (N), main-step and
+    sampling arrays. Only the executable is cached; each job owns these inputs.
+    """
+
+    executable: "Compiled"
+    inputs: tuple[jax.Array, ...]
+    step_starts: np.ndarray
+    step_times: np.ndarray
+    step_sizes: np.ndarray
+    output_times: np.ndarray
+    interior_sample_count: int
+    method_name: str
+    finite_difference: bool
+    energy: PreparedEnergyObserver | None
 
 
 def _integrate(
@@ -95,71 +116,69 @@ def _integrate(
 
 
 @lru_cache(maxsize=16)
-def _compiled_integrator(kernel: CompiledStep, hamiltonian: EnergyFunction | None, momentum_rate: EnergyFunction | None) -> Callable[..., Any]:
-    """Bound compilation reuse by physical dynamics, device and step controls."""
-    return jax.jit(partial(_integrate, kernel=kernel, hamiltonian=hamiltonian, momentum_rate=momentum_rate))
+def _compiled_integrator(
+    kernel: CompiledStep, hamiltonian: EnergyFunction | None,
+    momentum_rate: EnergyFunction | None, signature: tuple[jax.ShapeDtypeStruct, ...],
+) -> "Compiled":
+    """Cache executables by physics, controls and input types/placement, not values."""
+    return jax.jit(partial(
+        _integrate, kernel=kernel, hamiltonian=hamiltonian, momentum_rate=momentum_rate,
+    )).lower(*signature).compile()
 
 
-def run_steps(method: "IntegrationMethod[Any]", kernel: CompiledStep,
-              saved: States, *, energy: PreparedEnergyObserver | None = None) -> dict[str, DiagnosticValue]:
-    """Advance a prepared map and record its complete physical history in bulk.
+def prepare_integration(
+    method: "IntegrationMethod[Any]", kernel: CompiledStep, plan: FixedStepPlan,
+    *, energy: PreparedEnergyObserver | None = None,
+) -> PreparedIntegration:
+    """Place a shared temporal plan and compile without advancing the solution."""
+    host_inputs = (method.initial_state, energy.momentum if energy is not None else np.empty(0),
+                   plan.step_starts, plan.step_sizes, plan.output_times,
+                   plan.sample_offsets, plan.sample_modes, plan.sample_durations)
+    inputs: tuple[jax.Array, ...] = tuple(jax.device_put(value, kernel.device) for value in host_inputs)
+    # Abstract inputs preserve placement while keeping initial values out of the
+    # executable cache. The same specialization can execute fresh physical data.
+    signature: tuple[jax.ShapeDtypeStruct, ...] = tuple(
+        jax.ShapeDtypeStruct(value.shape, value.dtype, sharding=value.sharding, weak_type=value.weak_type)
+        for value in inputs
+    )
+    executable: Compiled = _compiled_integrator(
+        kernel, energy.hamiltonian if energy is not None else None,
+        energy.momentum_rate if energy is not None else None, signature,
+    )
+    return PreparedIntegration(
+        executable, inputs, plan.step_starts, plan.step_ends, plan.step_sizes, plan.output_times, plan.interior_sample_count,
+        method.method_name, kernel.finite_difference, energy,
+    )
 
-    The executor validates host-only callbacks and progress before
-    invoking this worker. The compiled loop performs no Python callbacks.
-    Potential construction and schedule validation remain on the host.
-    """
-    request = method.request
-    t0: float
-    tf: float
-    t0, tf = request.t_span
-    from methods.base import FixedStepMethod
 
-    if not isinstance(method, FixedStepMethod):
-        raise TypeError("Compiled fixed integration requires a FixedStepMethod.")
-    starts: np.ndarray
-    ends: np.ndarray
-    steps: np.ndarray
-    starts, ends, steps = _fixed_schedule(request.t_span, method.step)
-    count: int = starts.size
-    times = request.output_times
-    tolerance: float = _time_tolerance(request.t_span)
-    # Reproduce FixedStepController's endpoint priority and tolerance.
-    owners: np.ndarray = np.minimum(np.searchsorted(ends + tolerance, times), count - 1)
-    modes: np.ndarray = np.where(np.abs(times - ends[owners]) <= tolerance, 1,
-                     np.where(np.abs(times - starts[owners]) <= tolerance, 0, 2))
-    durations = times - starts[owners]
-    offsets: np.ndarray = np.concatenate(([1], 1 + np.searchsorted(times[1:], ends + tolerance, side="right")))
-    device = kernel.device
-    inputs = (method.initial_state, energy.momentum if energy is not None else np.empty(0), starts, steps, times,
-              offsets.astype(np.int32), modes.astype(np.int32), durations)
-    # Inputs select the execution device; spline constants follow compilation.
-    # device_get synchronizes timing and copies only completed output.
+def run_steps(prepared: PreparedIntegration, saved: States) -> dict[str, DiagnosticValue]:
+    """Execute an already compiled integration and record its physical history."""
+    # device_get waits for execution and copies only completed output.
     history: Any
     momenta: Any
     energy_history: Any
     valid: Any
     converged: Any
     statistics: Any
-    history, momenta, energy_history, valid, converged, statistics = jax.device_get(_compiled_integrator(
-        kernel, energy.hamiltonian if energy is not None else None, energy.momentum_rate if energy is not None else None)(
-        *(jax.device_put(value, device) for value in inputs),
-    ))
+    history, momenta, energy_history, valid, converged, statistics = jax.device_get(
+        prepared.executable(*prepared.inputs))
     if not bool(valid):
         raise ValueError("A numerical step or output sample became non-finite.")
     if not bool(converged):
-        raise RuntimeError(f"{method.method_name} nonlinear solve did not converge within its tolerance and iteration limit.")
+        raise RuntimeError(f"{prepared.method_name} nonlinear solve did not converge within its tolerance and iteration limit.")
+    energy: PreparedEnergyObserver | None = prepared.energy
     auxiliary: dict[str, DiagnosticValue] = {} if energy is None else energy.diagnose_history(
-        times, history, {'extended_momentum': momenta}, energy=energy_history,
+        prepared.output_times, history, {'extended_momentum': momenta}, energy=energy_history,
     )
     diagnostics: dict[str, DiagnosticValue] = {}
     diagnostics.update({
-        "step_count": count, "step_start_times": starts, "step_times": ends,
-        "step_sizes": steps,
-        "output_interpolation_count": int(np.count_nonzero(modes[1:] == 2)),
+        "step_count": prepared.step_sizes.size, "step_start_times": prepared.step_starts,
+        "step_times": prepared.step_times, "step_sizes": prepared.step_sizes,
+        "output_interpolation_count": prepared.interior_sample_count,
     })
     diagnostics.update(statistics)
     diagnostics.update(auxiliary)
-    if kernel.finite_difference:
+    if prepared.finite_difference:
         diagnostics['finite_difference_batching'] = 'vectorized_global_columns'
     saved.record_history(history.T)
     return diagnostics

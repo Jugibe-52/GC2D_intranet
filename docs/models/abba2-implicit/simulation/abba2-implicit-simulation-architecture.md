@@ -118,7 +118,10 @@ arrays. They contain no JAX imports, backend declaration or alternate stages.
 Execution owns compatibility checks and device selection; `execution._jax_step`
 binds an isolated prepared method to `contracts.methods.compiled.CompiledStep`.
 Potential, dynamics and solvers own their internal `_as_jax()` preparation.
-The shared `execution/_jax_fixed.py` loop handles scheduling and sampling.
+`Execution.run` first builds a shared fixed-step and sampling plan for host
+and JAX execution. It passes this plan to `execution._jax_fixed.prepare_integration`
+to place inputs and compile the complete loop before `run_steps` executes the
+returned `PreparedIntegration` and records its results.
 See [JAX execution](../../../simulation/jax-execution.md).
 
 ## Potential evaluation boundary

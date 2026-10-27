@@ -15,7 +15,6 @@ from collections.abc import Callable, Iterator, Sequence
 from typing import Any, Generic, TYPE_CHECKING, TypeVar
 from dataclasses import replace
 
-import math
 import sys
 
 import numpy as np
@@ -26,6 +25,8 @@ from contracts.methods.observation import IntegrationStep
 from contracts.methods.quadrature import StageQuadrature
 from contracts.dynamics.protocols import DynamicalSystem
 from execution.state import IntegrationState
+from execution._plan import build_fixed_step_plan, _time_tolerance, sample_modes
+from contracts.execution.plan import FixedStepPlan, SAMPLE_START, SAMPLE_END, SAMPLE_SHADOW
 from request import SimulationRequest
 from states.history import States
 
@@ -80,50 +81,11 @@ class _Progress:
 		print(file=sys.stderr, flush=True)
 
 
-def _step_count(duration: float, step: float) -> int:
-	"""Count nominal steps, allowing round-off at an integer quotient."""
-	ratio: float = duration / step
-	if not math.isfinite(ratio):
-		raise ValueError("The time span and step produce an unrepresentable step count.")
-	nearest: int = round(ratio)
-	if abs(ratio - nearest) <= 8 * np.finfo(float).eps * max(1.0, ratio):
-		return max(1, nearest)
-	return max(1, math.ceil(ratio))
-
-
-def _fixed_schedule(t_span: tuple[float, float], step: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-	"""Build a nominal grid with only its final duration clipped to the endpoint.
-
-	Integer-indexed starts avoid cumulative clock drift. All complete maps use
-	the configured duration; tiny clock differences remain float round-off.
-	"""
-	t0: float
-	tf: float
-	t0, tf = t_span
-	if not np.isfinite(step) or step <= 0:
-		raise ValueError("`step` must be positive and finite.")
-	if t0 + min(step, tf - t0) <= t0:
-		raise ValueError("The configured step cannot advance representable time.")
-	count: int = _step_count(tf - t0, step)
-	starts: np.ndarray = t0 + np.arange(count) * step
-	ends: np.ndarray = np.concatenate((starts[1:], np.asarray([tf])))
-	durations: np.ndarray = np.full(count, step)
-	durations[-1] = tf - starts[-1]
-	if np.any(ends <= starts):
-		raise ValueError("The configured step cannot advance representable time.")
-	return starts, ends, durations
-
-
-def _time_tolerance(t_span: tuple[float, float]) -> float:
-	"""Allow float round-off when matching requested and accepted times."""
-	t0: float
-	tf: float
-	t0, tf = t_span
-	return float(16 * np.finfo(float).eps * max(1.0, abs(t0), abs(tf)))
-
-
 class FixedStepController(Generic[Detail]):
 	"""Use a fixed nominal step, a clipped final step and independent shadow maps."""
+
+	def __init__(self, plan: FixedStepPlan | None = None) -> None:
+		self.plan = plan
 
 	def steps(
 		self, method: IntegrationMethod[Detail], request: SimulationRequest,
@@ -133,12 +95,9 @@ class FixedStepController(Generic[Detail]):
 
 		if not isinstance(method, FixedStepMethod):
 			raise TypeError("FixedStepController requires a FixedStepMethod.")
-		starts: np.ndarray
-		ends: np.ndarray
-		durations: np.ndarray
-		starts, ends, durations = _fixed_schedule(request.t_span, method.step)
+		plan: FixedStepPlan = self.plan if self.plan is not None else build_fixed_step_plan(request, method.step)
 		current: IntegrationState = IntegrationState(request.t_span[0], method.initial_state)
-		for index, (time, end, duration) in enumerate(zip(starts, ends, durations)):
+		for index, (time, end, duration) in enumerate(zip(plan.step_starts, plan.step_ends, plan.step_sizes)):
 			info: StepInfo = StepInfo(index, float(time), float(duration), float(end), current.values.copy())
 			result: StepResult[Detail] = method.advance(info.time, current.values.copy(), info.duration)
 			current = IntegrationState(info.end_time, np.asarray(result.state))
@@ -149,12 +108,28 @@ class FixedStepController(Generic[Detail]):
 		result: StepResult[Detail], time: float,
 	) -> IntegrationState:
 		"""Reuse endpoints or advance an independent physical/auxiliary snapshot."""
-		tolerance: float = _time_tolerance(method.request.t_span)
-		if abs(time - info.end_time) <= tolerance:
+		mode: int = int(sample_modes(np.asarray(time), np.asarray(info.time),
+			np.asarray(info.end_time), _time_tolerance(method.request.t_span)))
+		return self._sample(method, info, result, time, mode, time - info.time)
+
+	def planned_sample(
+		self, method: IntegrationMethod[Detail], info: StepInfo,
+		result: StepResult[Detail], index: int,
+	) -> IntegrationState:
+		"""Apply a precomputed sampling decision without changing the main state."""
+		assert self.plan is not None
+		return self._sample(method, info, result, float(self.plan.output_times[index]),
+			int(self.plan.sample_modes[index]), float(self.plan.sample_durations[index]))
+
+	def _sample(
+		self, method: IntegrationMethod[Detail], info: StepInfo,
+		result: StepResult[Detail], time: float, mode: int, duration: float,
+	) -> IntegrationState:
+		if mode == SAMPLE_END:
 			return IntegrationState(time, np.asarray(result.state), result.quadrature)
-		if abs(time - info.time) <= tolerance:
+		if mode == SAMPLE_START:
 			return IntegrationState(time, info.state_before)
-		shadow: StepResult[Detail] = method.advance(info.time, info.state_before.copy(), time - info.time)
+		shadow: StepResult[Detail] = method.advance(info.time, info.state_before.copy(), duration)
 		return IntegrationState(time, np.asarray(shadow.state), shadow.quadrature)
 
 
@@ -189,7 +164,7 @@ def _observation(method: IntegrationMethod[Any], info: StepInfo, result: StepRes
 
 def run_steps(
 	method: IntegrationMethod[Detail], saved: States, *,
-	source: DynamicalSystem, observers: Sequence[Callable[[Any], None]] = (),
+	source: DynamicalSystem, controller: StepController[Detail], observers: Sequence[Callable[[Any], None]] = (),
 	energy: PreparedEnergyObserver | None = None,
 ) -> dict[str, DiagnosticValue]:
 	"""Record accepted steps and samples in the executor's open result.
@@ -198,7 +173,8 @@ def run_steps(
 	Observer lifecycle and persistence remain owned by the caller.
 	"""
 	request = method.request
-	selected: StepController[Detail] = method.controller()
+	selected: StepController[Detail] = controller
+	plan: FixedStepPlan | None = selected.plan if type(selected) is FixedStepController else None
 	_record_sample(method, saved, IntegrationState(request.t_span[0], method.initial_state), energy)
 	t0: float
 	tf: float
@@ -229,20 +205,29 @@ def run_steps(
 				event = _observation(method, info, result, source)
 				for observer in observers:
 					observer(event)
-			# One accepted step can cover several requested output times.
-			while (
-				output_index < request.output_times.size
-				and request.output_times[output_index] <= info.end_time + sampling_tolerance
-			):
+			# The fixed route consumes the shared plan; custom controllers keep
+			# their own accepted intervals and sampling tolerance.
+			limit: int = int(plan.sample_offsets[info.index + 1]) if plan is not None else request.output_times.size
+			while output_index < limit and (plan is not None or request.output_times[output_index] <= info.end_time + sampling_tolerance):
 				target: float = float(request.output_times[output_index])
-				sample: IntegrationState = selected.sample(method, info, result, target)
+				sample: IntegrationState
+				query: float
+				interior: bool
+				if plan is not None:
+					assert isinstance(selected, FixedStepController)
+					sample = selected.planned_sample(method, info, result, output_index)
+					mode: int = int(plan.sample_modes[output_index])
+					query = info.end_time if mode == SAMPLE_END else info.time if mode == SAMPLE_START else target
+					interior = mode == SAMPLE_SHADOW
+				else:
+					sample = selected.sample(method, info, result, target)
+					query = info.end_time if abs(target - info.end_time) <= sampling_tolerance else (
+						info.time if abs(target - info.time) <= sampling_tolerance else target)
+					interior = min(abs(target - info.time), abs(target - info.end_time)) > sampling_tolerance
 				if sample.time != target:
 					raise ValueError("The controller returned a different sample time.")
-				query = info.end_time if abs(target - info.end_time) <= sampling_tolerance else (
-					info.time if abs(target - info.time) <= sampling_tolerance else target)
 				_record_sample(method, saved, sample, energy, sample_time=query)
-				if min(abs(target - info.time), abs(target - info.end_time)) > sampling_tolerance:
-					interior_sample_count += 1
+				interior_sample_count += int(interior)
 				output_index += 1
 			previous_end = info.end_time
 			if progress is not None:
