@@ -28,7 +28,8 @@ class ReducedProjection:
 	def multiplier(self, unknown: Any, size: int) -> Any:
 		return unknown
 
-	def residual(self, unknown: Any, mapped: Any, size: int) -> Any:
+	def assemble_residual(self, unknown: Any, mapped: Any, size: int) -> Any:
+		"""Combine a multiplier and its already evaluated composition copies."""
 		return mapped[:size] - mapped[size:] + 2 * unknown
 
 	def particle_jacobian(self, base: Any) -> Any:
@@ -75,7 +76,8 @@ class SimultaneousProjection:
 	def multiplier(self, unknown: Any, size: int) -> Any:
 		return unknown[2 * size:]
 
-	def residual(self, unknown: Any, mapped: Any, size: int) -> Any:
+	def assemble_residual(self, unknown: Any, mapped: Any, size: int) -> Any:
+		"""Combine candidate final copies and multiplier with the map output."""
 		xp: ModuleType = array_namespace(unknown, mapped)
 		u: BackendArray
 		v: BackendArray

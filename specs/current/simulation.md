@@ -2,7 +2,7 @@
 schema_version = 1
 kind = "spec"
 id = "simulation"
-sources = ["src/contracts/methods/functions.py", "src/contracts/methods/quadrature.py", "src/diagnostics/methods/energy.py", "src/solvers/derivatives.py", "src/formulations/state.py", "src/states/initial.py", "src/solvers/nonlinear.py", "src/methods/projection.py", "src/simulation/runner.py", "src/problem.py", "src/request.py", "src/execution/execution.py", "src/execution/_plan.py", "src/contracts/execution/plan.py", "src/execution/_jax_step.py", "src/execution/_jax_fixed.py", "src/execution/_jax.py", "src/dynamics/jax_dynamics.py", "src/dynamics/jax_coordinates.py", "src/methods/base.py", "src/execution/options.py", "src/contracts/arrays.py", "src/contracts/methods/base.py", "src/contracts/execution/controllers.py", "src/contracts/dynamics/protocols.py", "src/contracts/methods/maps.py", "src/contracts/methods/projection.py"]
+sources = ["src/contracts/methods/functions.py", "src/contracts/methods/quadrature.py", "src/diagnostics/methods/energy.py", "src/solvers/derivatives.py", "src/formulations/state.py", "src/states/initial.py", "src/solvers/nonlinear.py", "src/methods/projection.py", "src/methods/extended/core/projection.py", "src/simulation/runner.py", "src/problem.py", "src/request.py", "src/execution/execution.py", "src/execution/_plan.py", "src/contracts/execution/plan.py", "src/execution/_jax_step.py", "src/execution/_jax_fixed.py", "src/execution/_jax.py", "src/dynamics/jax_dynamics.py", "src/dynamics/jax_coordinates.py", "src/methods/base.py", "src/execution/options.py", "src/contracts/arrays.py", "src/contracts/methods/base.py", "src/contracts/execution/controllers.py", "src/contracts/dynamics/protocols.py", "src/contracts/methods/maps.py", "src/contracts/methods/projection.py"]
 documents = ["docs/simulation/initial-solvers-formulations.md", "docs/simulation/integration-architecture.md", "docs/simulation/execution.md", "docs/simulation/jax-execution.md"]
 
 [[requirements]]
@@ -15,7 +15,7 @@ tests = ["tests/test_core.py::SimulationTests.test_problem_and_request_validate_
 
 [[requirements]]
 id = "SIM-003"
-tests = ["tests/test_fixed_step_plan.py", "tests/test_function_methods.py", "tests/test_solver_configuration.py", "tests/test_energy_observation.py", "tests/test_execution.py::ExecutionTests.test_default_and_explicit_executor_produce_the_same_solution", "tests/test_execution.py::ExecutionTests.test_result_preparation_and_finalization_failures_consume_only_the_run", "tests/test_compiled_step_contract.py::CompiledStepContractTests.test_fixed_and_hybrid_runs_finalize_the_allocated_result_once", "tests/test_execution.py::ExecutionTests.test_simulation_dispatches_one_complete_job_to_the_subclass", "tests/test_execution.py::ExecutionTests.test_local_executor_owns_preparation_and_drives_the_controller", "tests/test_execution.py::ExecutionTests.test_executor_failure_propagates_without_local_fallback", "tests/test_execution.py::ExecutionTests.test_external_provider_prepares_a_run_without_an_integration_entry_point", "tests/test_execution.py::ExecutionTests.test_controller_preparation_failure_consumes_only_the_fresh_run", "tests/test_jax_methods.py", "tests/test_compiled_step_contract.py"]
+tests = ["tests/test_projection_problem.py", "tests/test_fixed_step_plan.py", "tests/test_function_methods.py", "tests/test_solver_configuration.py", "tests/test_energy_observation.py", "tests/test_execution.py::ExecutionTests.test_default_and_explicit_executor_produce_the_same_solution", "tests/test_execution.py::ExecutionTests.test_result_preparation_and_finalization_failures_consume_only_the_run", "tests/test_compiled_step_contract.py::CompiledStepContractTests.test_fixed_and_hybrid_runs_finalize_the_allocated_result_once", "tests/test_execution.py::ExecutionTests.test_simulation_dispatches_one_complete_job_to_the_subclass", "tests/test_execution.py::ExecutionTests.test_local_executor_owns_preparation_and_drives_the_controller", "tests/test_execution.py::ExecutionTests.test_executor_failure_propagates_without_local_fallback", "tests/test_execution.py::ExecutionTests.test_external_provider_prepares_a_run_without_an_integration_entry_point", "tests/test_execution.py::ExecutionTests.test_controller_preparation_failure_consumes_only_the_fresh_run", "tests/test_jax_methods.py", "tests/test_compiled_step_contract.py"]
 
 [[requirements]]
 id = "SIM-004"
@@ -148,6 +148,14 @@ names; their shared equations own 2N/6N unknowns, residuals and reconstruction i
 both CPU and JAX paths. Physical scales, work counters, HBVM norms/backtracking,
 particle blocks and independent shadow samples retain their numerical meaning.
 See [component interface](../../docs/simulation/initial-solvers-formulations.md).
+
+Projection steps bind their data in `ProjectionProblem` and expose
+`residual(x)` and `jacobian(x)` for the same 2N/6N candidate unknown. The residual
+computes its copies; the Jacobian includes their dependence on that unknown.
+Formulation helpers use the explicit name `assemble_residual`. Solver adapters
+reuse the exact candidate's composition trace through an immutable local context,
+preserving particle-block solves, initial evaluation reuse and numerical counters.
+No mutable evaluation cache is shared between candidates, solves or JAX traces.
 
 ## Uncoupled BM4 and independent C
 

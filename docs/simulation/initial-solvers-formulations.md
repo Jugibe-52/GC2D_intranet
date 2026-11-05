@@ -59,6 +59,25 @@ gauss = GaussLegendre4(step=0.02, solver=solver)
 
 `ReducedProjection` solves for mu in R^(2N); `SimultaneousProjection` solves for (u, v, mu) in R^(6N). Both implement `contracts.methods.projection.ProjectionFormulation` and own the initial guess, residual, Jacobian assembly and physical reconstruction. The method supplies its doubled composition and derivative; these equations belong to methods and work with NumPy/JAX. ABBA accepts either class or the existing `reduced_multiplier`/`simultaneous_state_multiplier` names; BM4 retains reduced equations. Gauss stage equations remain method-specific. The `methods.ProjectionFormulation` and `simulation.ProjectionFormulation` exports remain the string-name type alias; import the equation protocol from `methods.projection`.
 
+For each step, `methods.extended.core.projection.ProjectionProblem` binds the
+physical state, time, step size, composition and derivative strategy. Its
+`residual(x)` computes the temporary copies and returns only R(x);
+`jacobian(x)` returns D_x R(x), including the dependence of the copies on mu.
+Here x is mu for reduced equations and (U, V, mu) for simultaneous equations.
+Analytic independent-particle derivatives return blocks of shape (N, 2, 2) or
+(N, 6, 6); dense and finite-difference derivatives return the complete square
+matrix in component-major ordering. `particle_blocks` identifies the representation.
+
+The formulation helper previously named `residual(unknown, mapped, size)` is
+now `assemble_residual(unknown, mapped, size)`. It only combines known arrays.
+The solver adapter `evaluate(x)` calls the complete `residual(x)` and retains its
+composition trace. Newton invokes `jacobian(x)` in a short-lived immutable
+context containing that same candidate and trace, then solves the linear system.
+The base problem never stores a previous candidate; NumPy and JAX share this
+path without a mutable cache. Broyden retains its existing initial Jacobian
+approximation and secant updates. Reconstruction and quadrature use the accepted
+residual's trace. Direct callers of the old assembly helper must use the new name.
+
 NewtonSolver supports Gauss, SDIRK, HBVM, ABBA and BM4. BroydenSolver supports the
 existing ABBA/BM4 projection routes. Explicit methods have no algebraic solver;
 SciPy adaptive methods retain their own internal algorithms. The built-in classes

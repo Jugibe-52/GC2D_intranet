@@ -228,13 +228,13 @@ See docs/simulation/initial-solvers-formulations.md, docs/simulation/api-migrati
 algebraic operations; each solve owns its work arrays. The solver alone owns tolerances, iteration limits, Jacobian strategy/difference scale, backtracking and iteration_observer. Explicit solver= is authoritative; omitted solvers retain family defaults. Optional solvers.jax_nonlinear provides JaxNewtonSolver/JaxBroydenSolver via `_as_jax()`, inheriting controls without separate defaults.
 Gauss, SDIRK and HBVM accept Newton; ABBA/BM4 also accept Broyden. Preserve HBVM's
 matrix infinity norm, damping and initial-residual-before-Jacobian validation.
-`methods.projection` owns ReducedProjection (2N unknowns) and
-SimultaneousProjection (6N), including guesses, residuals, Jacobian assembly and
-reconstruction. Methods supply compositions/derivatives; Gauss keeps its stage
-equations. ABBA accepts both classes or legacy strings; BM4 remains reduced.
-Use canonical solvers.nonlinear/linear/jax_nonlinear imports, not retired methods private
-modules. Built-in solver/formulation types are exact to preserve CPU/JAX behavior.
-See `docs/simulation/initial-solvers-formulations.md` for contracts and examples.
+`methods.projection` owns ReducedProjection (2N) and SimultaneousProjection (6N)
+guesses, assemble_residual, Jacobian assembly and reconstruction. ProjectionProblem in
+methods.extended.core.projection binds each step: residual(x)/jacobian(x) take only
+its candidate unknown. Adapters reuse an immutable local trace context; preserve
+particle blocks and avoid mutable caches across candidates or JAX traces. ABBA accepts
+both classes or legacy strings; BM4 stays reduced; Gauss keeps its stage equations.
+Use canonical solvers.nonlinear/linear/jax_nonlinear imports; built-in solver/formulation types remain exact for CPU/JAX. See docs/simulation/initial-solvers-formulations.md.
 
 ## Executor-owned integration
 

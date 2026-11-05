@@ -131,6 +131,17 @@ Jacobians. The simultaneous ABBA equation retains both output copies and the
 multiplier as 6N unknowns; its zero-step block Jacobian initializes Broyden.
 Both formulations call the same general Newton/Broyden primitives.
 
+`ProjectionProblem` in `extended/core/projection.py` prepares the step context
+and exposes `residual(x)` and `jacobian(x)`. Both receive only the candidate
+unknown: mu for reduced equations, (U, V, mu) for simultaneous equations.
+`residual` computes the copies before calling the formulation's
+`assemble_residual`; `jacobian` differentiates the complete residual, including
+those copies. The solver adapter carries the composition trace into an immutable
+context for the current candidate, allowing Newton to reuse it without shared
+mutable state. The candidate-only functions also work independently; independent
+particle Jacobians retain their batched representation. See the
+[interface guide](../../../simulation/initial-solvers-formulations.md).
+
 Analytic Newton composes exact stage tangents from retained shear sources and
 solves independent particle blocks (2 by 2 reduced, 6 by 6 simultaneous). It
 replays no vector-field stages to obtain those sources. BM4's existing optional

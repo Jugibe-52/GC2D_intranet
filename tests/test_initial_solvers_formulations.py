@@ -106,7 +106,7 @@ class ProjectionEquationsTests(unittest.TestCase):
 				def residual(u: np.ndarray) -> np.ndarray:
 					mu = equation.multiplier(u, 2)
 					mapped = base @ np.concatenate((state + mu, state - mu))
-					return equation.residual(u, mapped, 2)
+					return equation.assemble_residual(u, mapped, 2)
 				epsilon = 1e-6
 				jacobian = np.column_stack([(residual(initial + epsilon * e) - residual(initial - epsilon * e))/(2*epsilon)
 					for e in np.eye(initial.size)])
