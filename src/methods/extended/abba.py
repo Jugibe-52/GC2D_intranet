@@ -35,7 +35,6 @@ class ABBA2Implicit(ProjectedPalindromicMethod):
 	state_extension: StateExtension = 'physical'
 	progress: bool = False
 	order: ClassVar[Literal[2, 4]] = 2
-	_probe_analytic = True
 	composition_name = 'ABBA2'
 	recipe = (A(.5), B(.5), T(1.), B(.5), A(.5))
 
@@ -64,7 +63,6 @@ class ABBA4Implicit(ProjectedPalindromicMethod):
 	progress: bool = False
 	projection_placement: ProjectionPlacement = 'around_complete_composition'
 	order: ClassVar[Literal[2, 4]] = 4
-	_probe_analytic = True
 	composition_name = 'ABBA4'
 	recipe = (
 		A(_GAMMA/2), B(_GAMMA/2), T(_GAMMA), B(_GAMMA/2), A(_GAMMA/2),

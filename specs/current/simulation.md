@@ -2,12 +2,12 @@
 schema_version = 1
 kind = "spec"
 id = "simulation"
-sources = ["src/contracts/methods/functions.py", "src/contracts/methods/quadrature.py", "src/diagnostics/methods/energy.py", "src/solvers/derivatives.py", "src/formulations/state.py", "src/states/initial.py", "src/solvers/nonlinear.py", "src/methods/projection.py", "src/methods/extended/core/projection.py", "src/simulation/runner.py", "src/problem.py", "src/request.py", "src/execution/execution.py", "src/execution/_plan.py", "src/contracts/execution/plan.py", "src/execution/_jax_step.py", "src/execution/_jax_fixed.py", "src/execution/_jax.py", "src/dynamics/jax_dynamics.py", "src/dynamics/jax_coordinates.py", "src/methods/base.py", "src/execution/options.py", "src/contracts/arrays.py", "src/contracts/methods/base.py", "src/contracts/execution/controllers.py", "src/contracts/dynamics/protocols.py", "src/contracts/methods/maps.py", "src/contracts/methods/projection.py"]
+sources = ["src/contracts/methods/adaptive/scipy.py", "src/execution/_scipy.py", "src/dynamics/gc.py", "src/contracts/methods/functions.py", "src/contracts/methods/quadrature.py", "src/diagnostics/methods/energy.py", "src/solvers/derivatives.py", "src/formulations/state.py", "src/states/initial.py", "src/solvers/nonlinear.py", "src/methods/projection.py", "src/methods/extended/core/projection.py", "src/simulation/runner.py", "src/problem.py", "src/request.py", "src/execution/execution.py", "src/execution/_plan.py", "src/contracts/execution/plan.py", "src/execution/_jax_step.py", "src/execution/_jax_fixed.py", "src/execution/_jax.py", "src/dynamics/jax_dynamics.py", "src/dynamics/jax_coordinates.py", "src/methods/base.py", "src/execution/options.py", "src/contracts/arrays.py", "src/contracts/methods/base.py", "src/contracts/execution/controllers.py", "src/contracts/dynamics/protocols.py", "src/contracts/methods/maps.py", "src/contracts/methods/projection.py"]
 documents = ["docs/simulation/initial-solvers-formulations.md", "docs/simulation/integration-architecture.md", "docs/simulation/execution.md", "docs/simulation/jax-execution.md"]
 
 [[requirements]]
 id = "SIM-001"
-tests = ["tests/test_problem_request.py", "tests/test_independent_formulations.py", "tests/test_initial_solvers_formulations.py", "tests/test_core.py::SimulationTests.test_problem_and_request_validate_initial_state_and_time_span", "tests/test_state_ownership.py::StateOwnershipTests.test_problem_and_prepared_formulations_own_state_and_layout_snapshots"]
+tests = ["tests/test_gc_hamiltonian.py", "tests/test_problem_request.py", "tests/test_independent_formulations.py", "tests/test_initial_solvers_formulations.py", "tests/test_core.py::SimulationTests.test_problem_and_request_validate_initial_state_and_time_span", "tests/test_state_ownership.py::StateOwnershipTests.test_problem_and_prepared_formulations_own_state_and_layout_snapshots"]
 
 [[requirements]]
 id = "SIM-002"
@@ -15,7 +15,7 @@ tests = ["tests/test_core.py::SimulationTests.test_problem_and_request_validate_
 
 [[requirements]]
 id = "SIM-003"
-tests = ["tests/test_projection_problem.py", "tests/test_fixed_step_plan.py", "tests/test_function_methods.py", "tests/test_solver_configuration.py", "tests/test_energy_observation.py", "tests/test_execution.py::ExecutionTests.test_default_and_explicit_executor_produce_the_same_solution", "tests/test_execution.py::ExecutionTests.test_result_preparation_and_finalization_failures_consume_only_the_run", "tests/test_compiled_step_contract.py::CompiledStepContractTests.test_fixed_and_hybrid_runs_finalize_the_allocated_result_once", "tests/test_execution.py::ExecutionTests.test_simulation_dispatches_one_complete_job_to_the_subclass", "tests/test_execution.py::ExecutionTests.test_local_executor_owns_preparation_and_drives_the_controller", "tests/test_execution.py::ExecutionTests.test_executor_failure_propagates_without_local_fallback", "tests/test_execution.py::ExecutionTests.test_external_provider_prepares_a_run_without_an_integration_entry_point", "tests/test_execution.py::ExecutionTests.test_controller_preparation_failure_consumes_only_the_fresh_run", "tests/test_jax_methods.py", "tests/test_compiled_step_contract.py"]
+tests = ["tests/test_temporal_preparation.py", "tests/test_projection_problem.py", "tests/test_fixed_step_plan.py", "tests/test_function_methods.py", "tests/test_solver_configuration.py", "tests/test_energy_observation.py", "tests/test_execution.py::ExecutionTests.test_default_and_explicit_executor_produce_the_same_solution", "tests/test_execution.py::ExecutionTests.test_result_preparation_and_finalization_failures_consume_only_the_run", "tests/test_compiled_step_contract.py::CompiledStepContractTests.test_fixed_and_hybrid_runs_finalize_the_allocated_result_once", "tests/test_execution.py::ExecutionTests.test_simulation_dispatches_one_complete_job_to_the_subclass", "tests/test_execution.py::ExecutionTests.test_local_executor_owns_preparation_and_drives_the_controller", "tests/test_execution.py::ExecutionTests.test_executor_failure_propagates_without_local_fallback", "tests/test_execution.py::ExecutionTests.test_external_provider_prepares_a_run_without_an_integration_entry_point", "tests/test_execution.py::ExecutionTests.test_controller_preparation_failure_consumes_only_the_fresh_run", "tests/test_jax_methods.py", "tests/test_compiled_step_contract.py"]
 
 [[requirements]]
 id = "SIM-004"
@@ -65,7 +65,7 @@ and may be nonzero. Geometry generators still return arrays. See the
 creates an independent uniform request from 0 to 1 with 11 samples.
 `with_request(request)` reuses dynamics and the initial-value owner in another
 problem without mutating the source. `simulate` and executors receive the problem
-and method; numerical methods still receive the request separately at preparation.
+and method; execution consumes the request without passing it to numerical preparation.
 
 ## SIM-002: Complete, increasing output schedule
 
@@ -95,9 +95,9 @@ with its own evaluation guards and caches.
 Private backend, observer and numerical-run preparation helpers live in
 `execution.execution`. Backend preparation resolves the mode and device once
 and binds the prepared dynamics directly. Observer preparation reads
-`problem.request`; numerical-run preparation receives `InitialConditions` and
-`SimulationRequest` explicitly, with the particle count taken from the initial
-conditions rather than a complete problem object.
+`problem.request`; numerical-run preparation receives `InitialConditions`
+explicitly, with the particle count taken from those values rather than a
+complete problem object. The host worker receives the request directly.
 They return typed results without storing job state on the executor.
 `Execution.run` retains the lifecycle and recording boundary and calls
 `execution._jax_step.prepare_step` directly inside its `try/finally`, before
@@ -119,7 +119,7 @@ run before result allocation. Custom controllers retain their own policies.
 See [shared planning](../../docs/simulation/execution.md#shared-fixed-step-plan)
 and `tests/test_fixed_step_plan.py`.
 
-`NumericalMethod.new_run(f, initial_conditions, request, *, jacobian=None, jacobian_structure="dense", observe=False, capture_quadrature=False)` receives a physical vector field and independent initial data. Execution resolves dynamics capabilities and supplies any physical Jacobian explicitly. The prepared run retains no `InitialValueProblem` or `DynamicalSystem`. `jacobian_structure` distinguishes dense matrices from independent particle blocks; it does not identify a physical model.
+`NumericalMethod.new_run(f, initial_conditions, *, jacobian=None, jacobian_structure="dense", observe=False, capture_quadrature=False)` receives a physical vector field and independent initial data. Execution resolves dynamics capabilities and supplies any physical Jacobian explicitly. The prepared run retains no `InitialValueProblem`, `DynamicalSystem` or temporal request. `jacobian_structure` distinguishes dense matrices from independent particle blocks; it does not identify a physical model.
 
 `new_run` returns a fresh ready `IntegrationMethod`, copying constructor configuration and initializing owned physical snapshots. `initialize`, `advance`, `build_observation` and `controller` define its numerical behavior. Methods have no energy accumulator or history diagnosis. Fixed methods share one `advance` implementation across array types. Execution owns JAX compatibility checks and compilation; `NumericalMethod` has no backend declaration. The adaptive implementation retains its local hybrid declaration. CPU extensions can inherit `FixedStepMethod` or supply their own controller.
 
@@ -225,3 +225,20 @@ Every accepted snapshot is `IntegrationState(time, values)`: scalar time and phy
 Execution supplies `f(t, z)`, independent initial data and an optional Jacobian to the numerical method. `advance(t, z, h)` returns physical `StepResult.state`, numerical work and optional quadrature. `EnergyObserver`, supplied through `simulate(..., observers=(EnergyObserver(),))`, owns a fresh passive accumulator for each run. Accepted steps update it once; each shadow sample starts independently from the accepted left endpoint. JAX carries a separate functional accumulator through the compiled loop.
 
 Execution gives the energy observer H and `-partial_t H`. The observer evaluates saved physical H once; `states.energy.energy_diagnostics` combines supplied H and physical kappa without evaluating dynamics. Existing energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. The default initial kappa is zero; `EnergyObserver(initial_momentum=...)` accepts an explicit physical value per particle. Numerical archives require no migration; old pickled configured objects should be recreated.
+
+## Prepared guiding-center Hamiltonian
+
+GC dynamics expose `hamiltonian_potential`, a `Potential` representing
+`H = Phi_rho / B`. Drift, particle Jacobians, Hamiltonian values and the
+time-conjugate derivative use that single prepared object. Drift evaluates
+spatial spline derivatives directly and packs `(-H_y, H_x)`; it does not call
+`electric_field`. JAX conversion shares the fitted Hamiltonian splines.
+See [physical dynamics contracts](../../docs/dynamics/protocols.md#guiding-center-hamiltonian)
+and the finite-difference and compiled regression checks in
+`tests/test_gc_hamiltonian.py`.
+
+## Temporal and derivative preparation
+
+`new_run(f, initial_conditions, ...)` and `initialize()` do not receive a temporal request or initial time. Methods retain no `request`. Execution owns interval setup and output scheduling; `advance(t, state, h)` receives the time needed for each numerical step.
+
+`auto` selects a supplied Jacobian without evaluating it, or finite differences when no derivative is supplied. For Newton corrections, `analytic` requires a derivative and `finite_difference` explicitly forces approximation. Broyden continues to use the projection-supplied initial matrix and residual updates without evaluating field derivatives. Shapes and finite values are checked at actual evaluations. A supplied derivative failure propagates; auto does not silently fall back. Gauss, SDIRK, HBVM and projected compositions share `solvers.derivatives.resolve_jacobian_method`. HBVM retains its validation boundary after the first residual. Numerical stage and projection equations are unchanged.

@@ -99,7 +99,7 @@ class RhoSweepTests(unittest.TestCase):
         x0, y0, length = sampled['bounds']
         q = (np.arange(5) + .5)/5
         xx, yy = np.meshgrid(x0 + q*length, y0 + q*length)
-        effective = prepared.problem.dynamics.effective_potential
+        effective = prepared.problem.dynamics.hamiltonian_potential
         expected = np.stack((-effective.evaluate(.24, xx, yy, dy=1),
                               effective.evaluate(.24, xx, yy, dx=1)), axis=-1)
         np.testing.assert_allclose(sampled['velocity'][12], expected)
@@ -207,7 +207,7 @@ class RhoSweepTests(unittest.TestCase):
         normalized = Potential(Grid(g.x0*scale, g.y0*scale, g.dx*scale, g.dy*scale,
                                     g.nx, g.ny, g.period*scale), mean=source.raw.mean,
                                modes=source.raw.modes, frequencies=source.raw.frequencies)
-        np.testing.assert_allclose(prepared.problem.dynamics.effective_potential.mean,
+        np.testing.assert_allclose(prepared.problem.dynamics.hamiltonian_potential.mean,
                                    normalized.gyroaverage(.3).mean, rtol=1e-13, atol=1e-20)
 
     def test_cycle_only_roundtrip_and_no_resubmission(self):
@@ -249,8 +249,8 @@ class RhoSweepTests(unittest.TestCase):
         self.assertEqual(normalized.problem.dynamics.rho, .3)
         self.assertAlmostEqual(normalized.metadata['rho_m'], physical.metadata['rho_m'])
         np.testing.assert_array_equal(normalized.request.output_times, physical.request.output_times)
-        np.testing.assert_allclose(normalized.problem.dynamics.effective_potential.mean / scale**2,
-                                   physical.problem.dynamics.effective_potential.mean, rtol=1e-12, atol=1e-19)
+        np.testing.assert_allclose(normalized.problem.dynamics.hamiltonian_potential.mean / scale**2,
+                                   physical.problem.dynamics.hamiltonian_potential.mean, rtol=1e-12, atol=1e-19)
         a = run_rho_star(physical, executor=Execution(), options=ExecutionOptions())
         b = run_rho_star(normalized, executor=Execution(), options=ExecutionOptions())
         for axis, dimensional in enumerate(a.solution.positions()):

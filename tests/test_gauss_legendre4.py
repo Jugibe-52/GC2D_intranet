@@ -165,7 +165,7 @@ class GaussLegendre4Tests(unittest.TestCase):
 		with self.assertRaises(TypeError):
 			simulate(problem.with_request(SimulationRequest.uniform(t_span=(0.0, 1.0), sample_count=2)), GaussLegendre4(step=1.0, solver=NewtonSolver(absolute_tolerance=1e-14, relative_tolerance=1e-13, max_iterations=20, jacobian_method='analytic')))
 
-	def test_auto_falls_back_when_gc_hessians_are_unavailable(self) -> None:
+	def test_unavailable_provided_hessians_require_explicit_finite_differences(self) -> None:
 		potential = Potential.random(
 			A=0.08,
 			M=3,
@@ -179,7 +179,9 @@ class GaussLegendre4Tests(unittest.TestCase):
 			t_span=(0.0, 0.02),
 			sample_count=3,
 		)
-		solution = simulate(problem.with_request(request), GaussLegendre4(step=0.01))
+		with self.assertRaises(ValueError):
+			simulate(problem.with_request(request), GaussLegendre4(step=0.01))
+		solution = simulate(problem.with_request(request), GaussLegendre4(step=0.01, solver=NewtonSolver(jacobian_method="finite_difference")))
 		self.assertTrue(np.all(np.isfinite(solution.states)))
 		self.assertEqual(
 			solution.diagnostics["newton_jacobian_method"],

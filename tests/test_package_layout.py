@@ -210,7 +210,7 @@ restored_problem = pickle.loads(pickle.dumps(problem))
 np.testing.assert_array_equal(restored_problem.initial_state, problem.initial_state)
 for method in (RK4(step=.01), DOP853(max_step=.01)):
     restored = pickle.loads(pickle.dumps(method))
-    run = restored.new_run(problem.dynamics.vector_field, problem.initial_conditions, request,
+    run = restored.new_run(problem.dynamics.vector_field, problem.initial_conditions,
         jacobian=problem.dynamics.particle_vector_field_jacobians, jacobian_structure='particle')
     assert isinstance(run, IntegrationMethod)
     result = Execution().run(problem.with_request(request), restored)

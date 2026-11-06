@@ -1,6 +1,10 @@
 """Five-stage, fourth-order singly diagonally implicit Runge--Kutta method."""
 
 from __future__ import annotations
+from solvers.derivatives import (
+	resolve_jacobian_method, JacobianMethod as SDIRKJacobianMethod,
+	ResolvedJacobianMethod as ResolvedSDIRKJacobianMethod,
+)
 from solvers.nonlinear import NewtonSolver, validate_solver
 
 from dataclasses import dataclass, field
@@ -19,15 +23,11 @@ from methods.base import FixedStepMethod
 from contracts.methods.step import StepInfo, StepResult
 from contracts.states.history import DiagnosticValue
 from contracts.methods.observation import IntegrationStep
-from request import SimulationRequest
 from solvers.linear import _solve_particle_systems
 from ._jacobians import (
-	JacobianMethod as SDIRKJacobianMethod,
-	ResolvedJacobianMethod as ResolvedSDIRKJacobianMethod,
 	_checked_vector_field,
 	_dense_finite_difference_jacobian,
 	_checked_analytic_jacobians,
-	_resolved_jacobian_method,
 )
 
 from typing import TYPE_CHECKING
@@ -221,11 +221,10 @@ class SDIRK4(FixedStepMethod[_SDIRKStepResult]):
 		FixedStepMethod.__post_init__(self)
 		validate_solver(self.solver, newton_only=True)
 
-	def initialize(self, request: SimulationRequest) -> None:
+	def initialize(self) -> None:
 		"""Resolve supplied derivative functions and describe the S54b tableau."""
-		self.resolved_jacobian_method = _resolved_jacobian_method(self.jacobian,
-			self.solver.jacobian_method, initial_time=request.t_span[0],
-			initial_state=self.initial_state, structure=self.jacobian_structure)
+		self.resolved_jacobian_method = resolve_jacobian_method(self.jacobian,
+			self.solver.jacobian_method)
 		self.metadata = {
 			'stage_count': _STAGE_COUNT, 'designed_order': 4, 'tableau_name': 'Skvortsov S54b',
 			'diagonal_coefficient': _SDIRK_DIAGONAL, 'stiffly_accurate': True,

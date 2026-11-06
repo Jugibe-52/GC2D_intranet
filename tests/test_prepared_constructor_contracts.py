@@ -26,7 +26,7 @@ class PreparedConstructorContractTests(unittest.TestCase):
 		gc = GuidingCenterDynamics(self.potential, rho="0", B="-2")
 		fc = FullCyclotronDynamics(self.potential, rho=".5", eta="-1")
 		self.assertEqual((gc.rho, gc.B, fc.rho, fc.eta), (0., -2., .5, -1.))
-		np.testing.assert_array_equal(gc.effective_potential.mean, self.potential.mean / -2.)
+		np.testing.assert_array_equal(gc.hamiltonian_potential.mean, self.potential.mean / -2.)
 		with self.assertRaisesRegex(TypeError, "Potential instance"):
 			GuidingCenterDynamics(None, rho=-1., B=0.)
 		with self.assertRaisesRegex(ValueError, "`B`"):

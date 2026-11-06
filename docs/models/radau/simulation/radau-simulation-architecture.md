@@ -25,7 +25,7 @@ supersedes earlier diagrams showing a duplicated clock or full time/momentum pro
 
 Every accepted snapshot is `IntegrationState(time, values)`: scalar time and a physical vector of shape `(d*N,)`. GC remains 2N and FC 4N with or without energy observation. Temporary doubled GC work has 4N entries; generic doubled FC work has 8N. These workspaces never become accepted states. This generic copy support does not extend GC numerical methods to FC.
 
-Execution binds the physical functions and calls `new_run(f, initial_conditions, request, jacobian=..., jacobian_structure=...)`. The method receives no `DynamicalSystem` or problem. `advance(t, Z, h)` returns physical state, statistics, optional details and optional quadrature data. `EnergyObserver` owns its independent momentum and accumulates only accepted quadrature; shadow samples derive from the accepted observer state without committing it. Step callbacks are passed through `simulate(..., observers=(...,))`.
+Execution binds the physical functions and calls `new_run(f, initial_conditions, jacobian=..., jacobian_structure=...)`. The method receives no `DynamicalSystem`, problem or temporal request. `advance(t, Z, h)` returns physical state, statistics, optional details and optional quadrature data. `EnergyObserver` owns its independent momentum and accumulates only accepted quadrature; shadow samples derive from the accepted observer state without committing it. Step callbacks are passed through `simulate(..., observers=(...,))`.
 
 Enable passive energy with `simulate(..., observers=(EnergyObserver(),))`, importing `EnergyObserver` from `diagnostics.methods.energy`. Execution supplies the observer with H and `-partial_t H`. It evaluates saved physical H once and constructs the existing diagnostics. Energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. Old configured Python objects must be recreated; saved numerical archives remain readable through versioned history conversion.
 
@@ -168,3 +168,5 @@ See the state contract above and the [representation operations](../../../simula
 This method owns `max_step` (default 0.1), the bound used by its adaptive
 controller. The request supplies only the interval and output times. See the
 [step configuration contract](../../../simulation/execution.md#method-owned-integration-step).
+
+The controller in `execution._scipy` prepares the live solver from the requested interval and selects dense output for saved samples. `new_run` and `initialize()` prepare only numerical data. Extra interpolation evaluations retain their existing work-count policy; observer-only interpolation remains excluded.

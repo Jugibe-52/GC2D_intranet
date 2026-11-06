@@ -50,7 +50,7 @@ class SharedABBARuntimeTests(unittest.TestCase):
 			with self.subTest(method=method_type.__name__, formulation=formulation,
 				solver=solver, track_energy=track_energy):
 				method = method_type(projection_formulation=formulation, solver=(NewtonSolver if solver == 'newton' else BroydenSolver)(jacobian_method='analytic', max_iterations=50))
-				prepared = replace(method, step=0.02).new_run(problem.dynamics.vector_field, problem.initial_conditions, request, jacobian=getattr(problem.dynamics, 'particle_vector_field_jacobians', None), jacobian_structure='particle', observe=True, capture_quadrature=track_energy)
+				prepared = replace(method, step=0.02).new_run(problem.dynamics.vector_field, problem.initial_conditions, jacobian=getattr(problem.dynamics, 'particle_vector_field_jacobians', None), jacobian_structure='particle', observe=True, capture_quadrature=track_energy)
 				state = prepared.initial_state
 				step = prepared.advance(0.0, prepared.initial_state, 0.02)
 				result = step.details

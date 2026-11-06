@@ -91,7 +91,7 @@ factors. Neither time nor trajectories are clipped to one cycle or one cell.
 
 The magnetic field belongs to `GuidingCenterDynamics`, whose finite signed
 nonzero `B` forms `H=P/B`. All velocity, Jacobian, Hamiltonian and temporal
-momentum evaluations use that same effective Hamiltonian. `B=1` supports inputs
+momentum evaluations use that same Hamiltonian, stored as `hamiltonian_potential`. `B=1` supports inputs
 already expressed as Hamiltonians. Physical gyro-radius transforms as `rho/s`;
 initial positions, output times and steps must use the same variable maps.
 This GC equivalence does not automatically prescribe FC velocity/rho/eta scaling.

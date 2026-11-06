@@ -208,8 +208,10 @@ for the twelve-stage composition, its single reduced Hairer projection around
 each complete cycle, the physical-state contract, and nonlinear diagnostics.
 
 Physical parameters belong to the dynamics object. Changing the initial
-configuration therefore does not change the model. The effective gyroaveraged
-potential is available as `problem.dynamics.effective_potential`.
+configuration therefore does not change the model. The prepared Hamiltonian
+`H = Phi_rho / B` is available as `problem.dynamics.hamiltonian_potential`;
+`vector_field` uses its spatial derivatives directly. See the
+[Hamiltonian contract](docs/dynamics/protocols.md#guiding-center-hamiltonian).
 
 ## ABBA models and canonical configuration space
 

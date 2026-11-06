@@ -111,11 +111,11 @@ class ExecutionTests(unittest.TestCase):
 
     def test_local_executor_owns_preparation_and_drives_the_controller(self):
         from execution._host import FixedStepController
-        run = self.method.new_run(self.problem.dynamics.vector_field, self.problem.initial_conditions, self.request)
+        run = self.method.new_run(self.problem.dynamics.vector_field, self.problem.initial_conditions)
         with patch.object(RK4, "new_run", return_value=run) as prepare:
             with patch.object(run, "controller", wraps=run.controller) as controller:
                 result = Execution().run(self.problem.with_request(self.request), self.method)
-        prepare.assert_called_once_with(self.problem.dynamics.vector_field, self.problem.initial_conditions, self.request,
+        prepare.assert_called_once_with(self.problem.dynamics.vector_field, self.problem.initial_conditions,
                                         jacobian=None, jacobian_structure="dense", observe=False, capture_quadrature=False)
         controller.assert_called_once_with()
         self.assertEqual(run._status, "finished")
@@ -127,9 +127,9 @@ class ExecutionTests(unittest.TestCase):
 
         class ExternalMethod:
 
-            def new_run(self, f, initial_conditions, request, **kwargs):
-                calls.append((f, initial_conditions, request))
-                return RK4(step=.01).new_run(f, initial_conditions, request, **kwargs)
+            def new_run(self, f, initial_conditions, **kwargs):
+                calls.append((f, initial_conditions))
+                return RK4(step=.01).new_run(f, initial_conditions, **kwargs)
 
         for options in (None, ExecutionOptions()):
             with self.subTest(options=options):
@@ -147,7 +147,7 @@ class ExecutionTests(unittest.TestCase):
             simulate(self.problem.with_request(self.request), RetiredMethod())
 
     def test_controller_preparation_failure_consumes_only_the_fresh_run(self):
-        run = self.method.new_run(self.problem.dynamics.vector_field, self.problem.initial_conditions, self.request)
+        run = self.method.new_run(self.problem.dynamics.vector_field, self.problem.initial_conditions)
         with patch.object(RK4, "new_run", return_value=run):
             with patch.object(run, "controller", side_effect=RuntimeError("Controller unavailable")):
                 with self.assertRaisesRegex(RuntimeError, "Controller unavailable"):
@@ -158,7 +158,7 @@ class ExecutionTests(unittest.TestCase):
 
     def test_result_preparation_and_finalization_failures_consume_only_the_run(self):
         for operation in ("prepare", "finalize"):
-            run = self.method.new_run(self.problem.dynamics.vector_field, self.problem.initial_conditions, self.request)
+            run = self.method.new_run(self.problem.dynamics.vector_field, self.problem.initial_conditions)
             with self.subTest(operation=operation), patch.object(RK4, "new_run", return_value=run):
                 with patch.object(States, operation, side_effect=RuntimeError("Result failure")):
                     with self.assertRaisesRegex(RuntimeError, "Result failure"):
@@ -170,7 +170,7 @@ class ExecutionTests(unittest.TestCase):
         self.assertTrue(Execution().run(self.problem.with_request(self.request), self.method).complete)
 
     def test_host_result_is_finalized_once_while_the_run_is_active(self):
-        run = self.method.new_run(self.problem.dynamics.vector_field, self.problem.initial_conditions, self.request)
+        run = self.method.new_run(self.problem.dynamics.vector_field, self.problem.initial_conditions)
         finalize = States.finalize
         finished = []
         def finish(result, *args, **kwargs):

@@ -199,7 +199,7 @@ def _validate_reference_dynamics(
 		raise ValueError("The reference dynamics fingerprint algorithm is unsupported.")
 	stored_fingerprint: object = metadata.get("dynamics_fingerprint_sha256")
 	actual_fingerprint: str = potential_fingerprint(
-		GuidingCenterDynamics(potential, rho=rho).effective_potential
+		GuidingCenterDynamics(potential, rho=rho).hamiltonian_potential
 	)
 	if stored_fingerprint != actual_fingerprint:
 		raise ValueError("The comparison interpolated ODE differs from the reference.")

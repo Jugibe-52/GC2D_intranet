@@ -44,7 +44,8 @@ class AdaptiveIntegrationTests(unittest.TestCase):
                 source = _problem()
                 problem = InitialValueProblem(source.dynamics, GuidingCenterDynamics.coordinates.pack_components([1., 1.1, 1.2], [1.2, 1.3, 1.4]), layout=GuidingCenterDynamics.coordinates)
                 request = SimulationRequest.uniform(t_span=(.3, .34),  sample_count=3)
-                run = replace(cls(first_step=.02), max_step=0.02).new_run(problem.dynamics.vector_field, problem.initial_conditions, request, capture_quadrature=True)
+                run = replace(cls(first_step=.02), max_step=0.02).new_run(problem.dynamics.vector_field, problem.initial_conditions, capture_quadrature=True)
+                run.controller().prepare(run, request)
                 with patch.object(type(problem.dynamics), 'extended_momentum_derivative', autospec=True,
                                   side_effect=type(problem.dynamics).extended_momentum_derivative) as rate:
                     energy = EnergyObserver().new_run(problem.dynamics.hamiltonian,
@@ -134,7 +135,7 @@ class AdaptiveIntegrationTests(unittest.TestCase):
                 event.dense_state(time)[:] = 999
                 np.testing.assert_array_equal(event.dense_state(time), expected)
                 events.append(event)
-            run = replace(cls(), max_step=0.08).new_run(self.problem.dynamics.vector_field, self.problem.initial_conditions, self.request, observe=True)
+            run = replace(cls(), max_step=0.08).new_run(self.problem.dynamics.vector_field, self.problem.initial_conditions, observe=True)
             self.assertEqual(events, [])
             plain = simulate(self.problem.with_request(self.request), replace(cls(), max_step=0.08))
             with patch.object(cls, "new_run", return_value=run):
@@ -180,8 +181,10 @@ class AdaptiveIntegrationTests(unittest.TestCase):
 
     def test_advance_keeps_one_live_solver_and_independent_runs(self):
         for cls in (DOP853, Radau):
-            first = replace(cls(dense_output=True), max_step=0.08).new_run(self.problem.dynamics.vector_field, self.problem.initial_conditions, self.request, observe=True)
-            second = replace(cls(dense_output=True), max_step=0.08).new_run(self.problem.dynamics.vector_field, self.problem.initial_conditions, self.request, observe=True)
+            first = replace(cls(dense_output=True), max_step=0.08).new_run(self.problem.dynamics.vector_field, self.problem.initial_conditions, observe=True)
+            first.controller().prepare(first, self.request)
+            second = replace(cls(dense_output=True), max_step=0.08).new_run(self.problem.dynamics.vector_field, self.problem.initial_conditions, observe=True)
+            second.controller().prepare(second, self.request)
             self.assertIsNot(first.solver, second.solver)
             solver = first.solver
             reference = cls.solver_type(self.problem.dynamics.vector_field, .3,

@@ -45,21 +45,21 @@ _INITIAL_CONDITION_COLORS: 'tuple[ColorType, ...]' = tuple(mcolors.TABLEAU_COLOR
 _MAX_PARTICLE_COUNT: 'int' = len(_INITIAL_CONDITION_COLORS)
 
 
-def _effective_potential(result: object) -> Potential:
-	"""Return the exact potential used by every compared numerical trajectory."""
-	candidate: Any | None = getattr(result, "effective_potential", None)
+def _hamiltonian_potential(result: object) -> Potential:
+	"""Return the prepared Hamiltonian used by every compared numerical trajectory."""
+	candidate: Any | None = getattr(result, "hamiltonian_potential", None)
 	if isinstance(candidate, Potential):
 		return candidate
 	dynamics: Any | None = getattr(result, "dynamics", None)
-	candidate = getattr(dynamics, "effective_potential", None)
+	candidate = getattr(dynamics, "hamiltonian_potential", None)
 	if isinstance(candidate, Potential):
 		return candidate
 	candidate = getattr(result, "potential", None)
 	if isinstance(candidate, Potential):
 		return candidate
 	raise TypeError(
-		"`result` must expose a Potential through `effective_potential`, "
-		"`dynamics.effective_potential`, or `potential`."
+		"`result` must expose a Potential through `hamiltonian_potential`, "
+		"`dynamics.hamiltonian_potential`, or `potential`."
 	)
 
 
@@ -256,7 +256,7 @@ def animate_abba4_configuration_trajectories(
 	particle_colors = _INITIAL_CONDITION_COLORS[:particle_count]
 	indices: np.ndarray = _frame_indices(times.size, frames)
 	frame_times = times[indices]
-	potential: Potential = _effective_potential(result)
+	potential: Potential = _hamiltonian_potential(result)
 	fields: np.ndarray = np.asarray(potential.evaluate_grid(frame_times), dtype=float)
 	if fields.shape != (*potential.grid.shape, indices.size):
 		raise ValueError("Potential evaluation returned an unexpected animation shape.")

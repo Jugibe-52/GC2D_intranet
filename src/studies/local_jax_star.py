@@ -163,7 +163,7 @@ def integrate_local_star(
         'particle_order': 'Shared center first when enabled, then arm-major positive radii',
         'positive_radii_over_R': config.outer_radius_fraction * np.arange(1, config.particles_per_arm + 1) / config.particles_per_arm,
         'reference_radius': config.radius_over_period * potential.grid.period,
-        'effective_field_fingerprint': potential_fingerprint(problem.dynamics.effective_potential),
+        'effective_field_fingerprint': potential_fingerprint(problem.dynamics.hamiltonian_potential),
         'arithmetic': 'float64', 'execution': 'local_jax_cpu', 'method': 'BM4Midpoint',
         'integration_seconds': elapsed, 'timing_scope': 'All blocks, including first JIT compilation and logging',
         'samples_per_cycle': config.steps_per_cycle, 'accuracy_certified': False,

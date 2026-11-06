@@ -18,7 +18,7 @@ from contracts.methods.functions import JacobianStructure, VectorField
 from contracts.methods.step import StepInfo, StepResult
 from contracts.states.history import DiagnosticValue
 from states.initial import InitialConditions
-from request import DEFAULT_INTEGRATION_STEP, SimulationRequest
+from request import DEFAULT_INTEGRATION_STEP
 from methods._validation import _positive_finite
 
 if TYPE_CHECKING:
@@ -59,7 +59,6 @@ class IntegrationMethod(ABC, Generic[Detail]):
 	physical_size: int
 	particle_count: int
 	metadata: Mapping[str, DiagnosticValue]
-	request: SimulationRequest
 	progress: bool
 	observe: bool = False
 	capture_quadrature: bool = False
@@ -72,7 +71,7 @@ class IntegrationMethod(ABC, Generic[Detail]):
 		return type(self).__name__
 
 	def new_run(
-		self, f: VectorField, initial_conditions: InitialConditions, request: SimulationRequest,
+		self, f: VectorField, initial_conditions: InitialConditions,
 		*, jacobian: VectorField | None = None, jacobian_structure: JacobianStructure = "dense",
 		observe: bool = False, capture_quadrature: bool = False,
 	) -> Self:
@@ -93,16 +92,15 @@ class IntegrationMethod(ABC, Generic[Detail]):
 		method.initial_state = _readonly_initial_state(initial_conditions.values)
 		method.physical_size = method.initial_state.size
 		method.particle_count = initial_conditions.particle_count
-		method.request = request
 		method.observe, method.capture_quadrature = bool(observe), bool(capture_quadrature)
 		method.metadata = {}
-		method.initialize(request)
+		method.initialize()
 		method.metadata = _readonly_metadata({**method.metadata, **method._state_metadata()})
 		method._status = "ready"
 		return method
 
 	@abstractmethod
-	def initialize(self, request: SimulationRequest) -> None:
+	def initialize(self) -> None:
 		"""Prepare method-specific work after the common function binding."""
 
 	@abstractmethod

@@ -97,7 +97,7 @@ def load_dimensional_h5_field(
                                modes=raw.modes * period, frequencies=raw.frequencies,
                                metadata=replace(legacy_metadata, normalization_factor=1.0/period),
                                interpolation_order=interpolation_order)
-    stream = GuidingCenterDynamics(cycle_potential, B=magnetic_field).effective_potential
+    stream = GuidingCenterDynamics(cycle_potential, B=magnetic_field).hamiltonian_potential
     return DimensionalH5Field(raw, stream, period,
                               magnetic_field, tuple(int(v) for v in metadata.source_field_indices))
 

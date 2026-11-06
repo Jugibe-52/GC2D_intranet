@@ -190,13 +190,13 @@ class ABBA2ImplicitTests(unittest.TestCase):
 			[start, start, start + step, start + step],
 		)
 		# The state-independent field converges without a Newton correction, so
-		# only the capability preflight requires a spatial Jacobian.
-		self.assertEqual(dynamics.jacobian_times, [start])
+		# neither preparation nor this converged step evaluates a spatial Jacobian.
+		self.assertEqual(dynamics.jacobian_times, [])
 
-		# Without an observer, only the capability preflight needs a Hessian.
+		# The same absence of derivative work holds without an observer.
 		unobserved_dynamics = _TimeOnlyPlanarDynamics()
 		simulate(InitialValueProblem(unobserved_dynamics, np.array(initial_state, dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates).with_request(SimulationRequest.uniform(t_span=(start, start + step), sample_count=2)), ABBA2Implicit(step=step))
-		self.assertEqual(unobserved_dynamics.jacobian_times, [start])
+		self.assertEqual(unobserved_dynamics.jacobian_times, [])
 
 	def test_projected_step_is_reversible_and_symplectic(self) -> None:
 		dynamics = gc_dynamics()

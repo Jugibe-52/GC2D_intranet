@@ -174,7 +174,7 @@ class AreaSummary:
 class AreaComparisonResult:
 	"""Solutions and projected observations for one comparison."""
 
-	effective_potential: Potential
+	hamiltonian_potential: Potential
 	area: np.ndarray
 	steps: tuple[AreaStep, ...]
 	solutions: Mapping[str, States]
@@ -316,7 +316,7 @@ def run_area_comparison(
 		output_directories[step.label] = observer.output_directory
 
 	return AreaComparisonResult(
-		effective_potential=dynamics.effective_potential,
+		hamiltonian_potential=dynamics.hamiltonian_potential,
 		area=area,
 		steps=config.steps,
 		solutions=MappingProxyType(solutions),

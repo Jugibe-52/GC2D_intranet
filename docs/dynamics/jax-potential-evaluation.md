@@ -136,7 +136,7 @@ the dynamics. Direct compiled evaluation pairs a JAX dynamics class with
 
 Execution preparation selects the device and creates the corresponding JAX
 subclass with JAX potentials sharing the original read-only samples and existing
-splines, including the GC effective potential. It neither refits splines,
+splines, including GC `hamiltonian_potential`. It neither refits splines,
 repeats gyroaveraging nor mutates the original dynamics. Already compatible
 JAX dynamics are reused; bounded caches retain prepared objects and compiled
 functions. The driver accepts the exact base and explicit JAX dynamics types
@@ -192,7 +192,7 @@ belongs to `execution._jax`.
 `Potential._as_jax()` returns a reusable `JaxPotential`, sharing read-only physical
 samples and fitted splines but owning a separate device-buffer cache. The GC/FC
 `_as_jax()` methods prepare their source potential and, for GC, the already
-normalized and gyroaveraged effective potential. They never rerun constructors,
+normalized and gyroaveraged `hamiltonian_potential`. They never rerun constructors,
 refit splines, repeat gyroaveraging or modify source objects. Explicit compatible
 JAX objects are reused. Preparation rejects unknown overrides and imports the
 optional implementation only when requested. Identity caches are bounded to

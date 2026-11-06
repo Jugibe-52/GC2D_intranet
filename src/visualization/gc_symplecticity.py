@@ -191,7 +191,7 @@ def animate_gc_symplecticity(
 ) -> FuncAnimation:
 	"""Animate GC contours, area errors and accumulated symplecticity."""
 	return animate_gc_area_comparison(
-		result.dynamics.effective_potential,
+		result.dynamics.hamiltonian_potential,
 		result.area,
 		result.solutions,
 		diagnostic_times=result.diagnostic_times,

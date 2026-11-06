@@ -92,7 +92,7 @@ class ImplicitTrajectoryComparisonTests(unittest.TestCase):
 		figure.canvas.draw()
 		plt.close(figure)
 		difference_figure, difference_axis = plot_implicit_trajectory_differences(
-			result.effective_potential,
+			result.hamiltonian_potential,
 			result.solutions,
 		)
 		self.assertEqual(np.asarray(difference_axis.images[0].get_array()).shape, (3, 3))
@@ -100,7 +100,7 @@ class ImplicitTrajectoryComparisonTests(unittest.TestCase):
 		difference_figure.canvas.draw()
 		plt.close(difference_figure)
 		animation = animate_implicit_method_trajectories(
-			result.effective_potential,
+			result.hamiltonian_potential,
 			result.solutions,
 			frames=2,
 			interval=10,
@@ -110,7 +110,7 @@ class ImplicitTrajectoryComparisonTests(unittest.TestCase):
 		plt.close(animation._fig)
 
 		selectable_animation = animate_implicit_method_trajectories(
-			result.effective_potential,
+			result.hamiltonian_potential,
 			result.solutions,
 			frames=2,
 			selectable=True,

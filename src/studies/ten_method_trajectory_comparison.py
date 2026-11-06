@@ -279,9 +279,9 @@ class TenMethodTrajectoryComparisonResult:
 		object.__setattr__(self, "runtimes", MappingProxyType(dict(self.runtimes)))
 
 	@property
-	def effective_potential(self) -> Potential:
+	def hamiltonian_potential(self) -> Potential:
 		"""Return the common gyroaveraged potential."""
-		return self.dynamics.effective_potential
+		return self.dynamics.hamiltonian_potential
 
 	@property
 	def implicit_solutions(self) -> Mapping[str, States]:

@@ -8,7 +8,7 @@ States history and coordinator as fixed methods.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, TYPE_CHECKING
 
@@ -18,46 +18,22 @@ from scipy.integrate import DOP853 as ScipyDOP853, Radau as ScipyRadau
 from contracts.methods.quadrature import InterpolantQuadrature
 from methods.base import IntegrationMethod
 from contracts.methods.step import StepInfo, StepResult
-from contracts.methods.adaptive.scipy import AdaptiveIntegrationStep
-from request import DEFAULT_INTEGRATION_STEP, SimulationRequest
+from contracts.methods.adaptive.scipy import AdaptiveIntegrationStep, AdaptiveStepDetails
+from request import DEFAULT_INTEGRATION_STEP
 from methods._validation import _positive_finite
 
 
 if TYPE_CHECKING:
     from execution.state import IntegrationState
+    from execution._scipy import ScipyAdaptiveController
 
 
-@dataclass(frozen=True, slots=True)
-class _AdaptiveDetails:
-    """Dense output of one accepted step; never retained by States."""
-
-    dense_state: Callable[[float | np.ndarray], np.ndarray]
-
-
-class ScipyAdaptiveController:
-    """Report the live method's accepted intervals and dense output samples."""
-
-    sampling_tolerance = 0.0
-
-    def steps(self, method: IntegrationMethod[_AdaptiveDetails], request: SimulationRequest) -> Iterator[tuple[StepInfo, StepResult[_AdaptiveDetails]]]:
-        assert isinstance(method, _AdaptiveMethod)
-        index = 0
-        while method.solver.status == 'running':
-            start: float = float(method.solver.t)
-            before: np.ndarray = method.current_state.values.copy()
-            result: StepResult[_AdaptiveDetails] = method.advance(start, before, method.max_step)
-            end: float = float(method.solver.t)
-            yield StepInfo(index, start, end - start, end, before), result
-            index += 1
-
-    def sample(self, method: IntegrationMethod[_AdaptiveDetails], info: StepInfo, result: StepResult[_AdaptiveDetails], time: float) -> IntegrationState:
-        """Evaluate accepted dense output without advancing the solver."""
-        from execution.state import IntegrationState
-        return IntegrationState(time, result.details.dense_state(time), result.quadrature)
+def _unavailable_dense_state(query: float | np.ndarray) -> np.ndarray:
+    raise RuntimeError("No dense output was requested for this interval.")
 
 
 @dataclass(slots=True)
-class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
+class _AdaptiveMethod(IntegrationMethod[AdaptiveStepDetails]):
     """Shared controls and run operations; the concrete class selects the solver."""
 
     jax_mode = "hybrid_scipy_controller"
@@ -98,11 +74,8 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
         """Provide solver-specific controls without branching in the coordinator."""
         return {}
 
-    def initialize(self, request: SimulationRequest) -> None:
-        """Initialize this run's vector field, physical snapshot and live solver."""
-        from execution.state import IntegrationState
-
-        self.current_state = IntegrationState(request.t_span[0], self.initial_state)
+    def initialize(self) -> None:
+        """Record numerical controls; execution prepares the live time interval."""
         self.metadata = {
             'step_control': 'adaptive', 'method_order': self.order,
             'relative_tolerance': self.relative_tolerance,
@@ -111,14 +84,12 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
             'first_step': self.first_step if self.first_step is not None else 'automatic',
             'backend': 'scipy',
         }
-        self.solver = self._make_solver(
-            request.t_span[0], self.initial_state.copy(), request.t_span[1], self.max_step,
-        )
         self.previous_counts = np.zeros(3, dtype=int)
         self.accepted_steps = 0
 
     def controller(self) -> ScipyAdaptiveController:
         """Use the live solver's accepted times and its dense interpolants."""
+        from execution._scipy import ScipyAdaptiveController
         return ScipyAdaptiveController()
 
     def _derivative(self, time: float, state: np.ndarray) -> np.ndarray:
@@ -133,12 +104,13 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
                                 atol=self.absolute_tolerance, max_step=max_step, first_step=self.first_step,
                                 **self._backend_options())
 
-    def advance(self, time: float, state: np.ndarray, step: float, *, observe: bool = True) -> StepResult[_AdaptiveDetails]:
+    def advance(self, time: float, state: np.ndarray, step: float, *, observe: bool = True) -> StepResult[AdaptiveStepDetails]:
         """Accept one adaptive step, with ``step`` as its upper size bound.
 
         The live solver retains rejected trials and stage reuse. The accepted
         end time is solver.t and can be earlier than time + step. Output-only
-        interpolation work is included; extra observer work is excluded.
+        interpolation work is added by execution; configured dense-output work
+        is included here, and extra observer work is excluded.
         """
         from execution.state import IntegrationState
 
@@ -156,22 +128,13 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
         counts: np.ndarray = np.asarray((solver.nfev, solver.njev, solver.nlu), dtype=int)
         work = counts - self.previous_counts
         end: float = float(solver.t)
-        left: int | np.intp = 0 if self.accepted_steps == 0 else np.searchsorted(self.request.output_times, time, side='right')
-        right: np.intp = np.searchsorted(self.request.output_times, end, side='right')
-        interpolant: Any | None = None
-        if self.dense_output or right > left or self.observe or self.capture_quadrature:
-            interpolant = solver.dense_output()
-            updated: np.ndarray = np.asarray((solver.nfev, solver.njev, solver.nlu), dtype=int)
-            if self.dense_output or right > left:
-                work += updated - counts
-            counts = updated
-        self.previous_counts = counts
+        details: AdaptiveStepDetails = AdaptiveStepDetails(_unavailable_dense_state)
+        if self.dense_output or self.observe or self.capture_quadrature:
+            details = self._capture_dense_output()
+            if self.dense_output:
+                work += np.asarray(details.interpolation_work)
+        self.previous_counts = np.asarray((solver.nfev, solver.njev, solver.nlu), dtype=int)
         self.accepted_steps += 1
-
-        def dense_state(query: float | np.ndarray) -> np.ndarray:
-            if interpolant is None:
-                raise RuntimeError('No dense output was requested for this interval.')
-            return np.asarray(interpolant(query))
 
         after: np.ndarray = np.array(solver.y, copy=True)
         self.current_state = IntegrationState(float(self.solver.t), after)
@@ -179,10 +142,22 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
             'function_evaluations': int(work[0]),
             'jacobian_evaluations': int(work[1]),
             'lu_decompositions': int(work[2]),
-        }, _AdaptiveDetails(dense_state),
-            InterpolantQuadrature(time, end, dense_state) if self.capture_quadrature else None)
+        }, details,
+            InterpolantQuadrature(time, end, details.dense_state) if self.capture_quadrature else None)
 
-    def build_observation(self, info: StepInfo, result: StepResult[_AdaptiveDetails]) -> AdaptiveIntegrationStep:
+    def _capture_dense_output(self) -> AdaptiveStepDetails:
+        """Freeze this accepted step's interpolant and report its extra work."""
+        solver = self.solver
+        before: np.ndarray = np.asarray((solver.nfev, solver.njev, solver.nlu), dtype=int)
+        interpolant: Any = solver.dense_output()
+        extra: np.ndarray = np.asarray((solver.nfev, solver.njev, solver.nlu), dtype=int) - before
+
+        def dense_state(query: float | np.ndarray) -> np.ndarray:
+            return np.asarray(interpolant(query))
+
+        return AdaptiveStepDetails(dense_state, (int(extra[0]), int(extra[1]), int(extra[2])), True)
+
+    def build_observation(self, info: StepInfo, result: StepResult[AdaptiveStepDetails]) -> AdaptiveIntegrationStep:
         return AdaptiveIntegrationStep(
             dynamics_name="", method_name=type(self).__name__,
             step_index=info.index, start_time=info.time, time=info.end_time, duration=info.duration,

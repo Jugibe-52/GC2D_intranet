@@ -105,7 +105,7 @@ def _result(*, particle_count: int = 10) -> SimpleNamespace:
 		variants=variants,
 		solutions=solutions,
 		potential=potential,
-		dynamics=SimpleNamespace(effective_potential=potential),
+		dynamics=SimpleNamespace(hamiltonian_potential=potential),
 	)
 
 

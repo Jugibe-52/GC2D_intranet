@@ -160,7 +160,7 @@ class JaxExecutionTests(unittest.TestCase):
             self.assertIsNot(prepared.potential._jax_buffers, potential._jax_buffers)
             if isinstance(source, GuidingCenterDynamics):
                 self.assertIs(type(prepared), JaxGuidingCenterDynamics)
-                self.assertIs(prepared.effective_potential._splines, source.effective_potential._splines)
+                self.assertIs(prepared.hamiltonian_potential._splines, source.hamiltonian_potential._splines)
                 self.assertEqual(prepared.rho, source.rho)
                 self.assertEqual(prepared.B, source.B)
                 state = np.array([.4, .5])
@@ -174,7 +174,7 @@ class JaxExecutionTests(unittest.TestCase):
             self.assertIs(prepare_dynamics(explicit), explicit)
         legacy = GuidingCenterDynamics(_field(JaxPotential), rho=0.3)
         self.assertIsInstance(prepare_dynamics(legacy), JaxGuidingCenterDynamics)
-        self.assertIs(prepare_dynamics(legacy).effective_potential, legacy.effective_potential)
+        self.assertIs(prepare_dynamics(legacy).hamiltonian_potential, legacy.hamiltonian_potential)
         class CustomPotential(Potential):
             def evaluate(self, *args, **kwargs):
                 return 0.0

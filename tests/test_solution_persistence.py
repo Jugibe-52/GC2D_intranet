@@ -206,7 +206,7 @@ class SolutionPersistenceTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 load_solution(location)
 
-    def test_actual_demo_energy_matches_reconstructed_effective_potential(self) -> None:
+    def test_actual_demo_energy_matches_reconstructed_hamiltonian_potential(self) -> None:
         config = PersistenceDemoConfig(0.1, 2, 12, 12, 17, 3, 0.3,
                                        (0.1, 0.2, 0.3), 0.0, (0.0, 0.1), 0.01, 11)
         solution, location = run_persistence_demo(config, self.directory / "demo")

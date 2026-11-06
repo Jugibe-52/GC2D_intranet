@@ -341,7 +341,7 @@ class SimulationTests(unittest.TestCase):
 		)
 
 		animation = animate_gc_area_solution(
-			dynamics.effective_potential,
+			dynamics.hamiltonian_potential,
 			area,
 			solution,
 			frames=3,
@@ -364,7 +364,7 @@ class SimulationTests(unittest.TestCase):
 		relative_symplecticity_errors = np.asarray([0.0, 1e-12, 2e-12])
 		relative_copy_separations = np.asarray([0.0, 3e-13, 5e-13])
 		diagnostic_animation = animate_gc_area_solution(
-			dynamics.effective_potential,
+			dynamics.hamiltonian_potential,
 			area,
 			solution,
 			frames=3,
@@ -399,7 +399,7 @@ class SimulationTests(unittest.TestCase):
 			for index, label in enumerate(comparison_solutions)
 		}
 		comparison_animation = animate_gc_area_comparison(
-			dynamics.effective_potential,
+			dynamics.hamiltonian_potential,
 			area,
 			comparison_solutions,
 			diagnostic_times=comparison_times,
@@ -429,27 +429,27 @@ class SimulationTests(unittest.TestCase):
 		plain_trajectory = np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True)
 		with self.assertRaises(TypeError):
 			animate_gc_area_solution(
-				dynamics.effective_potential,
+				dynamics.hamiltonian_potential,
 				plain_trajectory,  # type: ignore[arg-type]
 				solution,
 			)
 		with self.assertRaises(ValueError):
 			animate_gc_area_solution(
-				dynamics.effective_potential,
+				dynamics.hamiltonian_potential,
 				area,
 				solution,
 				frames=1,
 			)
 		with self.assertRaises(ValueError):
 			animate_gc_area_solution(
-				dynamics.effective_potential,
+				dynamics.hamiltonian_potential,
 				area,
 				solution,
 				diagnostic_times=diagnostic_times,
 			)
 		with self.assertRaises(ValueError):
 			animate_gc_area_comparison(
-				dynamics.effective_potential,
+				dynamics.hamiltonian_potential,
 				area,
 				{"only": solution},
 			)

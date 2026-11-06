@@ -69,7 +69,7 @@ class ExtendedFamilyTests(unittest.TestCase):
         request = SimulationRequest.uniform(t_span=(.3, .34),  sample_count=3)
         for cls, recipe, solves in ((ABBA2Implicit, ABBA2Implicit.recipe, 1), (ABBA4Implicit, ABBA4Implicit.recipe, 1),
                                     (BM4Implicit, BM4Midpoint.recipe, 1)):
-            run = replace(cls(), step=(0.34 - 0.3) / 2).new_run(p.dynamics.vector_field, p.initial_conditions, request, jacobian=getattr(p.dynamics, 'particle_vector_field_jacobians', None), jacobian_structure='particle', observe=True)
+            run = replace(cls(), step=(0.34 - 0.3) / 2).new_run(p.dynamics.vector_field, p.initial_conditions, jacobian=getattr(p.dynamics, 'particle_vector_field_jacobians', None), jacobian_structure='particle', observe=True)
             self.assertIs(run.project.func, solve_projection)
             self.assertIs(run.project.args[1], recipe)
             self.assertEqual(run.metadata['nonlinear_solves_per_step'], solves)

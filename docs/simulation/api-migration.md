@@ -5,6 +5,7 @@ method. The following interfaces have been removed, including their exports:
 
 | Removed interface | Current interface |
 |---|---|
+| `GuidingCenterDynamics.effective_potential` and study result accessors | `hamiltonian_potential`, representing the prepared `H = Phi_rho / B`; `hamiltonian(t, state)` remains the value evaluator |
 | `contracts.execution.Execution` | `execution.Execution` executes complete jobs; `execution.options.ExecutionOptions` holds backend choices |
 | `simulate(..., execution=Execution(backend="jax"))` | `simulate(..., options=ExecutionOptions(backend="jax"))`; `execution` now selects an executor |
 | `SimulationRunner().simulate(...)` | `simulate(...)` |
@@ -217,7 +218,7 @@ The former GC/FC wrappers and internal state containers are removed without alia
 
 | Retired configured interface | Current owner |
 |---|---|
-| `method.new_run(problem, request, evaluated_dynamics=...)` | `method.new_run(f, initial_conditions, request, jacobian=..., jacobian_structure=...)` |
+| `method.new_run(problem, request, evaluated_dynamics=...)` | `method.new_run(f, initial_conditions, jacobian=..., jacobian_structure=...)` |
 | Method `track_energy=True` | `simulate(..., observers=(EnergyObserver(),))`, imported from `diagnostics` |
 | Method `step_observer=callback` | `simulate(..., observers=(callback,))` |
 | Method `newton_observer=callback` | `solver=NewtonSolver(iteration_observer=callback)` |
@@ -309,8 +310,8 @@ their existing modules.
 
 `simulate` and `Execution.run` no longer accept a separate request. Execution
 subclasses override `run(self, problem, method, *, options=None, observers=())`
-and obtain times from `problem.request`. `method.new_run` retains its separate
-function, initial-condition and request arguments.
+and obtain times from `problem.request`. `method.new_run` receives functions
+and initial conditions without a temporal request; `initialize()` takes no arguments.
 
 Modal payload version 3 carries the request only inside the problem and rejects
 older versions. Recreate older configured problems and receipts; redeploy workers
@@ -338,3 +339,21 @@ rewritten. Completed States pickles also carry a history version; older
 States pickles with the supported restoration function decode as columns.
 Compiled kernels may keep component-first work arrays and transpose once
 at the recording boundary. Physical integration and tolerances are unchanged.
+
+## Guiding-center Hamiltonian
+
+Replace `.effective_potential` with `.hamiltonian_potential` on GC dynamics and
+study results. There is no compatibility alias. The prepared samples, splines,
+field fingerprints and numerical archive schemas are unchanged. Recreate old
+pickles containing configured dynamics or result objects with the renamed
+attribute. `hamiltonian(t, state)` keeps its signature and values; GC drift now
+requests spline derivatives directly. `Potential.electric_field` remains
+available for electrostatic field evaluation.
+
+## Request-free method preparation
+
+`new_run(f, initial_conditions, ...)` and `initialize()` do not receive a temporal request or initial time. Methods retain no `request`. Execution owns interval setup and output scheduling; `advance(t, state, h)` receives the time needed for each numerical step.
+
+`auto` selects a supplied Jacobian without evaluating it, or finite differences when no derivative is supplied. For Newton corrections, `analytic` requires a derivative and `finite_difference` explicitly forces approximation. Broyden continues to use the projection-supplied initial matrix and residual updates without evaluating field derivatives. Shapes and finite values are checked at actual evaluations. A supplied derivative failure propagates; auto does not silently fall back. Gauss, SDIRK, HBVM and projected compositions share `solvers.derivatives.resolve_jacobian_method`. HBVM retains its validation boundary after the first residual. Numerical stage and projection equations are unchanged.
+
+Remove the request argument from direct `new_run` calls and custom provider signatures. Keep it with the problem or pass it to execution controllers. Direct SciPy step tests prepare the interval with `run.controller().prepare(run, request)` before calling `advance`; complete applications use `simulate`. Recreate serialized prepared runs. The public simulation facade, configured differentiation modes and result archive schemas remain available.

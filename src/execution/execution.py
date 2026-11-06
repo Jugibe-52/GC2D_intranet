@@ -75,7 +75,7 @@ class Execution:
 		numerical_run: IntegrationMethod[Any]
 		observation_metadata: dict[str, DiagnosticValue]
 		numerical_run, observation_metadata = _prepare_numerical_run(
-			problem.initial_conditions, request, method, prepared_dynamics,
+			problem.initial_conditions, method, prepared_dynamics,
 			track_energy=energy is not None, callbacks=callbacks)
 		metadata.update(observation_metadata)
 
@@ -101,7 +101,7 @@ class Execution:
 			saved: States = States.prepare(request.output_times, problem.initial_state, layout=problem.layout)
 			if prepared is None:
 				assert controller is not None
-				step_diagnostics: dict[str, DiagnosticValue] = run_steps(numerical_run, saved,
+				step_diagnostics: dict[str, DiagnosticValue] = run_steps(numerical_run, saved, request,
 					source=problem.dynamics, controller=controller, observers=callbacks, energy=energy)
 			else:
 				from execution._jax_fixed import run_steps as run_compiled_steps
@@ -161,11 +161,11 @@ def _prepare_observers(
 
 
 def _prepare_numerical_run(
-	initial_conditions: InitialConditions, request: SimulationRequest,
+	initial_conditions: InitialConditions,
 	method: NumericalMethod, prepared_dynamics: DynamicalSystem, *, track_energy: bool,
 	callbacks: Sequence[Callable[[Any], None]],
 ) -> tuple[IntegrationMethod[Any], dict[str, DiagnosticValue]]:
-	"""Bind explicit initial and temporal inputs and validate a fresh numerical run."""
+	"""Bind explicit initial inputs and validate a fresh numerical run."""
 	jacobian: VectorField | None = None
 	structure: JacobianStructure = "dense"
 	# Adaptive defaults retain SciPy's own derivative approximation; fixed
@@ -173,7 +173,7 @@ def _prepare_numerical_run(
 	if not isinstance(method, _AdaptiveMethod) and isinstance(prepared_dynamics, GuidingCenterJacobianSystem):
 		jacobian, structure = prepared_dynamics.particle_vector_field_jacobians, "particle"
 	numerical_run: IntegrationMethod[Any] = method.new_run(
-		prepared_dynamics.vector_field, initial_conditions, request,
+		prepared_dynamics.vector_field, initial_conditions,
 		jacobian=jacobian, jacobian_structure=structure, observe=bool(callbacks),
 		capture_quadrature=track_energy or any(getattr(callback, "requires_quadrature", False) for callback in callbacks),
 	)

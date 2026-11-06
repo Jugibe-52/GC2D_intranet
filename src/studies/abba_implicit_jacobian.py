@@ -50,10 +50,11 @@ def _readonly_float_array(value: np.ndarray) -> np.ndarray:
 
 @dataclass(frozen=True, slots=True)
 class ImplicitABBAJacobianParticleStepSeries:
-	"""Electric-field context and finite physical increments for one particle.
+	"""Hamiltonian-gradient context and finite physical increments for one particle.
 
 	Planar arrays use component-major shape ``(2, observed_steps)`` in ``(x, y)``
-	order. Electric fields are evaluated at ``(end_times, states_after)`` and
+	order. The retained ``effective_electric_fields_after`` stores ``-grad H``
+	at ``(end_times, states_after)``, including gyroaveraging and B scaling, and
 	``state_increments`` contains the finite difference
 	``states_after - states_before`` for each observed complete step.
 	``state_increment_angles`` is the oriented direction
@@ -188,14 +189,10 @@ class ImplicitABBAJacobianStudyResult:
 		start_times: np.ndarray = np.asarray([sample.start_time for sample in self.samples])
 		end_times: np.ndarray = np.asarray([sample.end_time for sample in self.samples])
 		durations: np.ndarray = np.asarray([sample.duration for sample in self.samples])
-		field_x: Any
-		field_y: Any
-		field_x, field_y = self.dynamics.effective_potential.electric_field(
-			end_times,
-			states_after[0],
-			states_after[1],
-		)
-		electric_fields: np.ndarray = np.vstack((field_x, field_y))
+		hamiltonian: Potential = self.dynamics.hamiltonian_potential
+		dh_dx: np.ndarray = hamiltonian.evaluate(end_times, states_after[0], states_after[1], dx=1)
+		dh_dy: np.ndarray = hamiltonian.evaluate(end_times, states_after[0], states_after[1], dy=1)
+		electric_fields: np.ndarray = np.vstack((-dh_dx, -dh_dy))
 		state_increments = states_after - states_before
 		state_increment_norms: np.ndarray = np.linalg.norm(state_increments, axis=0)
 		state_increment_angles: Any = np.arctan2(

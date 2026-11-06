@@ -8,7 +8,7 @@ from types import ModuleType
 from contracts.arrays import array_namespace, checked_finite
 
 from contracts.methods.functions import JacobianStructure, VectorField
-from solvers.derivatives import JacobianMethod, ResolvedJacobianMethod, centered_difference
+from solvers.derivatives import centered_difference
 
 
 def _checked_vector_field(f: VectorField, time: float, state: BackendArray) -> BackendArray:
@@ -45,23 +45,3 @@ def _checked_analytic_jacobians(
 	if not valid:
 		raise ValueError('The analytic Jacobian must be finite and match its declared structure.')
 	return result
-
-
-def _resolved_jacobian_method(
-	jacobian: VectorField | None, requested: JacobianMethod, *,
-	initial_time: float, initial_state: BackendArray, structure: JacobianStructure,
-	probe: bool = True,
-) -> ResolvedJacobianMethod:
-	"""Resolve optional analytic functions, preserving deferred HBVM evaluation."""
-	if requested == 'finite_difference':
-		return 'finite_difference'
-	if jacobian is None:
-		if requested == 'analytic':
-			raise TypeError('Analytic differentiation requires a Jacobian function.')
-		return 'finite_difference'
-	if requested == 'auto' and probe:
-		try:
-			_checked_analytic_jacobians(jacobian, initial_time, initial_state, structure)
-		except (TypeError, ValueError, NotImplementedError):
-			return 'finite_difference'
-	return 'analytic'

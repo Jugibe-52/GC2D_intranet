@@ -26,8 +26,7 @@ class FunctionMethodTests(unittest.TestCase):
 	def test_dense_coupled_analytic_functions_on_nonstandard_coordinates(self):
 		for cls in (GaussLegendre4, SDIRK4, HBVM42):
 			with self.subTest(method=cls.__name__):
-				run = cls(step=.02).new_run(lambda t, z: self.matrix @ z, self.initial,
-					self.request, jacobian=lambda t, z: self.matrix)
+				run = cls(step=.02).new_run(lambda t, z: self.matrix @ z, self.initial, jacobian=lambda t, z: self.matrix)
 				actual = run.advance(.15, self.initial.values, .02)
 				np.testing.assert_allclose(actual.state, expm(.02 * self.matrix) @ self.initial.values,
 					rtol=0, atol=2e-12)
@@ -40,9 +39,9 @@ class FunctionMethodTests(unittest.TestCase):
 		initial = InitialConditions([1., .7, -.2, .5, .4, -.1], layout=self.initial.layout)
 		for cls in (GaussLegendre4, SDIRK4, HBVM42):
 			method = cls(step=.02)
-			particle = method.new_run(lambda t, z: dense @ z, initial, self.request,
+			particle = method.new_run(lambda t, z: dense @ z, initial,
 				jacobian=lambda t, z: blocks, jacobian_structure='particle')
-			coupled = method.new_run(lambda t, z: dense @ z, initial, self.request,
+			coupled = method.new_run(lambda t, z: dense @ z, initial,
 				jacobian=lambda t, z: dense)
 			np.testing.assert_allclose(particle.advance(.15, initial.values, .02).state,
 				coupled.advance(.15, initial.values, .02).state, rtol=0, atol=2e-15)
@@ -52,7 +51,7 @@ class FunctionMethodTests(unittest.TestCase):
 			raise AssertionError('A converged initial iterate must not request derivatives.')
 		for cls in (GaussLegendre4, SDIRK4, HBVM42):
 			method = cls(solver=NewtonSolver(jacobian_method='analytic', backtracking=cls is HBVM42))
-			run = method.new_run(lambda t, z: np.zeros_like(z), self.initial, self.request,
+			run = method.new_run(lambda t, z: np.zeros_like(z), self.initial,
 				jacobian=forbidden)
 			result = run.advance(.15, self.initial.values, .02)
 			self.assertEqual(result.statistics['nonlinear_iterations'], 0)
@@ -64,7 +63,7 @@ class FunctionMethodTests(unittest.TestCase):
 			calls.append(t)
 			return -z
 		run = HBVM42(solver=NewtonSolver(jacobian_method='analytic', backtracking=True)).new_run(
-			field, self.initial, self.request)
+			field, self.initial)
 		self.assertEqual(calls, [])
 		with self.assertRaises(TypeError):
 			run.advance(.15, self.initial.values, .02)
@@ -78,7 +77,7 @@ class FunctionMethodTests(unittest.TestCase):
 				def field(t, z):
 					calls.append(t)
 					return -z
-				run = cls().new_run(field, self.initial, self.request,
+				run = cls().new_run(field, self.initial,
 					jacobian=lambda t, z: -np.eye(z.size), capture_quadrature=enabled)
 				result = run.advance(.15, self.initial.values, -.02)
 				results.append(result); counts.append(len(calls))
@@ -93,7 +92,7 @@ class FunctionMethodTests(unittest.TestCase):
 		for cls in (GaussLegendre4, SDIRK4, HBVM42):
 			events = []
 			method = cls(solver=NewtonSolver(iteration_observer=events.append, backtracking=cls is HBVM42))
-			run = method.new_run(lambda t, z: -z, self.initial, self.request,
+			run = method.new_run(lambda t, z: -z, self.initial,
 				jacobian=lambda t, z: -np.eye(z.size))
 			result = run.advance(.15, self.initial.values, .02)
 			self.assertGreater(len(events), 0)
@@ -106,8 +105,8 @@ class FunctionMethodTests(unittest.TestCase):
 
 	def test_repeated_preparation_owns_independent_initial_values(self):
 		method = RK4()
-		first = method.new_run(lambda t, z: -z, self.initial, self.request)
-		second = method.new_run(lambda t, z: -2*z, self.initial, self.request)
+		first = method.new_run(lambda t, z: -z, self.initial)
+		second = method.new_run(lambda t, z: -2*z, self.initial)
 		self.assertFalse(np.shares_memory(first.initial_state, second.initial_state))
 		self.assertFalse(first.initial_state.flags.writeable)
 		self.assertFalse(hasattr(method, 'f'))

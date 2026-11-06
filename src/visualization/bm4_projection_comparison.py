@@ -199,7 +199,7 @@ def render_bm4_comparison(
 		figure.savefig(directory / f"{name}.png", dpi=160)
 		plt.close(figure)
 	if render_animation or not (directory / "trajectories.mp4").exists():
-		effective = GuidingCenterDynamics(potential, rho=metadata["config"]["rho"]).effective_potential
+		effective = GuidingCenterDynamics(potential, rho=metadata["config"]["rho"]).hamiltonian_potential
 		animation: FuncAnimation = animate_bm4_comparison(effective, arrays, frames=frames, fps=fps)
 		animation.save(str(directory / "trajectories.mp4"), writer="ffmpeg", fps=fps, dpi=120,
 			extra_args=["-pix_fmt", "yuv420p", "-movflags", "+faststart"])

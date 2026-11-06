@@ -71,7 +71,7 @@ class TenMethodTrajectoryComparisonTests(unittest.TestCase):
 		)
 
 		difference_figure, difference_axis = plot_ten_method_trajectory_differences(
-			result.effective_potential,
+			result.hamiltonian_potential,
 			result.solutions,
 		)
 		self.assertEqual(
@@ -95,7 +95,7 @@ class TenMethodTrajectoryComparisonTests(unittest.TestCase):
 		plt.close(runtime_figure)
 
 		animation = animate_ten_method_trajectory_points(
-			result.effective_potential,
+			result.hamiltonian_potential,
 			result.solutions,
 			frames=2,
 			interval=10,
@@ -106,7 +106,7 @@ class TenMethodTrajectoryComparisonTests(unittest.TestCase):
 		eight_solutions = dict(result.solutions)
 		eight_solutions["Additional method"] = next(iter(result.solutions.values()))
 		eight_animation = animate_trajectory_points(
-			result.effective_potential,
+			result.hamiltonian_potential,
 			eight_solutions,
 			frames=2,
 			interval=10,

@@ -1,11 +1,6 @@
-"""Shared GC and FC algebra for NumPy and JAX particle arrays."""
+"""Shared FC algebra for NumPy and JAX particle arrays."""
 
 from typing import Any
-
-
-def gc_velocity(ex: Any, ey: Any) -> tuple[Any, Any]:
-    """Normalized guiding-centre drift for E = -grad(Phi)."""
-    return ey, -ex
 
 
 def fc_velocity(acceleration_x: Any, acceleration_y: Any, vx: Any, vy: Any, *,

@@ -1,4 +1,4 @@
-"""methods.adaptive.scipy observation records."""
+"""SciPy step details shared by numerical advancement and execution."""
 
 from __future__ import annotations
 
@@ -6,6 +6,15 @@ from dataclasses import dataclass, field
 from typing import Callable, TypeAlias
 import numpy as np
 from contracts.arrays import BackendArray
+
+
+@dataclass(frozen=True, slots=True)
+class AdaptiveStepDetails:
+	"""Frozen dense output and its work, shared with the output scheduler."""
+
+	dense_state: Callable[[float | np.ndarray], np.ndarray]
+	interpolation_work: tuple[int, int, int] = (0, 0, 0)
+	has_interpolant: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,4 +43,4 @@ class AdaptiveIntegrationStep:
 AdaptiveStepObserver: TypeAlias = Callable[[AdaptiveIntegrationStep], None]
 
 
-__all__ = ['AdaptiveIntegrationStep', 'AdaptiveStepObserver']
+__all__ = ['AdaptiveStepDetails', 'AdaptiveIntegrationStep', 'AdaptiveStepObserver']

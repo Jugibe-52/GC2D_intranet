@@ -184,7 +184,7 @@ class ImplicitABBAJacobianObserverTests(unittest.TestCase):
 					step_series.state_increment_angles[sample_index],
 					np.arctan2(expected_increment[1], expected_increment[0]),
 				)
-			field_x, field_y = result.dynamics.effective_potential.electric_field(
+			field_x, field_y = result.dynamics.hamiltonian_potential.electric_field(
 				step_series.end_times,
 				step_series.states_after[0],
 				step_series.states_after[1],

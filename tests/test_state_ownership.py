@@ -173,7 +173,7 @@ class StateOwnershipTests(unittest.TestCase):
 	def test_physical_parameters_are_frozen_before_and_after_pickle(self) -> None:
 		cases = (
 			(GuidingCenterDynamics(self.potential, rho=0.1), {"rho": 0.2, "potential": self.potential,
-				"effective_potential": self.potential}, np.array([1.0, 0.7])),
+				"hamiltonian_potential": self.potential}, np.array([1.0, 0.7])),
 			(FullCyclotronDynamics(self.potential, rho=0.2, eta=-0.1),
 				{"rho": 0.3, "eta": 0.2, "potential": self.potential}, np.array([1.0, 0.7, 0.1, -0.2])),
 		)

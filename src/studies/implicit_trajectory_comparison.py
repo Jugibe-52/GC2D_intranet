@@ -180,9 +180,9 @@ class ImplicitTrajectoryComparisonResult:
 		object.__setattr__(self, "runtimes", MappingProxyType(dict(self.runtimes)))
 
 	@property
-	def effective_potential(self) -> Potential:
-		"""Return the gyroaveraged potential used by every trajectory."""
-		return self.dynamics.effective_potential
+	def hamiltonian_potential(self) -> Potential:
+		"""Return the prepared Hamiltonian used by every trajectory."""
+		return self.dynamics.hamiltonian_potential
 
 	def trajectory_difference_summaries(
 		self,

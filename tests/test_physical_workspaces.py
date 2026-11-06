@@ -148,7 +148,7 @@ with patch.object(GuidingCenterDynamics, '__init__', side_effect=AssertionError(
 	def test_shadow_samples_preserve_accepted_nonzero_momentum(self):
 		problem = _problem(); request = SimulationRequest((.15, .255), np.array([.15, .153, .181, .255]))
 		for cls in (RK4, ABBA2Implicit):
-			run = cls(step=.02).new_run(problem.dynamics.vector_field, problem.initial_conditions, request,
+			run = cls(step=.02).new_run(problem.dynamics.vector_field, problem.initial_conditions,
 				jacobian=problem.dynamics.particle_vector_field_jacobians, jacobian_structure='particle', capture_quadrature=True)
 			initial_momentum = np.full(problem.particle_count, .7)
 			energy = EnergyObserver(initial_momentum=initial_momentum).new_run(
@@ -185,7 +185,8 @@ with patch.object(GuidingCenterDynamics, '__init__', side_effect=AssertionError(
 		problem = _problem()
 		request = SimulationRequest((.15, .255), np.array([.15, .255]))
 		for cls in (DOP853, Radau):
-			run = cls(max_step=.02).new_run(problem.dynamics.vector_field, problem.initial_conditions, request, capture_quadrature=True)
+			run = cls(max_step=.02).new_run(problem.dynamics.vector_field, problem.initial_conditions, capture_quadrature=True)
+			run.controller().prepare(run, request)
 			result = run.advance(.15, run.initial_state, .02)
 			physical = run.solver.y.copy()
 			self.assertFalse(np.shares_memory(result.state, run.solver.y))

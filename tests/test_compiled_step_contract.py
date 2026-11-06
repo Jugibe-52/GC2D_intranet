@@ -42,7 +42,7 @@ class CompiledStepContractTests(unittest.TestCase):
 		from execution._jax import prepare_dynamics
 		problem = self.problem if problem is None else problem
 		dynamics = prepare_dynamics(problem.dynamics)
-		return method.new_run(dynamics.vector_field, problem.initial_conditions, self.request,
+		return method.new_run(dynamics.vector_field, problem.initial_conditions,
 			jacobian=dynamics.particle_vector_field_jacobians, jacobian_structure='particle')
 
 	def prepare_kernel(self, run):
@@ -151,10 +151,10 @@ class CompiledStepContractTests(unittest.TestCase):
 		assert isinstance(kernel, PreparedStep)
 		self.assertEqual(kernel.f, prepare_dynamics(self.problem.dynamics).vector_field)
 		self.assertFalse(hasattr(kernel, "dynamics"))
-		prepared = prepare_integration(run, kernel, build_fixed_step_plan(run.request, run.step))
+		prepared = prepare_integration(run, kernel, build_fixed_step_plan(self.request, run.step))
 		compiled = prepared.executable
 		repeated = self.prepare_run(RK4(step=0.1))
-		self.assertIs(prepare_integration(repeated, self.prepare_kernel(repeated), build_fixed_step_plan(repeated.request, repeated.step)).executable, compiled)
+		self.assertIs(prepare_integration(repeated, self.prepare_kernel(repeated), build_fixed_step_plan(self.request, repeated.step)).executable, compiled)
 
 		# Exercise eviction without compiling seventeen redundant physical models.
 		signature = tuple(self.jax.ShapeDtypeStruct(a.shape, a.dtype, sharding=a.sharding, weak_type=a.weak_type) for a in prepared.inputs)
@@ -182,7 +182,7 @@ class CompiledStepContractTests(unittest.TestCase):
 			return observed
 		with patch.object(_jax_fixed, '_compiled_integrator', side_effect=compile_observed):
 			with patch.object(States, 'prepare', side_effect=AssertionError('Premature recorder')):
-				prepared = _jax_fixed.prepare_integration(run, self.prepare_kernel(run), build_fixed_step_plan(run.request, run.step))
+				prepared = _jax_fixed.prepare_integration(run, self.prepare_kernel(run), build_fixed_step_plan(self.request, run.step))
 		self.assertEqual(len(executables), 1)
 		executables[0].assert_not_called()
 		saved = States.prepare(self.request.output_times, run.initial_state, layout=run.layout)
@@ -203,18 +203,18 @@ class CompiledStepContractTests(unittest.TestCase):
 		self.addCleanup(_compiled_integrator.cache_clear)
 		method = RK4(step=.1)
 		run = self.prepare_run(method)
-		first = prepare_integration(run, self.prepare_kernel(run), build_fixed_step_plan(run.request, run.step))
+		first = prepare_integration(run, self.prepare_kernel(run), build_fixed_step_plan(self.request, run.step))
 		changed = InitialValueProblem(self.problem.dynamics, self.problem.initial_state + .2)
 		new_run = self.prepare_run(method, changed)
 		# Equal shapes still need the new interval and shadow-sampling values.
-		new_run.request = SimulationRequest((.3, .5), np.array([.3, .34, .41, .5]))
-		second = prepare_integration(new_run, self.prepare_kernel(new_run), build_fixed_step_plan(new_run.request, new_run.step))
+		new_request = SimulationRequest((.3, .5), np.array([.3, .34, .41, .5]))
+		second = prepare_integration(new_run, self.prepare_kernel(new_run), build_fixed_step_plan(new_request, new_run.step))
 		self.assertIs(first.executable, second.executable)
 		self.assertIsNot(first.inputs, second.inputs)
-		for prepared, numerical_run, problem in ((first, run, self.problem), (second, new_run, changed)):
-			saved = States.prepare(numerical_run.request.output_times, numerical_run.initial_state, layout=numerical_run.layout)
+		for prepared, numerical_run, problem, request in ((first, run, self.problem, self.request), (second, new_run, changed, new_request)):
+			saved = States.prepare(request.output_times, numerical_run.initial_state, layout=numerical_run.layout)
 			result = saved.finalize(run_steps(prepared, saved))
-			reference = Execution().run(problem.with_request(numerical_run.request), method)
+			reference = Execution().run(problem.with_request(request), method)
 			np.testing.assert_array_equal(result.states[0], problem.initial_state)
 			np.testing.assert_allclose(result.states, reference.states, rtol=2e-12, atol=2e-12)
 
@@ -223,13 +223,12 @@ class CompiledStepContractTests(unittest.TestCase):
 			with self.subTest(variation=variation):
 				other = self.problem if variation != 'particles' else InitialValueProblem(self.problem.dynamics, np.tile(self.problem.initial_state, 2))
 				run = self.prepare_run(RK4(step=.05 if variation == 'steps' else .1), other)
-				if variation == 'samples':
-					run.request = replace(self.request, output_times=np.array([0., .2]))
-				prepared = prepare_integration(run, self.prepare_kernel(run), build_fixed_step_plan(run.request, run.step))
+				request = replace(self.request, output_times=np.array([0., .2])) if variation == 'samples' else self.request
+				prepared = prepare_integration(run, self.prepare_kernel(run), build_fixed_step_plan(request, run.step))
 				self.assertIsNot(prepared.executable, first.executable)
-				saved = States.prepare(run.request.output_times, run.initial_state, layout=run.layout)
+				saved = States.prepare(request.output_times, run.initial_state, layout=run.layout)
 				result = saved.finalize(run_steps(prepared, saved))
-				reference = Execution().run(other.with_request(run.request), RK4(step=run.step))
+				reference = Execution().run(other.with_request(request), RK4(step=run.step))
 				np.testing.assert_allclose(result.states, reference.states, rtol=2e-12, atol=2e-12)
 
 	def test_compilation_failure_finishes_run_before_worker_or_allocation(self) -> None:

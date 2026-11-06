@@ -60,7 +60,7 @@ fc_field = jax.jit(fc.vector_field)(0.2, np.array([0.4, 0.5, 0.1, -0.2]))
 
 JAX simulation preparation calls the dynamics' internal `_as_jax()` method.
 GC/FC prepare their own explicit subclasses and delegate potential conversion to
-`Potential._as_jax()`, sharing samples, fitted splines and the GC effective field.
+`Potential._as_jax()`, sharing samples, fitted splines and GC `hamiltonian_potential`.
 They neither repeat gyroaveraging nor modify the source. Already compatible JAX
 objects are reused; unknown subclass overrides are rejected. Each component
 bounds its preparation cache. Device selection, compilation caches and the SciPy
@@ -93,7 +93,7 @@ temporary and never become accepted states. Generic packing does not extend
 GC numerical methods to FC.
 
 Execution retains the problem's source identity and binds `f(t, Z)` and optional
-analytic derivatives before calling `new_run(f, initial_conditions, request, *,
+analytic derivatives before calling `new_run(f, initial_conditions, *,
 jacobian=None)`. Derivatives explicitly distinguish dense matrices from
 independent-particle blocks. Methods do not retain dynamics or inspect bound
 function owners. FC splitting composes the supplied `cyclotron_flow(t, state,
@@ -112,3 +112,20 @@ energy accumulator through the compiled execution loop.
 dynamics evaluation. Existing energy labels and `(N,T)` auxiliary histories stay
 unchanged; `extended_time` is broadcast from scalar sample times. Numerical
 archives require no migration; old pickled configured objects should be recreated.
+
+## Guiding-center Hamiltonian
+
+`GuidingCenterDynamics.hamiltonian_potential` is the prepared `Potential`
+representing `H = Phi_rho / B`. Construction applies the selected gyro-radius
+in the source coordinate units and divides the mean and modes by finite,
+nonzero signed B. `vector_field` evaluates `H_x` and `H_y` through the existing
+splines and packs `(-H_y, H_x)`. `hamiltonian(t, state)`, particle Jacobians and
+`extended_momentum_derivative` all use the same object and normalization.
+JAX preparation shares its splines without rebuilding them.
+
+`Potential.electric_field` retains `(-Phi_x, -Phi_y)` and its full-cyclotron
+use. GC drift uses Hamiltonian derivatives directly. The ABBA step diagnostic
+retains its historical `effective_electric_fields_after` name and values,
+which represent `-grad H`, including gyroaveraging and magnetic scaling.
+Study results exposing the prepared object also use `hamiltonian_potential`.
+See the [API migration guide](../simulation/api-migration.md#guiding-center-hamiltonian).

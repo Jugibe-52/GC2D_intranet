@@ -11,7 +11,6 @@ from methods.base import FixedStepMethod
 from contracts.methods.step import StepInfo, StepResult
 from contracts.methods.observation import IntegrationStep
 from contracts.methods.quadrature import StageQuadrature
-from request import SimulationRequest
 from methods.classical._rk4_core import physical_step
 from methods.classical._jacobians import _checked_vector_field
 
@@ -22,7 +21,7 @@ class RK4(FixedStepMethod[None]):
 
 	progress: bool = False
 
-	def initialize(self, request: SimulationRequest) -> None:
+	def initialize(self) -> None:
 		"""RK4 needs no prepared resources beyond the supplied field."""
 
 	def _physical_step(self, time: float, candidate: BackendArray, step: float) -> tuple[BackendArray, tuple[BackendArray, ...]]:

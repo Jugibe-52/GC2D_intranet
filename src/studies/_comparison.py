@@ -298,9 +298,9 @@ class ComparisonResult:
 		object.__setattr__(self, "wall_runtime_seconds", float(self.wall_runtime_seconds))
 
 	@property
-	def effective_potential(self) -> Potential:
-		"""Return the gyroaveraged potential used by all compared methods."""
-		return self.dynamics.effective_potential
+	def hamiltonian_potential(self) -> Potential:
+		"""Return the prepared Hamiltonian used by all compared methods."""
+		return self.dynamics.hamiltonian_potential
 
 	@property
 	def reference_energy_errors(self) -> np.ndarray:

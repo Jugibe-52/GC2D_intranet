@@ -21,7 +21,7 @@ def animate_area_comparison(
 ) -> FuncAnimation:
 	"""Build the synchronized contour and projected-diagnostic animation."""
 	return animate_gc_area_comparison(
-		result.effective_potential,
+		result.hamiltonian_potential,
 		result.area,
 		result.solutions,
 		diagnostic_times=result.diagnostic_times,

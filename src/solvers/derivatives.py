@@ -16,6 +16,19 @@ JacobianMethod: TypeAlias = Literal["auto", "analytic", "finite_difference"]
 ResolvedJacobianMethod: TypeAlias = Literal["analytic", "finite_difference"]
 
 
+def resolve_jacobian_method(
+	jacobian: Callable[..., BackendArray] | None, requested: JacobianMethod,
+) -> ResolvedJacobianMethod:
+	"""Select differentiation from configuration without evaluating a derivative."""
+	if requested == 'finite_difference':
+		return 'finite_difference'
+	if jacobian is None:
+		if requested == 'analytic':
+			raise TypeError('Analytic differentiation requires a Jacobian function.')
+		return 'finite_difference'
+	return 'analytic'
+
+
 def centered_difference(
 	function: Callable[[BackendArray], BackendArray], state: BackendArray, *, relative_step: float,
 ) -> BackendArray:

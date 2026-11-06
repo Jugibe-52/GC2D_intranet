@@ -60,7 +60,7 @@ class PalindromicOperationTests(unittest.TestCase):
 			(A(.2), B(.5), T(1.), B(.5), A(.2))):
 			for method in (PalindromicMidpoint, PalindromicImplicit):
 				with self.assertRaises(ValueError):
-					method(operations).new_run(p.dynamics.vector_field, p.initial_conditions, request)
+					method(operations).new_run(p.dynamics.vector_field, p.initial_conditions)
 		for coefficient in (np.nan, np.inf, True):
 			with self.assertRaises(ValueError): A(coefficient)
 		with self.assertRaises(ValueError): Operation('Z', 1.)
@@ -137,9 +137,9 @@ class PalindromicOperationTests(unittest.TestCase):
 		for method in (PalindromicMidpoint(COUPLED), PalindromicImplicit(COUPLED),
 			PalindromicMidpoint(EDGES, coupling=HarmonicCoupling(.7))):
 			with self.assertRaisesRegex(ValueError, 'configured together'):
-				replace(method, step=0.02).new_run(p.dynamics.vector_field, p.initial_conditions, request, jacobian=getattr(p.dynamics, 'particle_vector_field_jacobians', None), jacobian_structure='particle', observe=True)
+				replace(method, step=0.02).new_run(p.dynamics.vector_field, p.initial_conditions, jacobian=getattr(p.dynamics, 'particle_vector_field_jacobians', None), jacobian_structure='particle', observe=True)
 		with patch.object(HarmonicCoupling, 'apply', wraps=HarmonicCoupling(.7).apply) as operation:
-			run = PalindromicMidpoint(COUPLED, step=0.02, coupling=HarmonicCoupling(0.7)).new_run(p.dynamics.vector_field, p.initial_conditions, request, jacobian=getattr(p.dynamics, 'particle_vector_field_jacobians', None), jacobian_structure='particle', observe=True)
+			run = PalindromicMidpoint(COUPLED, step=0.02, coupling=HarmonicCoupling(0.7)).new_run(p.dynamics.vector_field, p.initial_conditions, jacobian=getattr(p.dynamics, 'particle_vector_field_jacobians', None), jacobian_structure='particle', observe=True)
 			run.advance(.3, run.initial_state, .02)
 			self.assertEqual(operation.call_count, 2)
 

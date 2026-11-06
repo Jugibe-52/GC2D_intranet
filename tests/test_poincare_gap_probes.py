@@ -45,8 +45,8 @@ class GapProbeTests(unittest.TestCase):
                     xy = (xy + .09) * (2*np.pi/.06)
                 np.testing.assert_array_equal(prepared.problem.initial_state, xy.T.ravel())
                 np.testing.assert_array_equal(prepared.request.output_times, background.request.output_times)
-                np.testing.assert_array_equal(prepared.problem.dynamics.effective_potential.mean,
-                                              background.problem.dynamics.effective_potential.mean)
+                np.testing.assert_array_equal(prepared.problem.dynamics.hamiltonian_potential.mean,
+                                              background.problem.dynamics.hamiltonian_potential.mean)
                 self.assertEqual(prepared.metadata["study"], "poincare_gap_probes")
                 for key in ("arm_id", "star_center", "initial_radii", "initial_radius_fraction"):
                     self.assertNotIn(key, prepared.metadata)

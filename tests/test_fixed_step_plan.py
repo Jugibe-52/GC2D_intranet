@@ -83,7 +83,7 @@ class FixedStepPlanTests(unittest.TestCase):
     def test_plan_failure_finishes_run_before_result_allocation(self):
         problem = self.problem([.3, .53])
         method = RK4(step=.1)
-        run = method.new_run(problem.dynamics.vector_field, problem.initial_conditions, problem.request)
+        run = method.new_run(problem.dynamics.vector_field, problem.initial_conditions)
         with patch.object(RK4, 'new_run', return_value=run):
             with patch('execution.execution.build_fixed_step_plan', side_effect=ValueError('Invalid plan')):
                 with patch.object(States, 'prepare') as allocate:

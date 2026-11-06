@@ -173,7 +173,7 @@ def run_cpu_star_comparison(
         'arm_ids': np.repeat(np.arange(config.arms), config.particles_per_arm),
         'radii_over_R': np.linspace(config.inner_radius_fraction, config.outer_radius_fraction, config.particles_per_arm),
         'reference_radius': config.radius_over_period * period,
-        'effective_field_fingerprint': potential_fingerprint(problem.dynamics.effective_potential),
+        'effective_field_fingerprint': potential_fingerprint(problem.dynamics.hamiltonian_potential),
         'arithmetic': 'float64', 'reference_computed': False, 'accuracy_certified': False,
         'timing_scope': 'Worker complete integration after first-call warmup; NumPy output synchronizes JAX.',
         'client_timing_scope': 'Submission, provisioning, transfers, first and repeated runs, and local States validation.',

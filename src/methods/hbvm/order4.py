@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 from solvers.nonlinear import NewtonSolver, validate_solver
-from solvers.derivatives import centered_difference
+from solvers.derivatives import centered_difference, resolve_jacobian_method
 
 from dataclasses import dataclass, field
 from typing import Literal, TYPE_CHECKING, TypeAlias
@@ -16,12 +16,11 @@ from contracts.arrays import array_namespace, checked_finite, map_arrays
 
 from contracts.methods.functions import VectorField, JacobianStructure
 from contracts.methods.quadrature import StageQuadrature
-from methods.classical._jacobians import _checked_vector_field, _checked_analytic_jacobians, _resolved_jacobian_method
+from methods.classical._jacobians import _checked_vector_field, _checked_analytic_jacobians
 
 from methods.base import FixedStepMethod
 from contracts.methods.step import StepInfo, StepResult
 from contracts.methods.observation import IntegrationStep
-from request import SimulationRequest
 
 
 if TYPE_CHECKING:
@@ -181,8 +180,7 @@ def _advance_hbvm42(
 
 	# Preserve the established capability-check boundary after the first residual.
 	cached: tuple[BackendArray, _ResidualPayload] = evaluate_flat(coefficients.reshape(-1))
-	selected_jacobian_method = _resolved_jacobian_method(jacobian, solver.jacobian_method,
-		initial_time=time, initial_state=initial_state, structure=jacobian_structure, probe=False)
+	selected_jacobian_method = resolve_jacobian_method(jacobian, solver.jacobian_method)
 
 	def correction(unknown: BackendArray, current_residual: BackendArray, payload: _ResidualPayload) -> BackendArray:
 		"""Keep HBVM's stage Jacobian and field counters beside its equations."""
@@ -250,7 +248,7 @@ class HBVM42(FixedStepMethod[_HBVMStepResult]):
 		FixedStepMethod.__post_init__(self)
 		validate_solver(self.solver, newton_only=True)
 
-	def initialize(self, request: SimulationRequest) -> None:
+	def initialize(self) -> None:
 		"""Record the method identity without probing deferred derivatives."""
 		self.metadata = {'method_order': 4, 'quadrature_stage_count': 4,
 			'legendre_rank': 2, 'jacobian_method': self.solver.jacobian_method}

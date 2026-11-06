@@ -122,7 +122,7 @@ class FiveMethodComparisonTests(unittest.TestCase):
 		self.assertEqual(len(runtime_axes[0].patches), 5)
 		self.assertEqual(len(runtime_axes[1].patches), 5)
 		animation = animate_implicit_method_trajectories(
-			result.effective_potential,
+			result.hamiltonian_potential,
 			result.solutions,
 			frames=2,
 			interval=10,

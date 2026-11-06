@@ -248,7 +248,7 @@ def sample_rho_dynamics(prepared: PreparedRhoStar, *, grid_size: int = 64,
     state: np.ndarray = np.concatenate((vx.ravel(), vy.ravel()))
     dynamics = prepared.problem.dynamics
     assert isinstance(dynamics, GuidingCenterDynamics)
-    potential: np.ndarray = np.stack([dynamics.effective_potential.evaluate(t, xx, yy) for t in phases])
+    potential: np.ndarray = np.stack([dynamics.hamiltonian_potential.evaluate(t, xx, yy) for t in phases])
     velocity: np.ndarray = np.stack([dynamics.vector_field(t, state).reshape(2, vector_grid_size, vector_grid_size)
                          .transpose(1, 2, 0) for t in phases])
     for values in (potential, velocity):

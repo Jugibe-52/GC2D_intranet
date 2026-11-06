@@ -83,7 +83,7 @@ class IndependentFormulationTests(unittest.TestCase):
 		for method in (ABBA2Midpoint(), ABBA2Implicit(solver=NewtonSolver()), ABBA2Implicit(solver=BroydenSolver())):
 			for tracking in (False, True):
 				run = replace(method, step=.02).new_run(problem.dynamics.vector_field,
-					problem.initial_conditions, request, jacobian=problem.dynamics.particle_vector_field_jacobians,
+					problem.initial_conditions, jacobian=problem.dynamics.particle_vector_field_jacobians,
 					jacobian_structure='particle', capture_quadrature=tracking)
 				first = run.advance(.3, run.initial_state, .02)
 				self.assertEqual(first.state.shape, problem.initial_state.shape)
@@ -93,7 +93,6 @@ class IndependentFormulationTests(unittest.TestCase):
 					np.testing.assert_array_equal(candidate, before)
 					fresh_initial = type(problem.initial_conditions)(candidate, layout=problem.layout)
 					fresh = method.new_run(problem.dynamics.vector_field, fresh_initial,
-						SimulationRequest.uniform(t_span=(.32, .36)),
 						jacobian=problem.dynamics.particle_vector_field_jacobians,
 						jacobian_structure='particle', capture_quadrature=tracking)
 					expected = fresh.advance(.32, fresh.initial_state, duration)

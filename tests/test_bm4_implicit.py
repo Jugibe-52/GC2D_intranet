@@ -66,7 +66,7 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 						for tracking in (False, True):
 							with patch.object(type(problem.dynamics), 'vector_field', autospec=True, side_effect=type(problem.dynamics).vector_field) as vector_field,\
 							     patch.object(type(problem.dynamics), 'extended_momentum_derivative', autospec=True, side_effect=type(problem.dynamics).extended_momentum_derivative) as energy_rate:
-								run = BM4Implicit(step=0.2, solver=(NewtonSolver if solver == 'newton' else BroydenSolver)(jacobian_method=jacobian, absolute_tolerance=1e-14, relative_tolerance=1e-14)).new_run(problem.dynamics.vector_field, problem.initial_conditions, request, jacobian=problem.dynamics.particle_vector_field_jacobians, jacobian_structure='particle', observe=True, capture_quadrature=tracking)
+								run = BM4Implicit(step=0.2, solver=(NewtonSolver if solver == 'newton' else BroydenSolver)(jacobian_method=jacobian, absolute_tolerance=1e-14, relative_tolerance=1e-14)).new_run(problem.dynamics.vector_field, problem.initial_conditions, jacobian=problem.dynamics.particle_vector_field_jacobians, jacobian_structure='particle', observe=True, capture_quadrature=tracking)
 								result = run.advance(0.3, run.initial_state, step)
 								field_counts.append(vector_field.call_count)
 								if tracking:

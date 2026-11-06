@@ -1,6 +1,10 @@
 """Implicit two-stage, fourth-order Gauss--Legendre collocation method."""
 
 from __future__ import annotations
+from solvers.derivatives import (
+	resolve_jacobian_method, JacobianMethod as GaussJacobianMethod,
+	ResolvedJacobianMethod as ResolvedGaussJacobianMethod,
+)
 from solvers.nonlinear import NewtonSolver, validate_solver
 
 from dataclasses import dataclass, field
@@ -19,15 +23,11 @@ from methods.base import FixedStepMethod
 from contracts.methods.step import StepInfo, StepResult
 from contracts.states.history import DiagnosticValue
 from contracts.methods.classical.gauss_legendre import GaussLegendre4IntegrationStep
-from request import SimulationRequest
 from solvers.linear import _solve_particle_systems
 from ._jacobians import (
-	JacobianMethod as GaussJacobianMethod,
-	ResolvedJacobianMethod as ResolvedGaussJacobianMethod,
 	_checked_vector_field,
 	_dense_finite_difference_jacobian,
 	_checked_analytic_jacobians,
-	_resolved_jacobian_method,
 )
 
 from typing import TYPE_CHECKING
@@ -263,11 +263,10 @@ class GaussLegendre4(FixedStepMethod[_GaussStepResult]):
 		FixedStepMethod.__post_init__(self)
 		validate_solver(self.solver, newton_only=True)
 
-	def initialize(self, request: SimulationRequest) -> None:
+	def initialize(self) -> None:
 		"""Resolve the supplied derivative without retaining physical resources."""
-		self.resolved_jacobian_method = _resolved_jacobian_method(self.jacobian,
-			self.solver.jacobian_method, initial_time=request.t_span[0],
-			initial_state=self.initial_state, structure=self.jacobian_structure)
+		self.resolved_jacobian_method = resolve_jacobian_method(self.jacobian,
+			self.solver.jacobian_method)
 		self.metadata = {
 			'stage_count': 2, 'designed_order': 4, 'nonlinear_solver': 'newton',
 			'nonlinear_solves_per_step': 1,

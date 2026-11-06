@@ -128,7 +128,7 @@ def _validate_reference(
                 raise ValueError("Every requested horizon must be a shared reference node.")
     if not np.array_equal(reference.initial_state, initial):
         raise ValueError("Reference initial state differs from the requested trajectory.")
-    if reference.metadata["dynamics_fingerprint_sha256"] != potential_fingerprint(dynamics.effective_potential):
+    if reference.metadata["dynamics_fingerprint_sha256"] != potential_fingerprint(dynamics.hamiltonian_potential):
         raise ValueError("Reference gyroaveraged field fingerprint does not match.")
     if reference.metadata["config"]["rho"] != config.rho:
         raise ValueError("Reference gyro-radius differs from the study radius.")

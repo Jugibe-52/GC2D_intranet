@@ -57,7 +57,7 @@ def sample_automation_field(prepared: PreparedAutomationCase) -> dict[str, Any]:
 	vy: np.ndarray
 	vx, vy = np.meshgrid(x0 + length*vq, y0 + length*vq)
 	state = np.r_[vx.ravel(), vy.ravel()]
-	potential: np.ndarray = np.stack([dynamics.effective_potential.evaluate(phase*D, xx, yy) for phase in phases])
+	potential: np.ndarray = np.stack([dynamics.hamiltonian_potential.evaluate(phase*D, xx, yy) for phase in phases])
 	velocity: np.ndarray = np.stack([dynamics.vector_field(phase*D, state).reshape(2, c.vector_grid_size,
 		c.vector_grid_size).transpose(1, 2, 0) for phase in phases])
 	potential *= D/length**2

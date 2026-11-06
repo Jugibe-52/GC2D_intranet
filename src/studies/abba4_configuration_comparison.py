@@ -712,7 +712,7 @@ def _validated_reference_samples(
 	indices: np.ndarray = reference_indices_for_times(reference, request.output_times)
 	if "dynamics_fingerprint_sha256" in reference.metadata:
 		stored_fingerprint = reference.metadata["dynamics_fingerprint_sha256"]
-		actual_fingerprint: str = potential_fingerprint(dynamics.effective_potential)
+		actual_fingerprint: str = potential_fingerprint(dynamics.hamiltonian_potential)
 		if stored_fingerprint != actual_fingerprint:
 			raise ValueError("The interpolated comparison dynamics differs from the reference.")
 	if potential is not dynamics.potential:

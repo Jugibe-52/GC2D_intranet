@@ -90,7 +90,7 @@ def prepare_step(
 		prepared.solver = solver._as_jax()
 		# Rebind method-owned residual closures to the prepared solver. No stages
 		# or physical initial data are changed by this isolated initialization.
-		prepared.initialize(prepared.request)
+		prepared.initialize()
 	selected: str = getattr(prepared, 'resolved_jacobian_method',
 		'analytic' if prepared.jacobian is not None else 'finite_difference')
 	if solver is not None and solver.jacobian_method != 'auto':

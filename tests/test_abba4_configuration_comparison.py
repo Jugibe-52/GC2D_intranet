@@ -118,7 +118,7 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 		cls.potential = _potential()
 		cls.configuration = _configuration()
 		fingerprint = potential_fingerprint(
-			GuidingCenterDynamics(cls.potential, rho=0.0).effective_potential
+			GuidingCenterDynamics(cls.potential, rho=0.0).hamiltonian_potential
 		)
 		cls.reference = _reference(
 			cls.potential,
@@ -457,7 +457,7 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 		"""Allow a quick 8-by-3 study without changing the ten-path default."""
 		configuration = _configuration(particle_count=3)
 		fingerprint = potential_fingerprint(
-			GuidingCenterDynamics(self.potential, rho=0.0).effective_potential
+			GuidingCenterDynamics(self.potential, rho=0.0).hamiltonian_potential
 		)
 		reference = _reference(
 			self.potential,
@@ -505,7 +505,7 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 				GuidingCenterDynamics(
 					self.potential,
 					rho=0.0,
-				).effective_potential
+				).hamiltonian_potential
 			),
 		)
 		config = ABBA4ConfigurationComparisonConfig(
@@ -568,7 +568,7 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 			potential,
 			configuration,
 			fingerprint=potential_fingerprint(
-				GuidingCenterDynamics(potential, rho=0.0).effective_potential
+				GuidingCenterDynamics(potential, rho=0.0).hamiltonian_potential
 			),
 		)
 		config = ABBA4ConfigurationComparisonConfig(

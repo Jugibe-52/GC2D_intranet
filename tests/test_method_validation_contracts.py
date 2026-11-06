@@ -44,8 +44,8 @@ class _ArrayMetadataRK4(RK4):
 
 	probe: np.ndarray = field(default_factory=lambda: np.asarray((1.0, 2.0)))
 
-	def initialize(self, request: SimulationRequest) -> None:
-		RK4.initialize(self, request)
+	def initialize(self) -> None:
+		RK4.initialize(self)
 		self.metadata = {"probe": self.probe}
 
 
@@ -121,7 +121,7 @@ class MethodValidationContractTests(unittest.TestCase):
 		problem = InitialValueProblem(_CountingDynamics(), np.array(np.asarray((1.0, 0.0)), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 		request = SimulationRequest.uniform(t_span=(0.0, 0.1), sample_count=2)
 		method = _ArrayMetadataRK4()
-		run = replace(method, step=0.1).new_run(problem.dynamics.vector_field, problem.initial_conditions, request)
+		run = replace(method, step=0.1).new_run(problem.dynamics.vector_field, problem.initial_conditions)
 		self.assertFalse(run.initial_state.flags.writeable)
 		stored = np.asarray(run.metadata["probe"])
 		self.assertFalse(stored.flags.writeable)
@@ -162,7 +162,7 @@ class MethodValidationContractTests(unittest.TestCase):
 		dynamics = _CountingDynamics()
 		problem = InitialValueProblem(dynamics, np.array(np.asarray((1.0, 0.0)), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 		request = SimulationRequest.uniform(t_span=(0.0, 0.1), sample_count=2)
-		run = HBVM42(step=.1, solver=NewtonSolver(jacobian_method="analytic", backtracking=True)).new_run(problem.dynamics.vector_field, problem.initial_conditions, request)
+		run = HBVM42(step=.1, solver=NewtonSolver(jacobian_method="analytic", backtracking=True)).new_run(problem.dynamics.vector_field, problem.initial_conditions)
 		self.assertEqual(dynamics.evaluations, 0)
 		with self.assertRaisesRegex(TypeError, "Analytic differentiation requires a Jacobian function"):
 			run.advance(0.0, run.initial_state, 0.1)

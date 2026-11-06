@@ -86,6 +86,9 @@ class FixedStepController(Generic[Detail]):
 
 	def __init__(self, plan: FixedStepPlan | None = None) -> None:
 		self.plan = plan
+		self._sampling_tolerance = 0.0
+		if plan is not None:
+			self._sampling_tolerance = _time_tolerance((float(plan.step_starts[0]), float(plan.step_ends[-1])))
 
 	def steps(
 		self, method: IntegrationMethod[Detail], request: SimulationRequest,
@@ -95,6 +98,7 @@ class FixedStepController(Generic[Detail]):
 
 		if not isinstance(method, FixedStepMethod):
 			raise TypeError("FixedStepController requires a FixedStepMethod.")
+		self._sampling_tolerance = _time_tolerance(request.t_span)
 		plan: FixedStepPlan = self.plan if self.plan is not None else build_fixed_step_plan(request, method.step)
 		current: IntegrationState = IntegrationState(request.t_span[0], method.initial_state)
 		for index, (time, end, duration) in enumerate(zip(plan.step_starts, plan.step_ends, plan.step_sizes)):
@@ -109,7 +113,7 @@ class FixedStepController(Generic[Detail]):
 	) -> IntegrationState:
 		"""Reuse endpoints or advance an independent physical/auxiliary snapshot."""
 		mode: int = int(sample_modes(np.asarray(time), np.asarray(info.time),
-			np.asarray(info.end_time), _time_tolerance(method.request.t_span)))
+			np.asarray(info.end_time), self._sampling_tolerance))
 		return self._sample(method, info, result, time, mode, time - info.time)
 
 	def planned_sample(
@@ -163,7 +167,7 @@ def _observation(method: IntegrationMethod[Any], info: StepInfo, result: StepRes
 
 
 def run_steps(
-	method: IntegrationMethod[Detail], saved: States, *,
+	method: IntegrationMethod[Detail], saved: States, request: SimulationRequest, *,
 	source: DynamicalSystem, controller: StepController[Detail], observers: Sequence[Callable[[Any], None]] = (),
 	energy: PreparedEnergyObserver | None = None,
 ) -> dict[str, DiagnosticValue]:
@@ -172,7 +176,6 @@ def run_steps(
 	Controllers own step policy; the executor owns run status and finalization.
 	Observer lifecycle and persistence remain owned by the caller.
 	"""
-	request = method.request
 	selected: StepController[Detail] = controller
 	plan: FixedStepPlan | None = selected.plan if type(selected) is FixedStepController else None
 	_record_sample(method, saved, IntegrationState(request.t_span[0], method.initial_state), energy)

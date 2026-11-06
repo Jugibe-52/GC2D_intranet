@@ -89,6 +89,9 @@ Map and projection contracts belong to `contracts.methods`; `StateLayout` belong
 
 `NumericalMethod` requires numerical preparation, without a backend declaration.
 `StepResult` carries native physical arrays, work, quadrature and convergence.
+`AdaptiveStepDetails` in `methods/adaptive/scipy.py` shares a frozen interpolant
+and its evaluation counts between the numerical adapter and the execution
+scheduler, without retaining the output request.
 `contracts.arrays` selects compatible array operations and preserves finite-value
 guards while tracing; it does not choose a device or physical algorithm.
 Execution registers numerical payload records at its optional JAX boundary and

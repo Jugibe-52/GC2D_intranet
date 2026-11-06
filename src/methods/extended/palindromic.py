@@ -17,14 +17,12 @@ from methods.projection import ProjectionChoice, resolve_projection
 from methods.base import FixedStepMethod
 from methods.extended.configuration import StateExtension, _state_dimension_diagnostics, _validate_state_extension
 from methods.extended.core.composition import Composition, validate_composition
-from methods.extended.core.jacobians import _checked_vector_field_jacobian
 from methods.extended.core.midpoint import MidpointResult, midpoint_step
 from methods.extended.core.projection import solve_projection
 from contracts.methods.extended.core.records import ProjectedMap
 from methods.extended.core.records import ProjectedMapResult, step_statistics
-from request import SimulationRequest
-from solvers.derivatives import ResolvedJacobianMethod
-from solvers.nonlinear import AlgebraicSolver, NewtonSolver, validate_solver
+from solvers.derivatives import ResolvedJacobianMethod, resolve_jacobian_method
+from solvers.nonlinear import AlgebraicSolver, NewtonSolver, BroydenSolver, validate_solver
 
 Detail = TypeVar('Detail')
 
@@ -71,8 +69,6 @@ class ProjectedPalindromicMethod(PalindromicMethod[ProjectedMapResult]):
 
 	solver: AlgebraicSolver
 	projection_formulation: ProjectionChoice = 'reduced_multiplier'
-	# ABBA probes explicit analytic derivatives at preparation; BM4 keeps its lazy check.
-	_probe_analytic: ClassVar[bool] = False
 	project: ProjectedMap
 	resolved_jacobian_method: ResolvedJacobianMethod
 
@@ -81,27 +77,21 @@ class ProjectedPalindromicMethod(PalindromicMethod[ProjectedMapResult]):
 		self._validate_solver_controls()
 		resolve_projection(self.projection_formulation)
 
-	def initialize(self, request: SimulationRequest) -> None:
+	def initialize(self) -> None:
 		"""Bind one exterior solve and collect the concrete recipe's metadata."""
-		self._prepare_projection(request, self.projection_formulation, probe_analytic=self._probe_analytic)
+		self._prepare_projection(self.projection_formulation)
 		self.metadata = self._projection_metadata(self.projection_formulation)
 
 	def _validate_solver_controls(self) -> None:
 		validate_solver(self.solver)
 
-	def _prepare_projection(self, request: SimulationRequest, projection: ProjectionChoice,
-	                        *, probe_analytic: bool = False) -> None:
+	def _prepare_projection(self, projection: ProjectionChoice) -> None:
 		"""Resolve capabilities once while leaving controls with the solver."""
 		self._prepare_maps()
 		requested = self.solver.jacobian_method
-		resolved: ResolvedJacobianMethod = ('analytic' if self.jacobian is not None else 'finite_difference') if requested == 'auto' else requested
-		if isinstance(self.solver, NewtonSolver) and resolved == 'analytic' and (probe_analytic or requested == 'auto'):
-			try:
-				_checked_vector_field_jacobian(self.formulation, request.t_span[0], self.initial_state)
-			except (TypeError, ValueError, NotImplementedError):
-				if requested != 'auto':
-					raise
-				resolved = 'finite_difference'
+		# Broyden uses the projection's initial matrix, not the field derivative.
+		resolved: ResolvedJacobianMethod = (requested if isinstance(self.solver, BroydenSolver) and requested != 'auto'
+			else resolve_jacobian_method(self.jacobian, requested))
 		self.resolved_jacobian_method = resolved
 		self.project = partial(solve_projection, self.formulation, self.recipe, self.solver,
 		                       projection, jacobian_method=resolved, composition_name=self.composition_name)
@@ -149,7 +139,7 @@ class MidpointPalindromicMethod(PalindromicMethod[MidpointResult]):
 	def _preset_metadata(self) -> dict[str, DiagnosticValue]:
 		return {}
 
-	def initialize(self, request: SimulationRequest) -> None:
+	def initialize(self) -> None:
 		self._prepare_maps()
 		self.metadata = {
 			'projection_kind': 'arithmetic_mean', 'state_extension': self.state_extension,
@@ -189,7 +179,6 @@ class PalindromicImplicit(ProjectedPalindromicMethod):
 	"""Experimental recipe with one exterior spatial Hairer projection."""
 
 	recipe: Composition
-	_probe_analytic = True
 	composition_name: str = field(default='custom', kw_only=True)
 	projection_formulation: ProjectionChoice = 'reduced_multiplier'
 	progress: bool = False

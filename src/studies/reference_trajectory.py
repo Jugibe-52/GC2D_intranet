@@ -401,7 +401,7 @@ def run_high_precision_reference_trajectory(
 	)
 
 	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	effective_potential = dynamics.effective_potential
+	hamiltonian_potential = dynamics.hamiltonian_potential
 	times: np.ndarray = _output_times(config)
 	audit_states: np.ndarray
 	audit_solve: AdaptiveReferenceSolveSummary
@@ -451,7 +451,7 @@ def run_high_precision_reference_trajectory(
 		"potential": dict(potential_metadata),
 		"potential_grid": _potential_grid_metadata(potential),
 		"dynamics_fingerprint_algorithm": "gc2d-sampled-potential-v1-sha256",
-		"dynamics_fingerprint_sha256": potential_fingerprint(effective_potential),
+		"dynamics_fingerprint_sha256": potential_fingerprint(hamiltonian_potential),
 		"initial_conditions": dict(initial_condition_metadata),
 		"particle_count": particle_count,
 		"state_layout": "component_major_[x_1..x_N,y_1..y_N]",

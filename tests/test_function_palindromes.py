@@ -27,7 +27,7 @@ class FunctionPalindromesTests(unittest.TestCase):
 	def test_all_presets_accept_plain_functions_and_own_only_physical_state(self) -> None:
 		for kind in (ABBA2Implicit, ABBA4Implicit,  BM4Implicit, ABBA2Midpoint, BM4Midpoint):
 			with self.subTest(method=kind.__name__):
-				run = kind().new_run(self.f, self.initial, self.request, jacobian=self.jacobian,
+				run = kind().new_run(self.f, self.initial, jacobian=self.jacobian,
 					capture_quadrature=True, observe=True)
 				step = run.advance(.2, run.initial_state, .03)
 				self.assertEqual(step.state.shape, (4,))
@@ -60,8 +60,8 @@ class FunctionPalindromesTests(unittest.TestCase):
 		f = lambda t, z: matrix @ z
 		for projection in ('reduced_multiplier', 'simultaneous_state_multiplier'):
 			method = ABBA4Implicit(projection_formulation=projection)
-			dense = method.new_run(f, self.initial, self.request, jacobian=lambda t, z: matrix)
-			particle = method.new_run(f, self.initial, self.request,
+			dense = method.new_run(f, self.initial, jacobian=lambda t, z: matrix)
+			particle = method.new_run(f, self.initial,
 				jacobian=lambda t, z: blocks, jacobian_structure='particle')
 			np.testing.assert_allclose(dense.advance(.2, dense.initial_state, .03).state,
 				particle.advance(.2, particle.initial_state, .03).state, rtol=0, atol=2e-15)
@@ -69,7 +69,7 @@ class FunctionPalindromesTests(unittest.TestCase):
 	def test_iteration_observation_is_suppressed_only_for_diagnostic_replay(self) -> None:
 		events = []
 		method = BM4Implicit(solver=NewtonSolver(jacobian_method='analytic', iteration_observer=events.append))
-		run = method.new_run(self.f, self.initial, self.request, jacobian=self.jacobian, observe=True)
+		run = method.new_run(self.f, self.initial, jacobian=self.jacobian, observe=True)
 		step = run.advance(.2, run.initial_state, .03)
 		self.assertTrue(events)
 		self.assertEqual(events[0].duration, .03)
@@ -83,8 +83,8 @@ class FunctionPalindromesTests(unittest.TestCase):
 
 	def test_optional_quadrature_retains_signed_accepted_sources(self) -> None:
 		method = ABBA4Implicit()
-		plain = method.new_run(self.f, self.initial, self.request, jacobian=self.jacobian)
-		tracked = method.new_run(self.f, self.initial, self.request, jacobian=self.jacobian, capture_quadrature=True)
+		plain = method.new_run(self.f, self.initial, jacobian=self.jacobian)
+		tracked = method.new_run(self.f, self.initial, jacobian=self.jacobian, capture_quadrature=True)
 		left = plain.advance(.2, plain.initial_state, -.03)
 		right = tracked.advance(.2, tracked.initial_state, -.03)
 		np.testing.assert_array_equal(left.state, right.state)

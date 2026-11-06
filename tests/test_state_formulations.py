@@ -88,7 +88,7 @@ class FourStateFormulationTests(unittest.TestCase):
                     plain = simulate(problem.with_request(request), cls(**({"max_step": .02} if cls in (DOP853, Radau) else {"step": .02})))
                     events = []
                     method = cls()
-                    run = replace(method, **({"max_step": .02} if isinstance(method, (DOP853, Radau)) else {"step": .02})).new_run(problem.dynamics.vector_field, problem.initial_conditions, request,
+                    run = replace(method, **({"max_step": .02} if isinstance(method, (DOP853, Radau)) else {"step": .02})).new_run(problem.dynamics.vector_field, problem.initial_conditions,
                         jacobian=None if cls in (DOP853, Radau) else getattr(problem.dynamics, 'particle_vector_field_jacobians', None),
                         jacobian_structure='particle', capture_quadrature=True)
                     spatial = (4 if cls in DUPLICATED else 2)*particles
@@ -144,7 +144,7 @@ class FourStateFormulationTests(unittest.TestCase):
         dynamics = FullCyclotronDynamics(_problem().dynamics.potential, rho=.2, eta=.1)
         problem = InitialValueProblem(dynamics, FullCyclotronDynamics.coordinates.pack_components([1., 1.1, 1.2], [1.2, 1.3, 1.4], [.1, .2, .3], [-.1, -.2, -.3]), layout=FullCyclotronDynamics.coordinates)
         request = SimulationRequest.uniform(t_span=(.3, .34),  sample_count=5)
-        run = RK4(step=0.01).new_run(problem.dynamics.vector_field, problem.initial_conditions, request,
+        run = RK4(step=0.01).new_run(problem.dynamics.vector_field, problem.initial_conditions,
                         capture_quadrature=True)
         self.assertEqual(run.initial_state.shape, (12,))
         self.assertFalse(hasattr(run, 'initial_momentum'))

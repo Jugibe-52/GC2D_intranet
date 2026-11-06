@@ -31,8 +31,9 @@ The default is NumPy/SciPy on the host CPU; a single physical core is not enforc
 - `observers`: passive energy configuration and accepted-step callbacks.
 
 The executor reads the interval and saved times from `problem.request`, a
-`SimulationRequest` defined in `request.py`, and passes it separately to
-`method.new_run`. Subclasses override the same two-input signature.
+`SimulationRequest` defined in `request.py`. It passes the request directly to
+planning and host recording, while numerical preparation receives only physical
+functions and initial data. Subclasses override the same two-input signature.
 
 The executor calls `method.new_run`, validates the fresh run once and owns its
 running/finished transitions, including kernel preparation and result failures.
@@ -53,8 +54,8 @@ Preparation is split into three private functions in the same module:
 - `_prepare_numerical_run` supplies the Jacobian and quadrature requirements, validates a fresh run and returns its observation metadata.
 
 `_prepare_observers` reads the request from the supplied problem.
-`_prepare_numerical_run` receives `InitialConditions` and `SimulationRequest`
-explicitly, alongside the method and prepared dynamics. It obtains the particle
+`_prepare_numerical_run` receives `InitialConditions` explicitly, alongside the
+method and prepared dynamics. It obtains the particle
 count from the initial conditions and does not receive the complete problem.
 `Execution.run` calls `execution._jax_step.prepare_step` directly for fixed JAX
 execution. That function checks supported run types and rejects Python callbacks,
@@ -133,7 +134,7 @@ Neither potential class accepts execution options. Existing study helpers keep
 
 ## Method preparation contract
 
-`NumericalMethod.new_run(f, initial_conditions, request, *, jacobian=None, jacobian_structure="dense", observe=False, capture_quadrature=False)` receives a physical vector field and independent initial data. Execution resolves dynamics capabilities and supplies any physical Jacobian explicitly. The prepared run retains no `InitialValueProblem` or `DynamicalSystem`. `jacobian_structure` distinguishes dense matrices from independent particle blocks; it does not identify a physical model.
+`NumericalMethod.new_run(f, initial_conditions, *, jacobian=None, jacobian_structure="dense", observe=False, capture_quadrature=False)` receives a physical vector field and independent initial data. Execution resolves dynamics capabilities and supplies any physical Jacobian explicitly. The prepared run retains no `InitialValueProblem`, `DynamicalSystem` or temporal request. `jacobian_structure` distinguishes dense matrices from independent particle blocks; it does not identify a physical model.
 
 `new_run` returns a fresh ready `IntegrationMethod`, copying constructor configuration and initializing owned physical snapshots. `initialize`, `advance`, `build_observation` and `controller` define its numerical behavior. Methods have no energy accumulator or history diagnosis. Fixed methods share one `advance` implementation across array types. Execution owns JAX compatibility checks and compilation; `NumericalMethod` has no backend declaration. The adaptive implementation retains its local hybrid declaration. CPU extensions can inherit `FixedStepMethod` or supply their own controller.
 
@@ -179,7 +180,9 @@ while `contracts.methods.base` owns the structural `NumericalMethod` protocol.
 `contracts.execution.controllers` owns `StepController`. Import the base with
 `from methods import IntegrationMethod`. Controller extensions use
 `from execution import FixedStepController, StepController, IntegrationState`.
-The SciPy controller remains next to its method-specific live solver adapter.
+The SciPy controller lives in `execution._scipy`; it prepares each live solver
+for the requested interval and decides which accepted steps need output
+interpolation. The numerical adapter retains its live solver and numerical state.
 Complete simulations use `simulate` or `Execution.run`; the private host driver
 is not exported as a second public execution entry point.
 
@@ -234,3 +237,9 @@ adaptive controller. Move former request `max_step` arguments to the method:
 accept a step argument. A non-divisible interval intentionally gives a different
 main grid from the former uniform rescaling policy; old saved results retain
 their recorded grids.
+
+## Temporal and derivative preparation
+
+`new_run(f, initial_conditions, ...)` and `initialize()` do not receive a temporal request or initial time. Methods retain no `request`. Execution owns interval setup and output scheduling; `advance(t, state, h)` receives the time needed for each numerical step.
+
+`auto` selects a supplied Jacobian without evaluating it, or finite differences when no derivative is supplied. For Newton corrections, `analytic` requires a derivative and `finite_difference` explicitly forces approximation. Broyden continues to use the projection-supplied initial matrix and residual updates without evaluating field derivatives. Shapes and finite values are checked at actual evaluations. A supplied derivative failure propagates; auto does not silently fall back. Gauss, SDIRK, HBVM and projected compositions share `solvers.derivatives.resolve_jacobian_method`. HBVM retains its validation boundary after the first residual. Numerical stage and projection equations are unchanged.

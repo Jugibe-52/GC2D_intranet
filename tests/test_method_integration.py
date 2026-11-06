@@ -24,13 +24,13 @@ from execution import Execution
 from diagnostics.methods.energy import EnergyObserver
 
 
-def _execute_prepared(run, problem, *, controller=None, observers=()):
+def _execute_prepared(run, problem, request, *, controller=None, observers=()):
 	"""Inspect a specific prepared run through the complete execution boundary."""
 	with patch.object(type(run), "new_run", return_value=run):
 		if controller is None:
-			return Execution().run(problem.with_request(run.request), run, observers=observers)
+			return Execution().run(problem.with_request(request), run, observers=observers)
 		with patch.object(run, "controller", return_value=controller):
-			return Execution().run(problem.with_request(run.request), run, observers=observers)
+			return Execution().run(problem.with_request(request), run, observers=observers)
 
 
 def _problem() -> InitialValueProblem:
@@ -56,7 +56,7 @@ def _methods():
 
 
 def _prepare(method, problem, request, *, tracking=False, observe=False):
-	return method.new_run(problem.dynamics.vector_field, problem.initial_conditions, request,
+	return method.new_run(problem.dynamics.vector_field, problem.initial_conditions,
 		jacobian=problem.dynamics.particle_vector_field_jacobians, jacobian_structure='particle',
 		capture_quadrature=tracking, observe=observe)
 
@@ -92,10 +92,10 @@ class MethodIntegrationTests(unittest.TestCase):
 				np.testing.assert_array_equal(initial, run.initial_state)
 				np.testing.assert_array_equal(first.state, run.advance(0.3, initial, 0.02).state)
 				observers = ((EnergyObserver(),) if tracking else ()) + (events.append,)
-				dense = _execute_prepared(run, problem, observers=observers)
+				dense = _execute_prepared(run, problem, _request(True), observers=observers)
 				self.assertEqual(len(events), 2)
 				events.clear()
-				again = _execute_prepared(_prepare(replace(method, step=(0.34 - 0.3) / 2), problem, _request(True), tracking=tracking, observe=True), problem, observers=observers)
+				again = _execute_prepared(_prepare(replace(method, step=(0.34 - 0.3) / 2), problem, _request(True), tracking=tracking, observe=True), problem, _request(True), observers=observers)
 				self.assertEqual(len(events), 2)
 				for key in dense.diagnostics:
 					np.testing.assert_equal(dense.diagnostics[key], again.diagnostics[key])
@@ -142,7 +142,7 @@ class MethodIntegrationTests(unittest.TestCase):
 					state = result.state
 		problem = _problem()
 		run = _prepare(BM4Implicit(step=(0.34 - 0.3) / 2), problem, _request(True))
-		data = _execute_prepared(run, problem, controller=PrescribedController())
+		data = _execute_prepared(run, problem, _request(True), controller=PrescribedController())
 		state = run.initial_state.copy()
 		for t, end in zip((0.3, 0.31, 0.33), (0.31, 0.33, 0.34)):
 			state = run.advance(t, state, end - t).state
@@ -158,7 +158,7 @@ class MethodIntegrationTests(unittest.TestCase):
 			raise RuntimeError("Nonlinear solve failed")
 		with patch.object(run, "advance", side_effect=fail):
 			with self.assertRaisesRegex(RuntimeError, "Nonlinear solve failed"):
-				_execute_prepared(run, problem, observers=(events.append,))
+				_execute_prepared(run, problem, _request(), observers=(events.append,))
 		self.assertEqual(events, [])
 
 	def test_run_resources_are_isolated_and_a_completed_run_cannot_be_reused(self) -> None:
@@ -172,11 +172,11 @@ class MethodIntegrationTests(unittest.TestCase):
 				self.assertFalse(hasattr(second, "dynamics"))
 				self.assertFalse(np.shares_memory(first.initial_state, second.initial_state))
 				self.assertFalse(hasattr(method, "initial_state"))
-				result = _execute_prepared(first, problem)
-				_execute_prepared(second, other)
+				result = _execute_prepared(first, problem, _request())
+				_execute_prepared(second, other, _request(True))
 				np.testing.assert_array_equal(result.states, simulate(problem.with_request(_request()), replace(method, step=(0.34 - 0.3) / 2)).states)
 				with self.assertRaisesRegex(TypeError, "fresh"):
-					_execute_prepared(first, problem)
+					_execute_prepared(first, problem, _request())
 
 
 if __name__ == "__main__":

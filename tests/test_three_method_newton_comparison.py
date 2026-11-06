@@ -175,7 +175,7 @@ class ThreeMethodNewtonComparisonTests(unittest.TestCase):
 		energy_figure.canvas.draw()
 		self.assertEqual(work_axes.shape, (3,))
 		animation = animate_implicit_method_trajectories(
-			result.effective_potential,
+			result.hamiltonian_potential,
 			result.solutions,
 			frames=2,
 			interval=10,
