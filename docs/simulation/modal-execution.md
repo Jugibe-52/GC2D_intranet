@@ -85,7 +85,7 @@ it does not invalidate the already retrieved local `States` or cause another
 remote integration. Keep all scientific parameters in the notebook and its
 saved study metadata as before.
 
-Remote execution accepts NumPy/SciPy and JAX CPU jobs. JAX requires an image with the optional dependency and float64 enabled before importing JAX; select it with `options=ExecutionOptions(backend="jax", device="cpu")`. GPU jobs are rejected before submission. Methods require `progress=False` and `solver.iteration_observer=None`; execution accepts serializable `EnergyObserver` configuration but rejects arbitrary callbacks before upload. Include `diagnostics` in the worker source bundle when using energy observation. Configured method instances are accepted; initialized or consumed runs are rejected. Numerical algorithms and default local/JAX paths are unchanged.
+Remote execution accepts NumPy/SciPy and JAX CPU jobs. JAX requires an image with the optional dependency and float64 enabled before importing JAX; select it with `options=ExecutionOptions(backend="jax", device="cpu")`. GPU jobs are rejected before submission. Execution requires `options.progress=False` and `solver.iteration_observer=None`; execution accepts serializable `EnergyObserver` configuration but rejects arbitrary callbacks before upload. Include `diagnostics` in the worker source bundle when using energy observation. Configured method instances are accepted; initialized or consumed runs are rejected. Numerical algorithms and default local/JAX paths are unchanged.
 
 ## JAX CPU resource comparison
 

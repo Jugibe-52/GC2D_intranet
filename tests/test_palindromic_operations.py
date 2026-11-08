@@ -2,6 +2,7 @@
 
 from dynamics import GuidingCenterDynamics
 from diagnostics.methods.energy import EnergyObserver
+from studies._generalized_energy import simulate_generalized_energy
 from solvers import BroydenSolver, NewtonSolver
 from dataclasses import dataclass, replace
 import importlib.util
@@ -12,17 +13,17 @@ from unittest.mock import patch
 import numpy as np
 
 from execution.options import ExecutionOptions
-from methods.extended.maps import HarmonicCoupling
-from methods.extended.maps import GCDoubledMaps
-from methods.extended.core.composition import compose
-from methods.extended.core.jacobians import composition_jacobian
+from methods.palindromic.maps import HarmonicCoupling
+from methods.palindromic.maps import GCDoubledMaps
+from methods.palindromic.core.composition import compose
+from methods.palindromic.core.jacobians import composition_jacobian
 from solvers.derivatives import centered_difference, packed_particle_jacobian
 from simulation import (
 	A, B, T, C, Operation, PalindromicMethod, PalindromicImplicit, PalindromicMidpoint, ABBA2Implicit,
 	ABBA4Implicit, ABBA2Midpoint, BM4Implicit, BM4Midpoint, InitialValueProblem, SimulationRequest,
 	simulate,
 )
-from tests.test_extended_family import problem
+from tests.test_palindromic_family import problem
 
 EDGES = (T(.5), A(.5), B(.5), B(.5), A(.5), T(.5))
 COUPLED = (T(.5), C(.5), A(.5), B(.5), B(.5), A(.5), C(.5), T(.5))
@@ -44,9 +45,9 @@ class TimeRotation:
 		x, y = np.split(state, 2)
 		return .5 * (1+t+t*t) * (x*x+y*y)
 
-	def extended_momentum_derivative(self, t, state):
+	def hamiltonian_time_derivative(self, t, state):
 		x, y = np.split(state, 2)
-		return -.5 * (1+2*t) * (x*x+y*y)
+		return .5 * (1+2*t) * (x*x+y*y)
 
 
 class PalindromicOperationTests(unittest.TestCase):
@@ -125,7 +126,7 @@ class PalindromicOperationTests(unittest.TestCase):
 				[op.coefficient for op in recipe])
 			expected = simulate(p.with_request(request), replace(generic(recipe), step=0.02), observers=(EnergyObserver(),))
 			np.testing.assert_array_equal(actual.states, expected.states)
-			np.testing.assert_array_equal(actual.diagnostics['extended_momentum'], expected.diagnostics['extended_momentum'])
+			np.testing.assert_array_equal(actual.diagnostics['hamiltonian_time_derivative'], expected.diagnostics['hamiltonian_time_derivative'])
 
 	def test_recipe_only_subclass_and_explicit_c_configuration(self):
 		@dataclass
@@ -137,10 +138,10 @@ class PalindromicOperationTests(unittest.TestCase):
 		for method in (PalindromicMidpoint(COUPLED), PalindromicImplicit(COUPLED),
 			PalindromicMidpoint(EDGES, coupling=HarmonicCoupling(.7))):
 			with self.assertRaisesRegex(ValueError, 'configured together'):
-				replace(method, step=0.02).new_run(p.dynamics.vector_field, p.initial_conditions, jacobian=getattr(p.dynamics, 'particle_vector_field_jacobians', None), jacobian_structure='particle', observe=True)
+				replace(method, step=0.02).new_run(p.dynamics.vector_field, p.initial_conditions, jacobian=getattr(p.dynamics, 'particle_vector_field_jacobians', None))
 		with patch.object(HarmonicCoupling, 'apply', wraps=HarmonicCoupling(.7).apply) as operation:
-			run = PalindromicMidpoint(COUPLED, step=0.02, coupling=HarmonicCoupling(0.7)).new_run(p.dynamics.vector_field, p.initial_conditions, jacobian=getattr(p.dynamics, 'particle_vector_field_jacobians', None), jacobian_structure='particle', observe=True)
-			run.advance(.3, run.initial_state, .02)
+			run = PalindromicMidpoint(COUPLED, step=0.02, coupling=HarmonicCoupling(0.7)).new_run(p.dynamics.vector_field, p.initial_conditions, jacobian=getattr(p.dynamics, 'particle_vector_field_jacobians', None))
+			run.advance(.3, p.initial_state, .02)
 			self.assertEqual(operation.call_count, 2)
 
 	def test_both_time_placements_have_second_order_and_passive_balance(self):
@@ -154,7 +155,7 @@ class PalindromicOperationTests(unittest.TestCase):
 				errors, balances = [], []
 				for h in (.1, .05, .025):
 					r = SimulationRequest((0., end),  np.array([0., end]))
-					s = simulate(p.with_request(r), replace(cls(recipe), step=h), observers=(EnergyObserver(),))
+					s = simulate_generalized_energy(p.with_request(r), replace(cls(recipe), step=h))
 					errors.append(np.max(abs(s.states[-1]-exact)))
 					balances.append(np.max(abs(s.diagnostics['generalized_energy_error'][:, -1])))
 					if h == .1: coarse.append(s.states[-1])
@@ -183,8 +184,8 @@ class PalindromicOperationTests(unittest.TestCase):
 				compiled = simulate(p.with_request(request), replace(method, step=0.02), options=ExecutionOptions(backend='jax'), observers=observers)
 				np.testing.assert_allclose(compiled.states, cpu.states, rtol=0, atol=3e-12)
 				if index < 4:
-					np.testing.assert_allclose(compiled.diagnostics['extended_momentum'],
-						cpu.diagnostics['extended_momentum'], rtol=0, atol=3e-12)
+					np.testing.assert_allclose(compiled.diagnostics['hamiltonian_time_derivative'],
+						cpu.diagnostics['hamiltonian_time_derivative'], rtol=0, atol=3e-12)
 
 
 if __name__ == '__main__':

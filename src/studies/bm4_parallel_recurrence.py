@@ -24,7 +24,7 @@ from threadpoolctl import ThreadpoolController
 from dynamics import GuidingCenterDynamics
 
 from potential import GC2DH5Metadata, Potential
-from methods.extended.bm4 import BM4Implicit
+from methods.palindromic.bm4_implicit import BM4Implicit
 from problem import InitialValueProblem
 from request import SimulationRequest
 from simulation.runner import simulate
@@ -113,7 +113,7 @@ def _run_particle(particle: int) -> _ParticlePayload:
 	problem: InitialValueProblem = InitialValueProblem(context.dynamics, initial_configuration, layout=GuidingCenterDynamics.coordinates)
 	method: BM4Implicit = BM4Implicit(
 		step=context.config.integration_step,
-		progress=False,
+
 		solver=NewtonSolver(absolute_tolerance=context.config.absolute_tolerance, relative_tolerance=context.config.relative_tolerance, max_iterations=context.config.max_iterations, jacobian_method='analytic', jacobian_relative_step=context.config.jacobian_relative_step),
 	)
 	started: float = perf_counter()

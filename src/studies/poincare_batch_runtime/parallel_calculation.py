@@ -54,7 +54,7 @@ def calculate_group(
     potential, _, snapshot_hash = load_snapshot()
     from dynamics import GuidingCenterDynamics
     import numpy as np
-    from methods.extended.bm4 import BM4Implicit
+    from methods.palindromic.bm4_implicit import BM4Implicit
     from problem import InitialValueProblem
     from request import SimulationRequest
     from simulation.runner import simulate
@@ -70,7 +70,7 @@ def calculate_group(
     history: Any | None = (NewtonHistory(settings['n_steps'], settings.get('progress_every', 1000))
                if settings.get('record_newton_history', True) else None)
     method: BM4Implicit = BM4Implicit(
-        progress=False,
+
         solver=NewtonSolver(absolute_tolerance=settings['newton_atol'], relative_tolerance=settings['newton_rtol'], max_iterations=settings['newton_max_iterations'], jacobian_relative_step=settings['jacobian_relative_step'], jacobian_method='analytic', iteration_observer=history),
     )
     with threadpool_limits(limits=1):

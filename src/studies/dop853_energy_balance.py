@@ -10,19 +10,19 @@ from typing import Any, TYPE_CHECKING
 
 import numpy as np
 from potential import Potential
-from methods.adaptive.scipy import DOP853
+from scipy.integrate import solve_ivp
+from contracts.methods.quadrature import InterpolantQuadrature
+from diagnostics.methods.stage_energy import momentum_increment
+from studies._generalized_energy import simulate_generalized_energy
 from methods.base import FixedStepMethod
-from dynamics import GuidingCenterDynamics
-
 from problem import InitialValueProblem
 
 from request import SimulationRequest
-from methods.extended.bm4 import BM4Implicit
-from methods.classical.gauss_legendre import GaussLegendre4
-from methods.classical.rk4 import RK4
+from methods.palindromic.bm4_implicit import BM4Implicit
+from methods.runge_kutta.gauss_legendre import GaussLegendre4
+from methods.runge_kutta.rk4 import RK4
 from simulation.runner import simulate
-from diagnostics.methods.extended.bm4_energy_balance import BM4EnergyBalanceObserver
-from diagnostics.methods.energy import EnergyObserver
+from diagnostics.methods.palindromic.bm4_energy_balance import BM4EnergyBalanceObserver
 from solvers.nonlinear import NewtonSolver
 
 
@@ -69,10 +69,22 @@ def run_energy_balance(potential: Potential, configuration: np.ndarray, config: 
     arrays = {'times': times, 'initial_state': z0,
               'domain': np.array([potential.grid.xmin, potential.grid.ymin, potential.grid.period])}
     print('Starting DOP853', flush=True)
-    reference: States = simulate(problem.with_request(request), DOP853(max_step=h,
-        relative_tolerance=config['reference_rtol'], absolute_tolerance=config['reference_atol']), observers=(EnergyObserver(),))
-    arrays['DOP853.states'] = reference.states.T
-    arrays['DOP853.kappa'] = np.asarray(reference.diagnostics['extended_momentum'])
+    reference = solve_ivp(dynamics.vector_field, request.t_span, z0, method="DOP853",
+        max_step=h, rtol=config['reference_rtol'], atol=config['reference_atol'], dense_output=True)
+    if not reference.success or reference.sol is None:
+        raise RuntimeError(f"DOP853 reference failed: {reference.message}")
+    arrays['DOP853.states'] = np.asarray(reference.sol(times))
+    kappa = np.zeros(n)
+    saved_momenta = [kappa.copy()]
+    output_index = 1
+    for left, right in zip(reference.t[:-1], reference.t[1:]):
+        quadrature = InterpolantQuadrature(float(left), float(right), reference.sol)
+        while output_index < times.size and times[output_index] <= right:
+            saved_momenta.append(kappa + momentum_increment(dynamics.extended_momentum_derivative,
+                quadrature, n, end_time=float(times[output_index])))
+            output_index += 1
+        kappa = kappa + momentum_increment(dynamics.extended_momentum_derivative, quadrature, n)
+    arrays['DOP853.kappa'] = np.stack(saved_momenta, axis=1)
     solver = NewtonSolver(absolute_tolerance=config['newton_atol'],
         relative_tolerance=config['newton_rtol'], max_iterations=config['newton_max_iterations'],
         jacobian_method='analytic', jacobian_relative_step=config['jacobian_relative_step'])
@@ -84,8 +96,8 @@ def run_energy_balance(potential: Potential, configuration: np.ndarray, config: 
     }
     for name, method in methods.items():
         print(f'Starting {name}', flush=True)
-        solution: States = simulate(problem.with_request(request), replace(method, step=h),
-            observers=(observer,) if name == 'BM4Implicit' else (EnergyObserver(),))
+        solution: States = (simulate(problem.with_request(request), replace(method, step=h), observers=(observer,))
+            if name == "BM4Implicit" else simulate_generalized_energy(problem.with_request(request), replace(method, step=h)))
         assert solution.diagnostics['step_count'] == cycles*steps
         arrays[name+'.states'] = solution.states.T
         if name == 'BM4Implicit':

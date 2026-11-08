@@ -19,7 +19,7 @@ import numpy as np
 from contracts.methods.observation import IntegrationStage, IntegrationStep
 from problem import InitialValueProblem
 from request import SimulationRequest
-from diagnostics.methods.extended.abba_jacobian.observer import ImplicitABBAJacobianObserver
+from diagnostics.methods.palindromic.abba_jacobian.observer import ImplicitABBAJacobianObserver
 from diagnostics.io.buffering import DiagnosticBuffer
 from diagnostics.methods.implicit_iterations import ImplicitABBAIterationObserver
 from diagnostics.io.output import DiagnosticBlockPaths
@@ -29,7 +29,7 @@ from diagnostics.methods.symplecticity.observer import SymplecticityObserver
 from diagnostics.methods.trajectory_symplecticity.jacobians import abba2_implicit_step_particle_jacobians
 from diagnostics.methods.trajectory_symplecticity.observer import GCTrajectorySymplecticityObserver
 
-from methods.extended.abba import ABBA2Implicit
+from methods.palindromic.abba2_implicit import ABBA2Implicit
 from potential.potential import Potential
 from simulation.runner import simulate
 

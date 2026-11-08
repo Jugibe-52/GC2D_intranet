@@ -15,8 +15,8 @@ import numpy as np
 from diagnostics.methods.jacobians import StepJacobianMethod
 
 from potential import Potential
-from methods.extended.configuration import ABBA_PROJECTION_FORMULATIONS, ProjectionFormulation
-from methods.extended.abba import ABBA2Implicit
+from methods.palindromic.configuration import ABBA_PROJECTION_FORMULATIONS, ProjectionFormulation
+from methods.palindromic.abba2_implicit import ABBA2Implicit
 
 from ._gc_symplecticity import (
 	_run_gc_symplecticity_observers,
@@ -248,7 +248,7 @@ def run_abba2_reduced_multiplier_symplecticity_study(
 		config=method_config,
 		method_factory=lambda: ABBA2Implicit(
 			projection_formulation='reduced_multiplier',
-			progress=config.progress,
+
 			solver=NewtonSolver(absolute_tolerance=config.newton_absolute_tolerance, relative_tolerance=config.newton_relative_tolerance, max_iterations=config.newton_max_iterations, jacobian_method='analytic'),
 		),
 		result_type=ABBA2ReducedMultiplierSymplecticityResult,
@@ -295,7 +295,7 @@ def run_abba2_simultaneous_state_multiplier_symplecticity_study(
 		config=method_config,
 		method_factory=lambda: ABBA2Implicit(
 			projection_formulation='simultaneous_state_multiplier',
-			progress=config.progress,
+
 			solver=NewtonSolver(absolute_tolerance=config.newton_absolute_tolerance, relative_tolerance=config.newton_relative_tolerance, max_iterations=config.newton_max_iterations, jacobian_method='analytic'),
 		),
 		result_type=ABBA2SimultaneousStateMultiplierSymplecticityResult,
@@ -342,7 +342,7 @@ def _run_formulation_observers(
 			config=method_config,
 			method_factory=lambda: ABBA2Implicit(
 				projection_formulation=formulation,
-				progress=config.progress,
+
 				solver=NewtonSolver(absolute_tolerance=config.newton_absolute_tolerance, relative_tolerance=config.newton_relative_tolerance, max_iterations=config.newton_max_iterations, jacobian_method='analytic'),
 			),
 			result_type=ABBA2ReducedMultiplierSymplecticityResult,
@@ -357,7 +357,7 @@ def _run_formulation_observers(
 		config=method_config,
 		method_factory=lambda: ABBA2Implicit(
 			projection_formulation=formulation,
-			progress=config.progress,
+
 			solver=NewtonSolver(absolute_tolerance=config.newton_absolute_tolerance, relative_tolerance=config.newton_relative_tolerance, max_iterations=config.newton_max_iterations, jacobian_method='analytic'),
 		),
 		result_type=ABBA2SimultaneousStateMultiplierSymplecticityResult,

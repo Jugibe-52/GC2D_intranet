@@ -19,11 +19,11 @@ from dynamics.fc import FullCyclotronDynamics
 from dynamics.gc import GuidingCenterDynamics
 from dynamics.coordinates import PhysicalCoordinates, GCCoordinates, FCCoordinates
 from methods.splitting import FCSplitMaps
-from methods.extended.maps import GCDoubledMaps
+from methods.palindromic.maps import GCDoubledMaps
 from formulations.state import DoubleFormulation
 
 from potential.potential import Potential
-from methods.classical.rk4 import RK4
+from methods.runge_kutta.rk4 import RK4
 from simulation.runner import simulate
 
 

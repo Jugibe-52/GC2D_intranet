@@ -26,9 +26,10 @@ from execution.execution import Execution
 
 from states.generators import ranked_radial_star
 from contracts.methods.base import NumericalMethod
-from methods.classical.gauss_legendre import GaussLegendre4
-from methods.classical.rk4 import RK4
-from methods.extended.bm4 import BM4Implicit, BM4Midpoint
+from methods.runge_kutta.gauss_legendre import GaussLegendre4
+from methods.runge_kutta.rk4 import RK4
+from methods.palindromic.bm4_implicit import BM4Implicit
+from methods.palindromic.bm4_midpoint import BM4Midpoint
 from potential.load import GC2DH5Metadata
 from potential.potential import Potential
 from simulation.runner import simulate
@@ -110,7 +111,7 @@ def _validated_coupling(value: float, methods: tuple[str, ...]) -> float:
 	"""Check the legacy coupling field against the selected method family."""
 	coupling: float = _number(value, "coupling_frequency")
 	if coupling < 0 or (coupling != 0 and any(method in ("RK4", "GaussLegendre4") for method in methods)):
-		raise ValueError("Coupling must be nonnegative and zero for classical methods.")
+		raise ValueError("Coupling must be nonnegative and zero for Runge--Kutta methods.")
 	return coupling
 
 

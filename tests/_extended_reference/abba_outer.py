@@ -1,18 +1,18 @@
 """One physical projection around three continuous signed A-B-B-A maps."""
 from __future__ import annotations
-from methods.extended.abba import ABBA4Implicit
-from methods.extended.abba import _ABBA4_COEFFICIENTS
+from methods.palindromic.abba4_implicit import ABBA4Implicit
+from methods.palindromic.abba4_implicit import _ABBA4_COEFFICIENTS
 from dataclasses import dataclass
 import numpy as np
-from methods.extended.observations import abba_pairs
-from methods.extended.core.projection import solve_projection
+from methods.palindromic.observations import abba_pairs
+from methods.palindromic.core.projection import solve_projection
 
 from tests._extended_reference.abba_maps import uncoupled_maps
 from solvers import NewtonSolver, BroydenSolver
 from contracts.dynamics.protocols import GuidingCenterJacobianSystem
 from solvers.nonlinear import NonlinearSolver, _solve_broyden, _solve_newton
 
-from methods.extended.configuration import ProjectionFormulation
+from methods.palindromic.configuration import ProjectionFormulation
 from tests._extended_reference.abba_maps import _ABBAStages, _evaluate_unprojected_stages, _differentiate_stages
 
 @dataclass(frozen=True, slots=True)

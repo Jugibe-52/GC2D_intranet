@@ -13,6 +13,7 @@ from typing import Any, Callable, Literal, Mapping, TYPE_CHECKING
 
 import numpy as np
 
+from contracts.dynamics.protocols import DynamicalSystem
 from contracts.studies._validation import finite_time_span, integer_ratio, nonnegative_finite, positive_finite
 import scipy
 
@@ -24,8 +25,7 @@ from diagnostics.studies.reference_trajectory import (
 from dynamics import GuidingCenterDynamics
 
 from potential import Potential
-from methods.adaptive.scipy import DOP853, Radau
-from contracts.methods.adaptive.scipy import AdaptiveIntegrationStep
+from scipy.integrate import DOP853, Radau
 from problem import InitialValueProblem
 from simulation.runner import simulate
 from request import SimulationRequest
@@ -212,7 +212,7 @@ def _output_times(config: HighPrecisionReferenceConfig) -> np.ndarray:
 
 
 def _solve_adaptive(
-	dynamics: GuidingCenterDynamics,
+	dynamics: DynamicalSystem,
 	initial_state: np.ndarray,
 	times: np.ndarray,
 	*,
@@ -224,24 +224,28 @@ def _solve_adaptive(
 ) -> tuple[np.ndarray, AdaptiveReferenceSolveSummary]:
 	"""Run one adaptive reference or cross-check solve on prescribed times."""
 	started: float = perf_counter()
-	method_type = DOP853 if method == "DOP853" else Radau
-	function_evaluations = 0
-	def report(step: AdaptiveIntegrationStep) -> None:
-		nonlocal function_evaluations
-		function_evaluations += step.function_evaluations
-		assert progress_callback is not None
-		progress_callback(method, step.time, function_evaluations,
-			"finished" if step.time == float(times[-1]) else "running")
+	method_type: Any = DOP853 if method == "DOP853" else Radau
+	solver: Any = method_type(dynamics.vector_field, float(times[0]),
+		np.array(initial_state, dtype=float, copy=True), float(times[-1]),
+		rtol=relative_tolerance, atol=absolute_tolerance, max_step=maximum_step)
+	states: np.ndarray = np.empty((initial_state.size, times.size))
+	states[:, 0] = initial_state
+	next_sample: int = 1
 	if progress_callback is not None:
 		progress_callback(method, float(times[0]), 0, "started")
-	configured: DOP853 | Radau = method_type(relative_tolerance=relative_tolerance,
-		absolute_tolerance=absolute_tolerance)
-	problem: InitialValueProblem = InitialValueProblem(dynamics, np.array(np.asarray(initial_state, dtype=float), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
-	request: SimulationRequest = SimulationRequest((float(times[0]), float(times[-1])),  times)
-	result: States = simulate(problem.with_request(request), replace(configured, max_step=maximum_step), observers=(report,) if progress_callback is not None else ())
+	while solver.status == "running":
+		message: str | None = solver.step()
+		if solver.status == "failed":
+			raise RuntimeError(f"{method} reference failed: {message}")
+		stop: int = int(np.searchsorted(times, solver.t, side="right"))
+		if stop > next_sample:
+			states[:, next_sample:stop] = solver.dense_output()(times[next_sample:stop])
+			next_sample = stop
+		if progress_callback is not None:
+			progress_callback(method, float(solver.t), int(solver.nfev),
+				"finished" if solver.status == "finished" else "running")
 
 	runtime = perf_counter() - started
-	states: np.ndarray = np.array(result.states.T, dtype=float, copy=True)
 	if states.shape != (initial_state.size, times.size) or not np.all(
 		np.isfinite(states)
 	):
@@ -253,9 +257,9 @@ def _solve_adaptive(
 		maximum_step=maximum_step,
 		relative_tolerance=relative_tolerance,
 		absolute_tolerance=absolute_tolerance,
-		function_evaluations=int(np.sum(result.diagnostics["function_evaluations"])),
-		jacobian_evaluations=int(np.sum(result.diagnostics["jacobian_evaluations"])),
-		lu_decompositions=int(np.sum(result.diagnostics["lu_decompositions"])),
+		function_evaluations=int(solver.nfev),
+		jacobian_evaluations=int(solver.njev),
+		lu_decompositions=int(solver.nlu),
 		runtime_seconds=float(runtime),
 		message="The solver successfully reached the end of the integration interval.",
 	)

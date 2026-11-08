@@ -10,7 +10,7 @@ import numpy as np
 
 
 from potential import Potential
-from methods.extended.abba import ABBA2Midpoint
+from methods.palindromic.abba2_midpoint import ABBA2Midpoint
 from states.history import States
 
 from ._gc_symplecticity import (
@@ -176,7 +176,7 @@ def run_abba2_midpoint_symplecticity_study(
 		area,
 		notebook_path=notebook_path,
 		config=config,
-		method_factory=lambda: ABBA2Midpoint(progress=config.progress),
+		method_factory=lambda: ABBA2Midpoint(),
 		result_type=ABBA2MidpointSymplecticityResult,
 		project_root=project_root,
 		metadata=study_metadata,

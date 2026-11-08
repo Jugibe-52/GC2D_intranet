@@ -6,15 +6,14 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from dataclasses import dataclass, is_dataclass, replace
 from types import MappingProxyType
-from typing import Any, ClassVar, Generic, Literal, Self, TYPE_CHECKING, TypeVar
+from typing import Any, ClassVar, Generic, Self, TYPE_CHECKING, TypeVar
 
 import numpy as np
 from types import ModuleType
-from contracts.arrays import array_namespace, checked_finite, BackendArray
+from contracts.arrays import array_namespace, checked_finite
 
-from contracts.dynamics.coordinates import StateLayout
 from contracts.methods.base import NumericalMethod
-from contracts.methods.functions import JacobianStructure, VectorField
+from contracts.methods.functions import VectorField
 from contracts.methods.step import StepInfo, StepResult
 from contracts.states.history import DiagnosticValue
 from states.initial import InitialConditions
@@ -25,15 +24,6 @@ if TYPE_CHECKING:
 	from contracts.execution.controllers import StepController
 
 Detail = TypeVar("Detail")
-
-
-def _readonly_initial_state(state: np.ndarray) -> np.ndarray:
-	"""Own a finite, nonempty internal vector before a run becomes ready."""
-	initial: np.ndarray = np.array(state, dtype=float, copy=True)
-	if initial.ndim != 1 or initial.size == 0 or not np.all(np.isfinite(initial)):
-		raise ValueError("The initial internal state must be a finite vector.")
-	initial.setflags(write=False)
-	return initial
 
 
 def _readonly_metadata(metadata: Mapping[str, DiagnosticValue]) -> Mapping[str, DiagnosticValue]:
@@ -53,18 +43,9 @@ class IntegrationMethod(ABC, Generic[Detail]):
 
 	f: VectorField
 	jacobian: VectorField | None
-	jacobian_structure: JacobianStructure
-	initial_state: np.ndarray
-	layout: StateLayout
-	physical_size: int
-	particle_count: int
 	metadata: Mapping[str, DiagnosticValue]
-	progress: bool
-	observe: bool = False
-	capture_quadrature: bool = False
 	_status: str = "configuration"
 	copies: ClassVar[int] = 1
-	requires_planar: ClassVar[bool] = False
 
 	@property
 	def method_name(self) -> str:
@@ -72,35 +53,26 @@ class IntegrationMethod(ABC, Generic[Detail]):
 
 	def new_run(
 		self, f: VectorField, initial_conditions: InitialConditions,
-		*, jacobian: VectorField | None = None, jacobian_structure: JacobianStructure = "dense",
-		observe: bool = False, capture_quadrature: bool = False,
+		*, jacobian: VectorField | None = None,
 	) -> Self:
-		"""Copy constructor controls and own physical input; never retain a problem."""
+		"""Bind fresh numerical resources without retaining physical initial data."""
 		if not is_dataclass(self):
 			raise TypeError("Numerical methods must declare their options as dataclass fields.")
 		if not callable(f) or (jacobian is not None and not callable(jacobian)):
 			raise TypeError("Supply a field function and an optional Jacobian function.")
 		if not isinstance(initial_conditions, InitialConditions):
 			raise TypeError("Supply physical InitialConditions for method preparation.")
-		if jacobian_structure not in ("dense", "particle"):
-			raise ValueError("Jacobian structure must be dense or particle.")
 		method: Self = replace(self)
 		method.f = f
-		method.jacobian = jacobian if jacobian is not None else getattr(method, "jacobian", None)
-		method.jacobian_structure = jacobian_structure
-		method.layout = initial_conditions.layout
-		method.initial_state = _readonly_initial_state(initial_conditions.values)
-		method.physical_size = method.initial_state.size
-		method.particle_count = initial_conditions.particle_count
-		method.observe, method.capture_quadrature = bool(observe), bool(capture_quadrature)
+		method.jacobian = jacobian
 		method.metadata = {}
-		method.initialize()
-		method.metadata = _readonly_metadata({**method.metadata, **method._state_metadata()})
+		method.initialize(initial_conditions)
+		method.metadata = _readonly_metadata({**method.metadata, **method._state_metadata(initial_conditions.values.size)})
 		method._status = "ready"
 		return method
 
 	@abstractmethod
-	def initialize(self) -> None:
+	def initialize(self, initial_conditions: InitialConditions) -> None:
 		"""Prepare method-specific work after the common function binding."""
 
 	@abstractmethod
@@ -111,30 +83,30 @@ class IntegrationMethod(ABC, Generic[Detail]):
 	def build_observation(self, info: StepInfo, result: StepResult[Detail]) -> Any:
 		"""Build numerical snapshots; execution supplies physical provenance."""
 
-	def _state_metadata(self) -> dict[str, DiagnosticValue]:
+	def _state_metadata(self, size: int) -> dict[str, DiagnosticValue]:
 		"""Describe physical storage and temporary copies independently of observers."""
 		return {
 			'state_formulation': 'physical' if self.copies == 1 else 'duplicated',
-			'accepted_internal_state_dimension': self.physical_size,
-			'base_splitting_state_dimension': self.copies * self.physical_size,
-			'spatial_state_dimension': self.copies * self.physical_size,
-			'workspace_state_dimension': self.copies * self.physical_size,
+			'accepted_internal_state_dimension': size,
+			'base_splitting_state_dimension': self.copies * size,
+			'spatial_state_dimension': self.copies * size,
+			'workspace_state_dimension': self.copies * size,
 			'time_state_dimension': 1,
-			'observer_state_dimension': self.physical_size,
+			'observer_state_dimension': size,
 			'observer_state_kind': 'physical_map', 'energy_feedback': False,
 		}
 
 	def _checked_state(self, state: Any) -> Any:
-		"""Reject packed workspaces and nonfinite physical inputs."""
+		"""Validate a finite, nonempty physical vector."""
 		xp: ModuleType = array_namespace(state)
 		physical: np.ndarray = xp.asarray(state)
-		physical = checked_finite(physical, 'A step requires a finite physical vector with the initial shape.', ValueError)
-		if physical.shape != self.initial_state.shape:
-			raise ValueError('A step requires a finite physical vector with the initial shape.')
+		physical = checked_finite(physical, 'A step requires a finite nonempty physical vector.', ValueError)
+		if physical.ndim != 1 or not physical.size:
+			raise ValueError('A step requires a finite nonempty physical vector.')
 		return physical
 
 	def controller(self) -> StepController[Detail]:
-		"""Select fixed scheduling; adaptive methods supply their live controller."""
+		"""Select fixed scheduling; extensions may supply another controller."""
 		from execution._host import FixedStepController
 		return FixedStepController()
 

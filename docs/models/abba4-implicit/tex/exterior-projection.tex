@@ -92,10 +92,10 @@ the three ordered factors so the accepted-map tangent can be reconstructed.
 \section{Implementation correspondence}
 
 The public \texttt{ABBA4Implicit} configuration is in
-\path{src/methods/extended/abba.py}. Its shared advance lives in
-\path{src/methods/extended/palindromic.py}; the outer equation is in
+\path{src/methods/palindromic/abba4_implicit.py}. Its shared advance lives in
+\path{src/methods/palindromic/projected_base.py}; the outer equation is in
 \path{src/methods/projection.py}, bound to the composition by
-\path{src/methods/extended/core/projection.py}. Diagnostic observation consumes
+\path{src/methods/palindromic/core/projection.py}. Diagnostic observation consumes
 accepted records through \path{src/diagnostics/methods/}.
 The older single-projection import adapter and deprecated factory have been
 removed. Use \texttt{ABBA4Implicit} and its canonical observation record.  The canonical architecture document

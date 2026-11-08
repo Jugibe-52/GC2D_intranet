@@ -8,8 +8,8 @@ from typing import Literal, TYPE_CHECKING, TypeAlias
 import numpy as np
 
 from contracts.dynamics.protocols import GuidingCenterJacobianSystem
-from contracts.methods.extended.abba import ABBA2ImplicitIntegrationStep
-from contracts.methods.classical.gauss_legendre import GaussLegendre4IntegrationStep
+from contracts.methods.palindromic.abba import ABBA2ImplicitIntegrationStep
+from contracts.methods.runge_kutta.gauss_legendre import GaussLegendre4IntegrationStep
 from contracts.methods.observation import IntegrationStep, StateMap
 
 

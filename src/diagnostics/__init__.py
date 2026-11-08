@@ -1,11 +1,10 @@
 """Opt-in diagnostics built around the stable simulation core."""
 
-from diagnostics.methods.adaptive.trajectory import AdaptiveTrajectoryObserver
 from diagnostics.methods.energy import EnergyObserver
 from diagnostics.io.persistence import StoredSolution, load_solution, save_solution
 from diagnostics.io.paths import DEFAULT_RESULTS_BUCKET, solution_destination
 
-from diagnostics.methods.extended.abba_jacobian.observer import (
+from diagnostics.methods.palindromic.abba_jacobian.observer import (
 	IMPLICIT_ABBA_JACOBIAN_METHODS,
 	ImplicitABBAJacobianMethod,
 	ImplicitABBAJacobianObserver,
@@ -13,16 +12,16 @@ from diagnostics.methods.extended.abba_jacobian.observer import (
 	ImplicitABBAJacobianRecord,
 	ImplicitABBAJacobianSample,
 )
-from diagnostics.methods.extended.abba_jacobian.analysis import (
+from diagnostics.methods.palindromic.abba_jacobian.analysis import (
 	ParticleJacobianAnalysis,
 	SpectralClass,
 	analyze_particle_jacobian,
 )
-from diagnostics.methods.extended.abba_reversibility import (
+from diagnostics.methods.palindromic.abba_reversibility import (
 	ImplicitABBAReversibilityObserver,
 	ImplicitABBAReversibilitySample,
 )
-from diagnostics.methods.extended.energy.observer import (
+from diagnostics.methods.palindromic.energy.observer import (
 	GCGeneralizedEnergyObserver,
 	GCGeneralizedEnergyRecord,
 )
@@ -92,7 +91,6 @@ __all__ = [
     "StoredSolution",
     "load_solution",
     "save_solution",
-	"AdaptiveTrajectoryObserver",
 	"EnergyObserver",
 	"abba4_implicit_step_particle_jacobians",
 	"IMPLICIT_ABBA_JACOBIAN_METHODS",

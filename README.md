@@ -11,7 +11,7 @@ grouped by responsibility:
 - `problem.py`: physical initial-value problems containing their temporal request;
 - `request.py`: validated time intervals and output schedules;
 - `formulations`: reusable physical layouts, internal coordinates and split maps;
-- `methods`: numerical methods, including the shared `extended` family;
+- `methods`: numerical methods, including the shared `palindromic` family;
 - `execution`: execution configuration, preparation, step scheduling and collection;
 - `simulation`: public execution facade;
 - `diagnostics`: opt-in numerical observers and persistence;
@@ -29,7 +29,7 @@ NumericalMethod -----------------------------------/
 ```
 
 The [common integration architecture](docs/simulation/integration-architecture.md)
-shows the complete six-phase lifecycle, shared by all 12 methods. Each model
+shows the complete six-phase lifecycle, shared by all fixed methods. Each model
 also has its own detailed diagram in the [method catalog](docs/models/README.md).
 In `src/`, `problem.py` owns initial-value problems, `contracts/` holds shared
 interfaces and records, and `formulations/`
@@ -57,23 +57,7 @@ save; see the [Modal deployment and recovery guide](docs/simulation/modal-execut
 `States` checks array structure and owns immutable
 copies; `simulate` checks agreement with the requested times and initial state.
 
-`Potential.evaluate(t, x, y)` uses NumPy/SciPy. Its subclass `JaxPotential`
-overrides only `evaluate` and returns JAX arrays even for scalar or NumPy inputs.
-Import either class from `potential`; their inherited `load`, `random` and
-`gyroaverage` methods preserve the class. `electric_field` follows the instance's
-evaluation method, while `evaluate_grid` remains NumPy-only. Place JAX inputs with
-`jax.device_put` to select a device. Simulation preparation binds the shared GC/FC
-equations to JAX potentials without refitting splines or changing the source
-objects. Neither potential class accepts execution options.
-All built-in methods select their simulation backend using
-`ExecutionOptions` from `execution.options`
-through `simulate(problem, method, options=ExecutionOptions(backend="jax", device="cpu"))`.
-Enable `jax_enable_x64` first; select `device="gpu"` on a compatible installation.
-The eleven fixed-step methods compile their stages, nonlinear/projection solves
-and time loop. DOP853/Radau retain SciPy adaptive control and use JAX for batched
-field/energy evaluations, explicitly reporting hybrid execution. Results keep
-the immutable NumPy `States` contract. See the [execution guide](docs/simulation/jax-execution.md)
-for supported dynamics, callbacks, nonlinear controls and timing scope.
+DOP853 and Radau are standalone SciPy reference solvers used directly by studies. They are no longer methods in `simulation` or `methods`, and there is no adaptive controller or SciPy/JAX hybrid path in execution. Fixed methods own `step`; requests own the interval and saved times. Host progress is configured with `options=ExecutionOptions(progress=True)`.
 
 `States` records physical samples and becomes the read-only computed trajectory. Controllers keep the current internal `IntegrationState(time, values)` separately. `solution.initial_state` and `solution.layout` expose independent snapshots, and diagnostics are read-only. `request.SimulationRequest` owns the initial time, integration span and output schedule; step controls belong to methods. Shared physical dynamics are documented independently of numerical models:
 
@@ -153,7 +137,6 @@ length/frequency or resampling counts. `sigma=None` disables optional smoothing.
 Source frequencies are Hz for time in seconds. The physical reference period
 is `T=1/f_ref`; normalization stores `f*T`. Unscaled import preserves amplitude.
 
-
 See the [HDF5 import contract](docs/dynamics/gc2d-h5-import.md) and
 [architecture diagram](docs/dynamics/gc2d-h5-potential-architecture.puml) for
 units, derivatives, provenance and explicit preservation of historical studies.
@@ -162,7 +145,6 @@ units, derivatives, provenance and explicit preservation of historical studies.
 
 ```python
 
-from dynamics import GuidingCenterDynamics
 import numpy as np
 
 from dynamics import GuidingCenterDynamics
@@ -192,12 +174,11 @@ problem = InitialValueProblem(
 )
 request = SimulationRequest.uniform(
     t_span=(0.0, 6 * np.pi),
-    max_step=0.001,
     sample_count=361,
 )
 solution = simulate(
     problem.with_request(request),
-    BM4Implicit(),
+    BM4Implicit(step=0.001),
 )
 ```
 
@@ -284,26 +265,13 @@ and saved results retain their historical meaning.
 
 `DoubleFormulation(physical_size)` is the only state formulation. It prepares two temporary physical copies through `lift`, `join_copies` and `split_copies`, preserving NumPy/JAX backends and complete FC velocity blocks. It stores only a positive vector size; it owns no dynamics, layout, time, momentum, solver or projection. Methods using ordinary physical arrays need no formulation; `SingleFormulation` is removed.
 
-Every accepted snapshot is `IntegrationState(time, values)`: scalar time and physical `values` of shape `(d*N,)`. GC remains 2N and FC 4N with or without energy observation. Doubled GC work has 4N entries; generic doubled FC work has 8N. Workspaces are temporary and never become accepted states. Optional quadrature accompanies a sample without storing energy momentum. Generic copy support does not extend GC numerical methods to FC.
+Every accepted `IntegrationState(time, values)` contains only a scalar time and an owned physical vector `(d*N,)`. Sampling snapshots carry no quadrature or momentum. `DoubleFormulation(physical_size)` creates temporary copies only for doubled methods; its size belongs to that representation, not to IntegrationMethod. Shadow samples use independent shortened maps from the accepted left endpoint and do not change the main trajectory.
 
-Execution supplies `f(t, z)`, independent initial data and an optional Jacobian to the numerical method. `advance(t, z, h)` returns physical `StepResult.state`, numerical work and optional quadrature. `EnergyObserver`, supplied through `simulate(..., observers=(EnergyObserver(),))`, owns a fresh passive accumulator for each run. Accepted steps update it once; each shadow sample starts independently from the accepted left endpoint. JAX carries a separate functional accumulator through the compiled loop.
-
-Execution gives the energy observer H and `-partial_t H`. The observer evaluates saved physical H once; `states.energy.energy_diagnostics` combines supplied H and physical kappa without evaluating dynamics. Existing energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. The default initial kappa is zero; `EnergyObserver(initial_momentum=...)` accepts an explicit physical value per particle. Numerical archives require no migration; old pickled configured objects should be recreated.
+`EnergyObserver()` records physical H and the positive analytic partial time derivative `hamiltonian_time_derivative` at accepted endpoints and requested physical samples. It does not consume internal stages or integrate momentum. Per-step diagnostics are `energy_start`, `energy_end`, `energy_change`, `energy_time_derivative_start` and `energy_time_derivative_end`, with shape `(steps,N)`. Saved histories `physical_hamiltonian` (alias `hamiltonian`), `energy_drift` and `hamiltonian_time_derivative` have shape `(N,T)`. Energy variation in a time-dependent Hamiltonian is not a numerical conservation error.
 
 Hairer projects spatial copies only. Its reduced multiplier remains 2N, and
 the ABBA simultaneous spatial unknown remains 6N regardless of tracking.
-The energy clock and momentum never enter the nonlinear root or stopping scale.
-
-The auxiliary obeys `kappa'=-partial_t H`, starting from zero. Every family
-reports the same normalization: `physical_kappa`. The histories
-`extended_time`, `extended_momentum`, `physical_hamiltonian`,
-`generalized_energy` and `generalized_energy_error` follow `States.t`.
-All have shape `(N, saved_times)`, including `extended_time` for one particle.
-Use `States.t` when a one-dimensional integration grid is needed.
-`energy_error` is the maximum sampled absolute change in `H+kappa`.
-Physical H need not be conserved in a time-dependent potential.
-
-Energy observation preserves physical trajectories, nonlinear work and adaptive grids. DOP853/Radau integrate only physical coordinates in SciPy; the observer applies eight-point Gauss quadrature along accepted dense output. That diagnostic quadrature has no separate adaptive error tolerance and should be audited by refinement. Radau Jacobians remain physical-sized. BM4Implicit supplies converged spatial stages without replaying them.
+Energy observation does not add unknowns or change the nonlinear stopping scale.
 
 See the [integration contract](docs/simulation/integration-architecture.md)
 and [model index](docs/models/README.md) for current guides and compiled theory.
@@ -314,9 +282,7 @@ and [model index](docs/models/README.md) for current guides and compiled theory.
 residual, simultaneous formulation and complete ideal-root tangent. Earlier
 per-map companions are retained as historical derivations.
 
-Solver-neutral diagnostics retain `projection_formulation`, `state_extension`, `track_energy`, `nonlinear_solver`, `nonlinear_iterations`, `residual_evaluations`, `nonlinear_residual_norms` and `nonlinear_tolerances`. These are result metadata, not retired constructor arguments. State-dimension metadata describes physical accepted values and temporary copies. Energy observation retains `extended_momentum`, `extended_time`, `energy_error` and detailed generalized-energy histories with `physical_kappa` normalization; full time/momentum projection remains retired.
-
-### Method instances, collection and adaptive methods
+### Method instances, collection and independent references
 
 `Execution.run` prepares a fresh run through `method.new_run`, allocates one
 `States` recorder and owns the run lifecycle and finalization. Internal host and
@@ -327,42 +293,19 @@ metrics. Method-specific traces are consumed only when an observer needs them.
 See the [executor contract](docs/simulation/execution.md) for migration and
 extension through the preparation protocol.
 
-`DOP853` and `Radau` are public methods with `relative_tolerance`,
-`absolute_tolerance`, `first_step` and `dense_output`. Energy observation is selected at execution.
-They retain one live SciPy solver over the complete interval and share the same
-States recording and result boundary as all fixed methods. Accepted steps can vary;
-requested samples use dense output. `AdaptiveIntegrationStep` exposes an accepted
-interpolant instead of a fixed-step `map_state`.
-
 ```python
-from simulation import DOP853, Radau, simulate
+from scipy.integrate import solve_ivp
 
-reference = simulate(problem.with_request(request), DOP853(relative_tolerance=1e-10,
-                                     absolute_tolerance=1e-12))
-audit = simulate(problem.with_request(request), Radau(relative_tolerance=1e-11,
-                                absolute_tolerance=1e-13))
+reference = solve_ivp(problem.dynamics.vector_field, problem.request.t_span,
+                      problem.initial_state, method="DOP853", rtol=1e-10, atol=1e-12,
+                      max_step=0.025, t_eval=problem.request.output_times)
 ```
 
-The common [architecture guide](docs/simulation/integration-architecture.md)
-explains preparation, variable steps, observation domains and data ownership.
-The [DOP853](docs/models/dop853/simulation/dop853-simulation-architecture.md) and
-[Radau](docs/models/radau/simulation/radau-simulation-architecture.md) model guides
-cover their numerical sessions and work counters. The study reference and
-recurrence pipelines now use these public methods.
+### ExplicitEuler and RK4
 
-### Classical explicit methods
+`ExplicitEuler` uses `z_next = z + h*f(t,z)` and has global order one. `RK4` uses four stages at `t`, `t+h/2`, `t+h/2` and `t+h`, with global order four. Both share the output-independent fixed grid and receive only physical functions.
 
-`ExplicitEuler` provides the first-order forward map `z_next = z + h * f(t, z)`. `RK4` uses the four classical stages at `t`, `t + h/2`, `t + h/2` and `t + h`, and has global order four. Both receive the callable `f` and use the shared output-independent fixed grid. Execution checks `HamiltonianSystem` only when an `EnergyObserver` requests `hamiltonian` and `extended_momentum_derivative`; methods do not retain the dynamics object. See the shared [dynamics contracts](docs/dynamics/protocols.md).
-
-See the model-specific documentation for
-[`ExplicitEuler`](docs/models/explicit-euler/simulation/explicit-euler-simulation-architecture.md)
-and [`RK4`](docs/models/rk4/simulation/rk4-simulation-architecture.md).
-
-### Two-stage Gauss--Legendre method
-
-`GaussLegendre4` is a symmetric, fourth-order implicit Runge--Kutta method.
-For guiding-center dynamics it uses exact Hessian-derived field Jacobians and
-solves one independent `4 x 4` coupled-stage Newton system per particle. Other fields use a supplied dense Jacobian or a centered-difference fallback.
+### Gauss--Legendre4
 
 ```python
 from diagnostics import EnergyObserver
@@ -382,13 +325,6 @@ solution = simulate(
     observers=(EnergyObserver(),),
 )
 ```
-
-The observer event retains both converged collocation stages. For planar
-guiding-center dynamics with exact particle Jacobians, diagnostics can therefore
-calculate the exact ideal-root step tangent and audit the actual finite-tolerance
-map separately. Energy tracking advances the direct conjugate
-momentum `k` with the same Gauss nodes and reports drift of `K=H+k` without
-changing the physical trajectory.
 
 See the model-specific
 [simulation derivation](docs/models/gauss-legendre4/simulation/gauss-legendre4-simulation-architecture.md).
@@ -413,10 +349,9 @@ problem = InitialValueProblem(
 solution = simulate(
     problem.with_request(SimulationRequest.uniform(
         t_span=(0.0, 2 * np.pi),
-        max_step=0.001,
         sample_count=101,
     )),
-    RK4(),
+    RK4(step=0.001),
 )
 ```
 
@@ -615,11 +550,6 @@ python -m build
 
 ### Shared ABBA/BM4 implementation
 
-ABBA and BM4 retain their public names and exports from `simulation` and share the internal
-`src/methods/extended/` engine for signed direct/adjoint composition,
-spatial projection and analytic tangents. Accepted stage quadrature feeds the independent energy observer. See the
-[family architecture and diagram](docs/models/extended/simulation/extended-simulation-architecture.md).
-
-Explicit A/B/T/C recipes and generic palindromic methods are described in [the palindromic operation guide](docs/models/extended/simulation/palindromic-operations.md); see `examples/palindromic_time.py` for center/end time placement.
+Explicit A/B/T/C recipes and generic palindromic methods are described in [the palindromic operation guide](docs/models/palindromic/simulation/palindromic-operations.md); see `examples/palindromic_time.py` for center/end time placement.
 
 [Contract locations and canonical imports](docs/simulation/contracts.md).

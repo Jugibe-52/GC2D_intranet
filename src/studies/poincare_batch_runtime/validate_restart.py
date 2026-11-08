@@ -29,8 +29,8 @@ def baseline(indices: np.ndarray, xy: np.ndarray, meta: dict[str, Any]) -> tuple
     potential,_,_=load_snapshot()
     from dynamics import GuidingCenterDynamics
     import numpy as np
-    from methods.extended.bm4 import BM4Implicit
-    from methods.extended.bm4 import BM4Midpoint
+    from methods.palindromic.bm4_implicit import BM4Implicit
+    from methods.palindromic.bm4_midpoint import BM4Midpoint
     from problem import InitialValueProblem
     from request import SimulationRequest
     from simulation.runner import simulate
@@ -40,11 +40,11 @@ def baseline(indices: np.ndarray, xy: np.ndarray, meta: dict[str, Any]) -> tuple
     method: BM4Implicit | BM4Midpoint
     if meta['method']=='BM4Implicit':
         method=BM4Implicit(
-            progress=False,
+
             solver=NewtonSolver(absolute_tolerance=meta['newton_atol'], relative_tolerance=meta['newton_rtol'], max_iterations=meta['newton_max_iterations'], jacobian_relative_step=meta['jacobian_relative_step'], jacobian_method='analytic'),
         )
     else:
-        method=BM4Midpoint(progress=False)
+        method=BM4Midpoint()
     with threadpool_limits(limits=1): solution: States=simulate(problem.with_request(request),replace(method, step=meta['step']))
     return solution.t,np.stack(solution.positions(),axis=-1).transpose(1,0,2),dict(solution.diagnostics)
 

@@ -1,8 +1,9 @@
 """Individual accuracy, geometry, energy, and runtime study for Gauss4."""
 
 from __future__ import annotations
+from execution.options import ExecutionOptions
 
-from diagnostics.methods.energy import EnergyObserver
+from studies._generalized_energy import simulate_generalized_energy
 
 from solvers.nonlinear import NewtonSolver
 
@@ -32,8 +33,8 @@ from diagnostics.methods.symplecticity.observer import gc_physical_symplectic_fo
 from dynamics import GuidingCenterDynamics
 
 from potential import Potential
-from methods.classical.gauss_legendre import GaussLegendre4
-from contracts.methods.classical.gauss_legendre import GaussLegendre4IntegrationStep
+from methods.runge_kutta.gauss_legendre import GaussLegendre4
+from contracts.methods.runge_kutta.gauss_legendre import GaussLegendre4IntegrationStep
 from contracts.methods.observation import IntegrationStep
 from problem import InitialValueProblem
 from request import SimulationRequest
@@ -566,10 +567,10 @@ def run_gauss_legendre4_evaluation(
 			),
 		)
 		method: GaussLegendre4 = GaussLegendre4(
-			progress=config.progress,
+
 			solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic'),
 		)
-		solution: States = simulate(problem.with_request(step_request), replace(method, step=step), observers=(collector,))
+		solution: States = simulate(problem.with_request(step_request), replace(method, step=step), observers=(collector,), options=ExecutionOptions(progress=config.progress))
 		solutions[step] = solution
 		accuracy_by_step[step] = accuracy_series(
 			"GaussLegendre4",
@@ -589,13 +590,13 @@ def run_gauss_legendre4_evaluation(
 				+ 1
 			),
 		)
-		energy_solution: States = simulate(
+		energy_solution: States = simulate_generalized_energy(
 			problem.with_request(energy_request),
 			GaussLegendre4(
 				step=step,
-				progress=False,
+
 				solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic'),
-			), observers=(EnergyObserver(),))
+			))
 		momentum = energy_solution.k
 		if momentum is None:
 			raise RuntimeError("Gauss4 energy tracking did not return momentum.")
@@ -609,7 +610,7 @@ def run_gauss_legendre4_evaluation(
 			problem.with_request(step_request),
 			GaussLegendre4(
 				step=step,
-				progress=False,
+
 				solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance * config.newton_audit_tolerance_factor, relative_tolerance=config.relative_tolerance * config.newton_audit_tolerance_factor, max_iterations=config.max_iterations, jacobian_method='analytic'),
 			),
 		)
@@ -633,7 +634,7 @@ def run_gauss_legendre4_evaluation(
 		)
 
 		timing_method: GaussLegendre4 = GaussLegendre4(
-			progress=False,
+
 			solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic'),
 		)
 		for _ in range(config.timing_warmups):

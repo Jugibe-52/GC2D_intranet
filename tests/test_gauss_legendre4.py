@@ -10,6 +10,7 @@ import unittest
 
 from solvers.nonlinear import NewtonSolver
 from diagnostics.methods.energy import EnergyObserver
+from studies._generalized_energy import simulate_generalized_energy
 
 import numpy as np
 
@@ -63,12 +64,12 @@ class _RotationHamiltonian:
 		y = state[particle_count:]
 		return 0.5 * (x**2 + y**2)
 
-	def extended_momentum_derivative(
+	def hamiltonian_time_derivative(
 		self,
 		_time: float,
 		state: np.ndarray,
 	) -> np.ndarray:
-		return np.zeros(state.shape[0] // 2)
+		return np.zeros_like(state[:state.shape[0] // 2])
 
 
 class _CubicTimeField:
@@ -113,12 +114,12 @@ class _ExponentialRotationHamiltonian:
 		y = state[particle_count:]
 		return 0.5 * np.exp(time) * (x**2 + y**2)
 
-	def extended_momentum_derivative(
+	def hamiltonian_time_derivative(
 		self,
 		time: float,
 		state: np.ndarray,
 	) -> np.ndarray:
-		return -np.asarray(self.hamiltonian(time, state), dtype=float)
+		return np.asarray(self.hamiltonian(time, state), dtype=float)
 
 
 def _rotation_problem(*, particles: int = 1) -> InitialValueProblem:
@@ -235,11 +236,10 @@ class GaussLegendre4Tests(unittest.TestCase):
 		plain = simulate(problem.with_request(request), GaussLegendre4(step=0.1))
 		tracked = simulate(problem.with_request(request), GaussLegendre4(step=0.1), observers=(EnergyObserver(),))
 		np.testing.assert_array_equal(plain.states, tracked.states)
-		assert tracked.k is not None
-		self.assertEqual(tracked.k.shape, (2, 11))
-		np.testing.assert_array_equal(tracked.k, 0.0)
-		assert tracked.err is not None
-		self.assertLess(tracked.err, 5e-15)
+		self.assertIsNone(tracked.k)
+		self.assertEqual(tracked.diagnostics['hamiltonian_time_derivative'].shape, (2, 11))
+		np.testing.assert_array_equal(tracked.diagnostics['hamiltonian_time_derivative'], 0.)
+		self.assertLess(np.max(np.abs(tracked.diagnostics['energy_drift'])), 5e-15)
 
 	def test_nonautonomous_generalized_energy_converges_at_order_four(self) -> None:
 		initial_state = np.asarray((1.0, 0.0))
@@ -247,7 +247,7 @@ class GaussLegendre4Tests(unittest.TestCase):
 		errors: list[float] = []
 		finest = None
 		for step in (0.2, 0.1, 0.05):
-			finest = simulate(problem.with_request(SimulationRequest.uniform(t_span=(0.0, 1.0), sample_count=int(round(1.0 / step)) + 1)), GaussLegendre4(step=step, solver=NewtonSolver(absolute_tolerance=1e-14, relative_tolerance=1e-13, max_iterations=20, jacobian_method='analytic')), observers=(EnergyObserver(),))
+			finest = simulate_generalized_energy(problem.with_request(SimulationRequest.uniform(t_span=(0.0, 1.0), sample_count=int(round(1.0 / step)) + 1)), GaussLegendre4(step=step, solver=NewtonSolver(absolute_tolerance=1e-14, relative_tolerance=1e-13, max_iterations=20, jacobian_method='analytic')))
 			assert finest.err is not None
 			errors.append(float(finest.err))
 		for coarse, fine in zip(errors, errors[1:]):

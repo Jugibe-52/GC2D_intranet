@@ -17,10 +17,11 @@ from request import SimulationRequest
 
 from solvers.linear import _solve_particle_systems
 from solvers.nonlinear import _bind_newton_observer, _solve_newton
-from methods.classical.gauss_legendre import GaussLegendre4
-from methods.classical.sdirk import SDIRK4
-from methods.extended.abba import ABBA2Implicit, ABBA4Implicit
-from methods.extended.bm4 import BM4Implicit
+from methods.runge_kutta.gauss_legendre import GaussLegendre4
+from methods.runge_kutta.sdirk import SDIRK4
+from methods.palindromic.abba2_implicit import ABBA2Implicit
+from methods.palindromic.abba4_implicit import ABBA4Implicit
+from methods.palindromic.bm4_implicit import BM4Implicit
 from potential.potential import Potential
 from simulation.runner import simulate
 

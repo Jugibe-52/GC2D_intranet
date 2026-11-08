@@ -16,7 +16,7 @@ from execution.options import ExecutionOptions
 from problem import InitialValueProblem
 from request import SimulationRequest
 from states.generators import radial_star
-from methods.extended.bm4 import BM4Midpoint
+from methods.palindromic.bm4_midpoint import BM4Midpoint
 from potential.load import DEFAULT_FIELD_INDICES
 from potential.potential import Potential
 from simulation.runner import simulate
@@ -95,7 +95,7 @@ def run_poincare_star(source: str | Path, config: PoincareStarConfig, *,
         t_span=(0.0, float(config.cycles)),
         output_times=np.arange(config.cycles + 1, dtype=float),
     )
-    method: BM4Midpoint = BM4Midpoint(progress=False)
+    method: BM4Midpoint = BM4Midpoint()
     start: float = perf_counter()
     solution: States = simulate(problem.with_request(request), replace(method, step=1.0 / config.steps_per_cycle), options=execution)
     elapsed = perf_counter() - start

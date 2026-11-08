@@ -107,7 +107,7 @@ class GeneralizedEnergyObserverTests(unittest.TestCase):
 			np.testing.assert_allclose(np.concatenate((first_after, second_after)),
 				stage.state_after, rtol=2e-14, atol=2e-14)
 		self.assertAlmostEqual(observer.records[-1].kappa, kappa)
-		self.assertAlmostEqual(float(solution.diagnostics["extended_momentum"][0, -1]), kappa)
+		self.assertAlmostEqual(float(observer.records[-1].kappa), kappa)
 
 
 

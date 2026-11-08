@@ -1,6 +1,7 @@
 """Fourth-order HBVM(4,2) with a reduced Legendre-stage solve."""
 
 from __future__ import annotations
+from states.initial import InitialConditions
 from solvers.nonlinear import NewtonSolver, validate_solver
 from solvers.derivatives import centered_difference, resolve_jacobian_method
 
@@ -14,9 +15,9 @@ from solvers.linear import solve_linear, _solve_particle_systems
 from types import ModuleType
 from contracts.arrays import array_namespace, checked_finite, map_arrays
 
-from contracts.methods.functions import VectorField, JacobianStructure
+from contracts.methods.functions import VectorField
 from contracts.methods.quadrature import StageQuadrature
-from methods.classical._jacobians import _checked_vector_field, _checked_analytic_jacobians
+from methods.runge_kutta._jacobians import _checked_vector_field, _checked_analytic_jacobians
 
 from methods.base import FixedStepMethod
 from contracts.methods.step import StepInfo, StepResult
@@ -89,11 +90,11 @@ class _HBVMStepResult:
 	converged: Any = True
 
 
-def _analytic_stage_jacobians(jacobian: VectorField, structure: JacobianStructure,
+def _analytic_stage_jacobians(jacobian: VectorField,
                               times: BackendArray, stages: BackendArray) -> tuple[BackendArray, ...]:
-	"""Retain dense or declared particle derivatives at all quadrature stages."""
+	"""Evaluate independent particle derivatives at all quadrature stages."""
 	blocks: BackendArray = map_arrays(lambda time, stage:
-		_checked_analytic_jacobians(jacobian, time, stage, structure), times, stages)
+		_checked_analytic_jacobians(jacobian, time, stage), times, stages)
 	return tuple(blocks)
 
 
@@ -138,7 +139,7 @@ def _reduced_residual_jacobian(
 def _advance_hbvm42(
 	f: VectorField, time: float, state: BackendArray, step: float, *,
 	solver: NewtonSolver, jacobian: VectorField | None,
-	jacobian_structure: JacobianStructure, observe: bool = True,
+	observe: bool = True,
 ) -> _HBVMStepResult:
 	"""Solve the two-coefficient HBVM(4,2) equation for one complete step."""
 	xp: ModuleType = array_namespace(state)
@@ -187,7 +188,7 @@ def _advance_hbvm42(
 		if selected_jacobian_method == "analytic":
 			assert jacobian is not None
 			stage_jacobians: tuple[BackendArray, ...] = _analytic_stage_jacobians(
-				jacobian, jacobian_structure,
+				jacobian,
 				stage_times,
 				payload.stages,
 			)
@@ -242,13 +243,12 @@ class HBVM42(FixedStepMethod[_HBVMStepResult]):
 	"""
 
 	solver: NewtonSolver = field(default_factory=lambda: NewtonSolver(backtracking=True), kw_only=True)
-	progress: bool = False
 
 	def __post_init__(self) -> None:
 		FixedStepMethod.__post_init__(self)
 		validate_solver(self.solver, newton_only=True)
 
-	def initialize(self) -> None:
+	def initialize(self, initial_conditions: InitialConditions) -> None:
 		"""Record the method identity without probing deferred derivatives."""
 		self.metadata = {'method_order': 4, 'quadrature_stage_count': 4,
 			'legendre_rank': 2, 'jacobian_method': self.solver.jacobian_method}
@@ -256,15 +256,13 @@ class HBVM42(FixedStepMethod[_HBVMStepResult]):
 	def _solve_physical(self, time: float, state: BackendArray, step: float,
 	                    *, observe: bool = True) -> _HBVMStepResult:
 		return _advance_hbvm42(self.f, time, state, step, solver=self.solver,
-			jacobian=self.jacobian, jacobian_structure=self.jacobian_structure, observe=observe)
+			jacobian=self.jacobian, observe=observe)
 
 	def advance(self, time: float, state: BackendArray, step: float, *, observe: bool = True) -> StepResult[_HBVMStepResult]:
-		"""Return a coefficient solve, work counters and optional stage quadrature."""
+		"""Return a coefficient solve, work counters and stage quadrature."""
 		result: _HBVMStepResult = self._solve_physical(time, self._checked_state(state), step, observe=observe)
-		quadrature: StageQuadrature | None = None
-		if self.capture_quadrature:
-			quadrature = StageQuadrature(tuple(time + step * _HBVM42_NODES),
-				tuple(result.stage_states), tuple(step * _HBVM42_WEIGHTS))
+		quadrature: StageQuadrature = StageQuadrature(tuple(time + step * _HBVM42_NODES),
+			tuple(result.stage_states), tuple(step * _HBVM42_WEIGHTS))
 		return StepResult(result.state, {
 			'nonlinear_iterations': result.iterations,
 			'nonlinear_residual_norms': result.residual_norm,

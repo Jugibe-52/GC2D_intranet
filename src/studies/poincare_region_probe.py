@@ -19,9 +19,9 @@ import scipy
 from dynamics import GuidingCenterDynamics
 
 from potential import Potential
-from methods.extended.bm4 import BM4Midpoint
+from methods.palindromic.bm4_midpoint import BM4Midpoint
 from problem import InitialValueProblem
-from methods.classical.rk4 import RK4
+from methods.runge_kutta.rk4 import RK4
 from request import SimulationRequest
 from simulation.runner import simulate
 from studies.poincare_periodicity import SavedPoincareSection

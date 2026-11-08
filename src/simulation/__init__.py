@@ -3,11 +3,11 @@
 from formulations.state import DoubleFormulation
 from contracts.dynamics.coordinates import StateLayout
 from dynamics.coordinates import PhysicalCoordinates, GCCoordinates, FCCoordinates
-from methods.extended.maps import GCDoubledMaps, HarmonicCoupling, gc_coupling_matrix
+from methods.palindromic.maps import GCDoubledMaps, HarmonicCoupling, gc_coupling_matrix
 from methods.splitting import FCSplitMaps
 from methods import (
 	PalindromicMethod, PalindromicImplicit, PalindromicMidpoint, Composition, Operation, A, B, T, C,
-	DOP853, Radau, ABBA2Midpoint, ABBA2Implicit, ABBA4Implicit, ABBA4_PROJECTION_PLACEMENTS,
+	ABBA2Midpoint, ABBA2Implicit, ABBA4Implicit, ABBA4_PROJECTION_PLACEMENTS,
 	BM4Implicit, BM4Midpoint, ExplicitEuler, GAUSS_JACOBIAN_METHODS, GaussJacobianMethod,
 	GaussLegendre4, HBVM42, HBVMJacobianMethod, ABBA_PROJECTION_FORMULATIONS, ABBA_STATE_EXTENSIONS,
 	NONLINEAR_SOLVERS, NonlinearSolver, ProjectionPlacement, ProjectionFormulation, StateExtension,
@@ -15,13 +15,12 @@ from methods import (
 	SDIRKJacobianMethod,
 )
 from contracts.methods.base import NumericalMethod
-from contracts.methods.adaptive.scipy import AdaptiveIntegrationStep, AdaptiveStepObserver
-from contracts.methods.extended.abba import (
+from contracts.methods.palindromic.abba import (
 	ABBA4ImplicitIntegrationStep, ABBAImplicitCompositionIntegrationStep,
 	ABBA2ImplicitIntegrationStep, UnprojectedABBAIntegrationStep,
 )
-from contracts.methods.classical.gauss_legendre import GaussLegendre4IntegrationStep
-from contracts.methods.extended.bm4 import ImplicitBM4IntegrationStep
+from contracts.methods.runge_kutta.gauss_legendre import GaussLegendre4IntegrationStep
+from contracts.methods.palindromic.bm4 import ImplicitBM4IntegrationStep
 from contracts.methods.observation import (
 	ImplicitIntegrationStep,
 	IntegrationStage,
@@ -46,15 +45,19 @@ from states.initial import InitialConditions
 from solvers.nonlinear import NewtonSolver, BroydenSolver
 from methods.projection import ReducedProjection, SimultaneousProjection
 
+from methods.runge_kutta.tableau import ButcherTableau
+from methods.runge_kutta.base import RungeKutta
+from methods.runge_kutta.explicit import ExplicitRungeKutta
+from methods.runge_kutta.diagonally_implicit import DiagonallyImplicitRungeKutta
+from methods.runge_kutta.implicit import ImplicitRungeKutta
+
 __all__ = [
+	"ButcherTableau", "RungeKutta", "ExplicitRungeKutta",
+	"DiagonallyImplicitRungeKutta", "ImplicitRungeKutta",
 	"PhysicalCoordinates", "GCCoordinates", "FCCoordinates", "GCDoubledMaps", "FCSplitMaps", "HarmonicCoupling",
 	'PalindromicMethod', 'PalindromicImplicit', 'PalindromicMidpoint', 'Composition', 'Operation', 'A', 'B', 'T', 'C',
 	"InitialConditions", "NewtonSolver", "BroydenSolver", "ReducedProjection", "SimultaneousProjection",
 	"DoubleFormulation",
-	"DOP853",
-	"Radau",
-	"AdaptiveIntegrationStep",
-	"AdaptiveStepObserver",
 	"ABBA2Midpoint",
 	"ABBA2Implicit",
 	"ABBA4Implicit",

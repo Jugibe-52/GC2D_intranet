@@ -11,8 +11,8 @@ import numpy as np
 
 from diagnostics._validation import positive_integer as _positive_integer
 
-from contracts.methods.extended.abba import ABBA2ImplicitIntegrationStep
-from contracts.methods.extended.bm4 import ImplicitBM4IntegrationStep
+from contracts.methods.palindromic.abba import ABBA2ImplicitIntegrationStep
+from contracts.methods.palindromic.bm4 import ImplicitBM4IntegrationStep
 from contracts.methods.observation import ImplicitIntegrationStep, IntegrationStep
 
 from diagnostics.io.buffering import DiagnosticBuffer

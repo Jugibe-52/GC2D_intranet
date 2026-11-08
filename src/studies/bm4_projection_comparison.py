@@ -18,9 +18,9 @@ from dynamics import GuidingCenterDynamics
 from diagnostics.studies.reference_trajectory import StoredReferenceTrajectory
 
 from potential import Potential
-from methods.extended.bm4 import BM4Implicit
-from methods.extended.bm4 import BM4Midpoint
-from contracts.methods.extended.bm4 import ImplicitBM4IntegrationStep
+from methods.palindromic.bm4_implicit import BM4Implicit
+from methods.palindromic.bm4_midpoint import BM4Midpoint
+from contracts.methods.palindromic.bm4 import ImplicitBM4IntegrationStep
 from contracts.methods.observation import IntegrationStep
 from problem import InitialValueProblem
 from methods.base import FixedStepMethod

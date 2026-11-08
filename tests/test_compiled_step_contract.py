@@ -16,8 +16,8 @@ from problem import InitialValueProblem
 from request import SimulationRequest
 from execution._plan import build_fixed_step_plan
 
-from methods.classical.gauss_legendre import GaussLegendre4
-from methods.classical.rk4 import RK4
+from methods.runge_kutta.gauss_legendre import GaussLegendre4
+from methods.runge_kutta.rk4 import RK4
 from solvers.nonlinear import NewtonSolver
 from diagnostics.methods.energy import EnergyObserver
 from potential.potential import Potential
@@ -43,12 +43,12 @@ class CompiledStepContractTests(unittest.TestCase):
 		problem = self.problem if problem is None else problem
 		dynamics = prepare_dynamics(problem.dynamics)
 		return method.new_run(dynamics.vector_field, problem.initial_conditions,
-			jacobian=dynamics.particle_vector_field_jacobians, jacobian_structure='particle')
+			jacobian=dynamics.particle_vector_field_jacobians)
 
-	def prepare_kernel(self, run):
+	def prepare_kernel(self, run, problem=None):
 		from execution._jax import resolve_device
 		from execution._jax_step import prepare_step
-		return prepare_step(run, resolve_device(self.execution))
+		return prepare_step(run, resolve_device(self.execution), initial_conditions=(self.problem if problem is None else problem).initial_conditions)
 
 	def test_coordinator_accepts_an_independent_prepared_map(self) -> None:
 		import jax.numpy as jnp
@@ -62,8 +62,8 @@ class CompiledStepContractTests(unittest.TestCase):
 			copies: ClassVar[int] = 1
 			finite_difference: ClassVar[bool] = False
 
-			def __call__(self, time: Any, state: Any, step: Any) -> tuple[Any, Any, dict[str, Any], Any]:
-				return state + step * jnp.array([2., -1.]), None, {}, jnp.array(True)
+			def __call__(self, time: Any, state: Any, step: Any) -> tuple[Any, dict[str, Any], Any]:
+				return state + step * jnp.array([2., -1.]), {}, jnp.array(True)
 
 		run = self.prepare_run(RK4(step=0.1))
 		with patch.object(RK4, "new_run", return_value=run):
@@ -75,10 +75,9 @@ class CompiledStepContractTests(unittest.TestCase):
 		self.assertEqual(data.diagnostics["output_interpolation_count"], 1)
 		self.assertEqual(run._status, "finished")
 
-	def test_fixed_and_hybrid_runs_finalize_the_allocated_result_once(self) -> None:
-		from methods.adaptive.scipy import Radau
+	def test_fixed_runs_finalize_the_allocated_result_once(self) -> None:
 		from states import States
-		for method in (RK4(), Radau()):
+		for method in (RK4(),):
 			with self.subTest(method=type(method).__name__):
 				recorders, finalized, runs = [], [], []
 				prepare, finalize, new_run = States.prepare, States.finalize, method.new_run
@@ -131,9 +130,9 @@ class CompiledStepContractTests(unittest.TestCase):
 
 		run = self.prepare_run(GaussLegendre4(step=0.1))
 		kernel = self.prepare_kernel(run)
-		state, _, statistics, converged = kernel(0., run.initial_state, .01)
+		state, statistics, converged = kernel(0., self.problem.initial_state, .01)
 		run.solver = NewtonSolver(1e3, 1e3)
-		again, _, repeated, _ = kernel(0., run.initial_state, .01)
+		again, repeated, _ = kernel(0., self.problem.initial_state, .01)
 		np.testing.assert_array_equal(again, state)
 		np.testing.assert_array_equal(repeated["nonlinear_tolerances"], statistics["nonlinear_tolerances"])
 		self.assertTrue(converged)
@@ -151,10 +150,10 @@ class CompiledStepContractTests(unittest.TestCase):
 		assert isinstance(kernel, PreparedStep)
 		self.assertEqual(kernel.f, prepare_dynamics(self.problem.dynamics).vector_field)
 		self.assertFalse(hasattr(kernel, "dynamics"))
-		prepared = prepare_integration(run, kernel, build_fixed_step_plan(self.request, run.step))
+		prepared = prepare_integration(run, kernel, build_fixed_step_plan(self.request, run.step), initial_state=self.problem.initial_state)
 		compiled = prepared.executable
 		repeated = self.prepare_run(RK4(step=0.1))
-		self.assertIs(prepare_integration(repeated, self.prepare_kernel(repeated), build_fixed_step_plan(self.request, repeated.step)).executable, compiled)
+		self.assertIs(prepare_integration(repeated, self.prepare_kernel(repeated), build_fixed_step_plan(self.request, repeated.step), initial_state=self.problem.initial_state).executable, compiled)
 
 		# Exercise eviction without compiling seventeen redundant physical models.
 		signature = tuple(self.jax.ShapeDtypeStruct(a.shape, a.dtype, sharding=a.sharding, weak_type=a.weak_type) for a in prepared.inputs)
@@ -182,10 +181,10 @@ class CompiledStepContractTests(unittest.TestCase):
 			return observed
 		with patch.object(_jax_fixed, '_compiled_integrator', side_effect=compile_observed):
 			with patch.object(States, 'prepare', side_effect=AssertionError('Premature recorder')):
-				prepared = _jax_fixed.prepare_integration(run, self.prepare_kernel(run), build_fixed_step_plan(self.request, run.step))
+				prepared = _jax_fixed.prepare_integration(run, self.prepare_kernel(run), build_fixed_step_plan(self.request, run.step), initial_state=self.problem.initial_state)
 		self.assertEqual(len(executables), 1)
 		executables[0].assert_not_called()
-		saved = States.prepare(self.request.output_times, run.initial_state, layout=run.layout)
+		saved = States.prepare(self.request.output_times, self.problem.initial_state, layout=self.problem.layout)
 		with patch.object(_jax_fixed, '_compiled_integrator', side_effect=AssertionError('Worker compiled')):
 			with patch('execution._plan.build_fixed_step_plan', side_effect=AssertionError('Worker prepared')):
 				with patch.object(self.jax, 'jit', side_effect=AssertionError('Worker traced')):
@@ -203,16 +202,16 @@ class CompiledStepContractTests(unittest.TestCase):
 		self.addCleanup(_compiled_integrator.cache_clear)
 		method = RK4(step=.1)
 		run = self.prepare_run(method)
-		first = prepare_integration(run, self.prepare_kernel(run), build_fixed_step_plan(self.request, run.step))
+		first = prepare_integration(run, self.prepare_kernel(run), build_fixed_step_plan(self.request, run.step), initial_state=self.problem.initial_state)
 		changed = InitialValueProblem(self.problem.dynamics, self.problem.initial_state + .2)
 		new_run = self.prepare_run(method, changed)
 		# Equal shapes still need the new interval and shadow-sampling values.
 		new_request = SimulationRequest((.3, .5), np.array([.3, .34, .41, .5]))
-		second = prepare_integration(new_run, self.prepare_kernel(new_run), build_fixed_step_plan(new_request, new_run.step))
+		second = prepare_integration(new_run, self.prepare_kernel(new_run, changed), build_fixed_step_plan(new_request, new_run.step), initial_state=changed.initial_state)
 		self.assertIs(first.executable, second.executable)
 		self.assertIsNot(first.inputs, second.inputs)
 		for prepared, numerical_run, problem, request in ((first, run, self.problem, self.request), (second, new_run, changed, new_request)):
-			saved = States.prepare(request.output_times, numerical_run.initial_state, layout=numerical_run.layout)
+			saved = States.prepare(request.output_times, problem.initial_state, layout=problem.layout)
 			result = saved.finalize(run_steps(prepared, saved))
 			reference = Execution().run(problem.with_request(request), method)
 			np.testing.assert_array_equal(result.states[0], problem.initial_state)
@@ -224,9 +223,9 @@ class CompiledStepContractTests(unittest.TestCase):
 				other = self.problem if variation != 'particles' else InitialValueProblem(self.problem.dynamics, np.tile(self.problem.initial_state, 2))
 				run = self.prepare_run(RK4(step=.05 if variation == 'steps' else .1), other)
 				request = replace(self.request, output_times=np.array([0., .2])) if variation == 'samples' else self.request
-				prepared = prepare_integration(run, self.prepare_kernel(run), build_fixed_step_plan(request, run.step))
+				prepared = prepare_integration(run, self.prepare_kernel(run, other), build_fixed_step_plan(request, run.step), initial_state=other.initial_state)
 				self.assertIsNot(prepared.executable, first.executable)
-				saved = States.prepare(request.output_times, run.initial_state, layout=run.layout)
+				saved = States.prepare(request.output_times, other.initial_state, layout=other.layout)
 				result = saved.finalize(run_steps(prepared, saved))
 				reference = Execution().run(other.with_request(request), RK4(step=run.step))
 				np.testing.assert_allclose(result.states, reference.states, rtol=2e-12, atol=2e-12)
@@ -273,31 +272,30 @@ class CompiledStepContractTests(unittest.TestCase):
 		from execution._jax_step import prepare_step
 
 		events = []
-		for method, callbacks in (
-			(RK4(), (events.append,)),
-			(RK4(progress=True), ()),
-			(GaussLegendre4(solver=NewtonSolver(iteration_observer=events.append)), ()),
+		for method, callbacks, progress in (
+			(RK4(), (events.append,), False),
+			(RK4(), (), True),
+			(GaussLegendre4(solver=NewtonSolver(iteration_observer=events.append)), (), False),
 		):
-			with self.subTest(method=type(method).__name__, callbacks=bool(callbacks), progress=method.progress):
+			with self.subTest(method=type(method).__name__, callbacks=bool(callbacks), progress=progress):
 				run = self.prepare_run(method)
 				with patch('execution._jax_step.copy', side_effect=AssertionError('Unexpected preparation')):
 					with self.assertRaisesRegex(NotImplementedError, 'step or iteration callbacks'):
-						prepare_step(run, self.jax.devices('cpu')[0], callbacks=callbacks)
+						prepare_step(run, self.jax.devices('cpu')[0], initial_conditions=self.problem.initial_conditions, callbacks=callbacks, progress=progress)
 				self.assertEqual(run._status, 'ready')
 		self.assertEqual(events, [])
 
-	def test_direct_preparation_rejects_adaptive_and_overridden_methods(self) -> None:
+	def test_direct_preparation_rejects_overridden_methods(self) -> None:
 		from execution._jax_step import prepare_step
-		from methods.adaptive.scipy import DOP853
 
 		class CustomRK4(RK4):
 			pass
 
-		for method in (DOP853(), CustomRK4()):
+		for method in (CustomRK4(),):
 			with self.subTest(method=type(method).__name__):
 				run = self.prepare_run(method)
 				with self.assertRaisesRegex(TypeError, 'supported built-in method'):
-					prepare_step(run, self.jax.devices('cpu')[0])
+					prepare_step(run, self.jax.devices('cpu')[0], initial_conditions=self.problem.initial_conditions)
 
 
 if __name__ == "__main__":

@@ -15,7 +15,7 @@ from states.history import States
 from execution import Execution
 from execution.execution import Execution as CanonicalExecution
 
-from methods.classical.rk4 import RK4
+from methods.runge_kutta.rk4 import RK4
 from simulation.runner import simulate
 
 
@@ -116,7 +116,7 @@ class ExecutionTests(unittest.TestCase):
             with patch.object(run, "controller", wraps=run.controller) as controller:
                 result = Execution().run(self.problem.with_request(self.request), self.method)
         prepare.assert_called_once_with(self.problem.dynamics.vector_field, self.problem.initial_conditions,
-                                        jacobian=None, jacobian_structure="dense", observe=False, capture_quadrature=False)
+                                        jacobian=None)
         controller.assert_called_once_with()
         self.assertEqual(run._status, "finished")
         self.assertEqual(result.diagnostics["execution_backend"], "scipy")

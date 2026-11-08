@@ -26,7 +26,7 @@ def calculate_checkpointed_group(indices: np.ndarray, initial_xy: np.ndarray,
     potential,_,snapshot=load_snapshot()
     from dynamics import GuidingCenterDynamics
     import numpy as np
-    from methods.classical.rk4 import RK4
+    from methods.runge_kutta.rk4 import RK4
     from problem import InitialValueProblem
     from request import SimulationRequest
     from simulation.runner import simulate
@@ -54,7 +54,7 @@ def calculate_checkpointed_group(indices: np.ndarray, initial_xy: np.ndarray,
             initial: np.ndarray=GuidingCenterDynamics.coordinates.pack_components(value[:count], value[count:])
             problem: InitialValueProblem=InitialValueProblem(field, initial, layout=GuidingCenterDynamics.coordinates)
             request: SimulationRequest=SimulationRequest.uniform(t_span=(t0+completed*h,t0+end*h),sample_count=length+1)
-            solution: States=simulate(problem.with_request(request),RK4(step=h, progress=False))
+            solution: States=simulate(problem.with_request(request),RK4(step=h))
             assert solution.diagnostics['step_count']==length
             part=solution.states.T;assert part.shape==(2*count,length+1) and np.isfinite(part).all()
             np.testing.assert_array_equal(part[:,0],value)

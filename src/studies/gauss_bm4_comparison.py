@@ -1,6 +1,7 @@
 """Accuracy and runtime comparison between Gauss4 and implicit BM4."""
 
 from __future__ import annotations
+from execution.options import ExecutionOptions
 
 from solvers.nonlinear import NewtonSolver
 
@@ -29,8 +30,8 @@ from ._validation import nonnegative_integer
 from dynamics import GuidingCenterDynamics
 
 from potential import Potential
-from methods.extended.bm4 import BM4Implicit
-from methods.classical.gauss_legendre import GaussLegendre4
+from methods.palindromic.bm4_implicit import BM4Implicit
+from methods.runge_kutta.gauss_legendre import GaussLegendre4
 from problem import InitialValueProblem
 from methods.base import FixedStepMethod
 from typing import Any
@@ -407,12 +408,12 @@ def _method(
 	"""Build one comparison method with aligned Newton controls."""
 	if method_name == "GaussLegendre4":
 		return GaussLegendre4(
-			progress=config.progress,
+
 			solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic'),
 		)
 	if method_name == "BM4Implicit":
 		return BM4Implicit(
-			progress=config.progress,
+
 			solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic'),
 		)
 	raise ValueError(f"Unknown Gauss/BM4 comparison method {method_name!r}.")
@@ -465,7 +466,7 @@ def run_gauss_bm4_comparison(
 			sample_count=config.output_sample_count,
 		)
 		for method_name in GAUSS_BM4_METHODS:
-			solution: States = simulate(problem.with_request(request), replace(_method(method_name, config), step=step))
+			solution: States = simulate(problem.with_request(request), replace(_method(method_name, config), step=step), options=ExecutionOptions(progress=config.progress))
 			solutions[method_name][step] = solution
 			accuracy_by_method[method_name][step] = accuracy_series(
 				method_name,
@@ -480,7 +481,7 @@ def run_gauss_bm4_comparison(
 		}
 		for _ in range(config.timing_warmups):
 			for method_name in GAUSS_BM4_METHODS:
-				simulate(problem.with_request(request), replace(timing_methods[method_name], step=step))
+				simulate(problem.with_request(request), replace(timing_methods[method_name], step=step), options=ExecutionOptions(progress=config.progress))
 		samples: dict[str, list[float]] = {name: [] for name in GAUSS_BM4_METHODS}
 		for repeat in range(config.timing_repeats):
 			order: tuple[str, ...] = (
@@ -490,7 +491,7 @@ def run_gauss_bm4_comparison(
 			)
 			for method_name in order:
 				started: float = perf_counter()
-				simulate(problem.with_request(request), replace(timing_methods[method_name], step=step))
+				simulate(problem.with_request(request), replace(timing_methods[method_name], step=step), options=ExecutionOptions(progress=config.progress))
 				samples[method_name].append(perf_counter() - started)
 		for method_name in GAUSS_BM4_METHODS:
 			runtimes[method_name][step] = readonly_runtime_samples(

@@ -19,16 +19,10 @@ class CompiledStep(Protocol):
 	def device(self) -> "Device": ...
 
 	@property
-	def physical_dimension(self) -> int: ...
-
-	@property
-	def copies(self) -> int: ...
-
-	@property
 	def finite_difference(self) -> bool: ...
 
-	def __call__(self, time: Any, state: Any, step: Any) -> tuple[Any, Any, dict[str, Any], Any]:
-		"""Return physical values, optional quadrature, work counters and convergence."""
+	def __call__(self, time: Any, state: Any, step: Any) -> tuple[Any, dict[str, Any], Any]:
+		"""Return physical values, work counters and convergence."""
 		...
 
 

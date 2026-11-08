@@ -14,7 +14,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from diagnostics.methods.extended.abba_jacobian import (
+from diagnostics.methods.palindromic.abba_jacobian import (
 	ImplicitABBAJacobianObserver,
 	analyze_particle_jacobian,
 	line_angle,

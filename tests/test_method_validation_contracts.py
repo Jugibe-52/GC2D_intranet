@@ -15,12 +15,13 @@ from problem import InitialValueProblem
 from request import SimulationRequest
 
 from solvers.nonlinear import _solve_broyden, _solve_newton, NewtonSolver
-from methods.adaptive.scipy import DOP853, Radau
-from methods.classical.gauss_legendre import GaussLegendre4
-from methods.classical.rk4 import RK4
-from methods.classical.sdirk import SDIRK4
-from methods.extended.abba import ABBA2Implicit, ABBA4Implicit
-from methods.extended.bm4 import BM4Implicit, BM4Midpoint
+from methods.runge_kutta.gauss_legendre import GaussLegendre4
+from methods.runge_kutta.rk4 import RK4
+from methods.runge_kutta.sdirk import SDIRK4
+from methods.palindromic.abba2_implicit import ABBA2Implicit
+from methods.palindromic.abba4_implicit import ABBA4Implicit
+from methods.palindromic.bm4_implicit import BM4Implicit
+from methods.palindromic.bm4_midpoint import BM4Midpoint
 from methods.hbvm.order4 import HBVM42
 from states.history import States
 
@@ -44,33 +45,24 @@ class _ArrayMetadataRK4(RK4):
 
 	probe: np.ndarray = field(default_factory=lambda: np.asarray((1.0, 2.0)))
 
-	def initialize(self) -> None:
-		RK4.initialize(self)
+	def initialize(self, initial_conditions) -> None:
+		RK4.initialize(self, initial_conditions)
 		self.metadata = {"probe": self.probe}
 
 
 class MethodValidationContractTests(unittest.TestCase):
 	"""Verify behavior that generic numeric validators must not silently change."""
 
-	def test_algebraic_and_adaptive_tolerances_have_explicit_owners(self) -> None:
+	def test_algebraic_tolerances_have_explicit_owners(self) -> None:
 		for value in (True, np.bool_(True)):
 			with self.assertRaises(ValueError):
 				NewtonSolver(absolute_tolerance=value)
-			for constructor in (DOP853, Radau):
-				method = constructor(absolute_tolerance=value)
-				self.assertEqual(method.absolute_tolerance, 1.)
-				self.assertIs(type(method.absolute_tolerance), float)
 
 	def test_removed_coupling_and_optional_first_step_controls(self) -> None:
 		for constructor in (BM4Midpoint, BM4Implicit):
 			for value in (0., .4, False, True, np.bool_(False), np.bool_(True)):
 				with self.assertRaises(TypeError):
 					constructor(coupling_frequency=value)
-		for constructor in (DOP853, Radau):
-			self.assertIsNone(constructor(first_step=None).first_step)
-			self.assertEqual(constructor(first_step=True).first_step, 1.0)
-			with self.assertRaisesRegex(ValueError, "first_step must be finite and positive"):
-				constructor(first_step=False)
 
 	def test_iteration_limits_are_validated_once_by_the_solver(self) -> None:
 		solver = NewtonSolver(max_iterations=np.int64(3))
@@ -84,9 +76,6 @@ class MethodValidationContractTests(unittest.TestCase):
 	def test_invalid_controls_are_reported_by_their_owner(self) -> None:
 		with self.assertRaisesRegex(ValueError, 'jacobian_relative_step'):
 			NewtonSolver(jacobian_relative_step=0., max_iterations=0)
-		for constructor in (DOP853, Radau):
-			with self.assertRaisesRegex(ValueError, 'relative_tolerance must be finite and positive'):
-				constructor(relative_tolerance=0., absolute_tolerance=0.)
 
 	def test_request_snaps_owned_endpoints_and_rechecks_increasing_times(self) -> None:
 		times = np.asarray((np.nextafter(0.0, -np.inf), 0.5, np.nextafter(1.0, np.inf)))
@@ -117,12 +106,12 @@ class MethodValidationContractTests(unittest.TestCase):
 		with self.assertRaises(TypeError):
 			solution.diagnostics["other"] = 1  # type: ignore[index]
 
-	def test_run_owns_initial_state_and_metadata_arrays(self) -> None:
+	def test_run_owns_metadata_without_retaining_initial_conditions(self) -> None:
 		problem = InitialValueProblem(_CountingDynamics(), np.array(np.asarray((1.0, 0.0)), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 		request = SimulationRequest.uniform(t_span=(0.0, 0.1), sample_count=2)
 		method = _ArrayMetadataRK4()
 		run = replace(method, step=0.1).new_run(problem.dynamics.vector_field, problem.initial_conditions)
-		self.assertFalse(run.initial_state.flags.writeable)
+		self.assertFalse(hasattr(run, 'initial_state'))
 		stored = np.asarray(run.metadata["probe"])
 		self.assertFalse(stored.flags.writeable)
 		self.assertFalse(np.shares_memory(stored, method.probe))
@@ -165,7 +154,7 @@ class MethodValidationContractTests(unittest.TestCase):
 		run = HBVM42(step=.1, solver=NewtonSolver(jacobian_method="analytic", backtracking=True)).new_run(problem.dynamics.vector_field, problem.initial_conditions)
 		self.assertEqual(dynamics.evaluations, 0)
 		with self.assertRaisesRegex(TypeError, "Analytic differentiation requires a Jacobian function"):
-			run.advance(0.0, run.initial_state, 0.1)
+			run.advance(0.0, problem.initial_state, 0.1)
 		self.assertEqual(dynamics.evaluations, 9)
 
 

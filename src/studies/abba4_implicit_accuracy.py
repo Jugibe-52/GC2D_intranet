@@ -1,6 +1,7 @@
 """Reference accuracy and refinement study for fourth-order implicit ABBA."""
 
 from __future__ import annotations
+from execution.options import ExecutionOptions
 
 from solvers.nonlinear import BroydenSolver, NewtonSolver
 
@@ -27,7 +28,7 @@ from diagnostics.studies.reference_trajectory import StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
 
 from potential import Potential
-from methods.extended.abba import ABBA4Implicit
+from methods.palindromic.abba4_implicit import ABBA4Implicit
 from solvers.nonlinear import NONLINEAR_SOLVERS, NonlinearSolver
 from problem import InitialValueProblem
 from request import SimulationRequest
@@ -357,10 +358,10 @@ def run_abba4_implicit_accuracy_study(
 			problem.with_request(request),
 			ABBA4Implicit(
 				step=step,
-				progress=config.progress,
+
 				solver=(NewtonSolver if config.nonlinear_solver == 'newton' else BroydenSolver)(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic'),
 			),
-		)
+		 options=ExecutionOptions(progress=config.progress))
 		runtimes[step] = perf_counter() - started
 		solutions[step] = solution
 		indices: np.ndarray = reference_indices_for_times(reference, solution.t)

@@ -15,7 +15,7 @@ from request import SimulationRequest
 
 from methods import (
 	ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42, ABBA2Implicit, ABBA4Implicit, ABBA2Midpoint,
-	BM4Implicit, BM4Midpoint, DOP853, Radau,
+	BM4Implicit, BM4Midpoint,
 )
 from potential.potential import Potential
 from simulation.runner import simulate
@@ -42,7 +42,7 @@ class JaxMethodTests(unittest.TestCase):
         cls.jax.config.update('jax_enable_x64', cls.previous)
 
     def compare(self, method, problem=None, execution=None, *, callbacks=(), tracking=True):
-        method = replace(method, **({"max_step": .05} if isinstance(method, (DOP853, Radau)) else {"step": .05}))
+        method = replace(method, step=.05)
         problem = self.gc if problem is None else problem
         observers = ((EnergyObserver(),) if tracking else ()) + tuple(callbacks)
         reference = simulate(problem.with_request(self.request), method, observers=observers)
@@ -52,21 +52,19 @@ class JaxMethodTests(unittest.TestCase):
         np.testing.assert_array_equal(result.states[0], problem.initial_state)
         self.assertFalse(result.states.flags.writeable)
         if tracking:
-            for name in ('extended_momentum', 'physical_hamiltonian', 'generalized_energy_error'):
+            for name in ('physical_hamiltonian', 'hamiltonian_time_derivative', 'energy_drift'):
                 np.testing.assert_allclose(result.diagnostics[name], reference.diagnostics[name], rtol=3e-9, atol=3e-11)
-        adaptive = isinstance(method, (DOP853, Radau))
-        if not adaptive:
-            for key in ('step_times', 'step_sizes', 'step_count', 'output_interpolation_count'):
-                np.testing.assert_equal(result.diagnostics[key], reference.diagnostics[key])
-            if 'nonlinear_residual_norms' in result.diagnostics:
-                self.assertTrue(np.all(result.diagnostics['nonlinear_residual_norms'] <= result.diagnostics['nonlinear_tolerances']))
-                np.testing.assert_allclose(result.diagnostics['nonlinear_tolerances'], reference.diagnostics['nonlinear_tolerances'])
-                # Newton counts may differ at a floating-point stopping boundary,
-                # but all recorded counts must be those of actual accepted solves.
-                self.assertTrue(np.all(result.diagnostics['nonlinear_iterations'] >= 0))
-            for key in ('state_formulation', 'accepted_internal_state_dimension', 'observer_state_dimension'):
-                self.assertEqual(result.diagnostics[key], reference.diagnostics[key])
-        self.assertEqual(result.diagnostics['execution_mode'], 'hybrid_scipy_controller' if adaptive else 'device_resident')
+        for key in ('step_times', 'step_sizes', 'step_count', 'output_interpolation_count'):
+            np.testing.assert_equal(result.diagnostics[key], reference.diagnostics[key])
+        if 'nonlinear_residual_norms' in result.diagnostics:
+            self.assertTrue(np.all(result.diagnostics['nonlinear_residual_norms'] <= result.diagnostics['nonlinear_tolerances']))
+            np.testing.assert_allclose(result.diagnostics['nonlinear_tolerances'], reference.diagnostics['nonlinear_tolerances'])
+            # Newton counts may differ at a floating-point stopping boundary,
+            # but all recorded counts must be those of actual accepted solves.
+            self.assertTrue(np.all(result.diagnostics['nonlinear_iterations'] >= 0))
+        for key in ('state_formulation', 'accepted_internal_state_dimension', 'observer_state_dimension'):
+            self.assertEqual(result.diagnostics[key], reference.diagnostics[key])
+        self.assertEqual(result.diagnostics['execution_mode'], 'device_resident')
         return result
 
     def test_all_fixed_methods_with_energy_and_irregular_output(self):
@@ -111,26 +109,7 @@ class JaxMethodTests(unittest.TestCase):
         again = simulate(self.gc.with_request(self.request), method, options=self.execution, observers=(EnergyObserver(),))
         np.testing.assert_array_equal(again.states, dense.states)
 
-    def test_adaptive_scipy_control_and_physical_observers(self):
-        for cls in (DOP853, Radau):
-            for problem in (self.gc, self.fc):
-                with self.subTest(method=cls.__name__, dimension=problem.dynamics.state_dimension):
-                    events = []
-                    result = self.compare(cls(), problem, callbacks=(events.append,))
-                    self.assertEqual(result.diagnostics['backend'], 'scipy')
-                    self.assertEqual(result.diagnostics['adaptive_controller'], 'scipy')
-                    self.assertTrue(events)
-                    self.assertEqual(events[-1].state_after.shape, problem.initial_state.shape)
-                    self.assertTrue(np.all(result.diagnostics['function_evaluations'] > 0))
-        self.compare(Radau(jacobian=lambda t, z: self._dense_gc_jacobian(t, z)))
 
-    def _dense_gc_jacobian(self, time, state):
-        blocks = self.gc.dynamics.particle_vector_field_jacobians(time, state)
-        n = blocks.shape[0]
-        matrix = np.zeros((2*n, 2*n))
-        for i in range(n):
-            matrix[np.ix_([i, i+n], [i, i+n])] = blocks[i]
-        return matrix
 
     def test_nonconvergence_precision_and_subclass_failures(self):
         for method in (GaussLegendre4(solver=NewtonSolver(1e-30, 1e-30, 1)),
@@ -147,7 +126,7 @@ class JaxMethodTests(unittest.TestCase):
         try:
             self.jax.config.update('jax_enable_x64', False)
             with self.assertRaisesRegex(RuntimeError, 'float64'):
-                simulate(self.gc.with_request(self.request), Radau(), options=self.execution)
+                simulate(self.gc.with_request(self.request), RK4(), options=self.execution)
         finally:
             self.jax.config.update('jax_enable_x64', True)
 
@@ -159,10 +138,10 @@ class JaxMethodTests(unittest.TestCase):
         execution = ExecutionOptions(backend='jax', device='gpu')
         if not devices:
             with self.assertRaisesRegex(RuntimeError, 'unavailable'):
-                simulate(self.gc.with_request(self.request), Radau(), options=execution)
-            self.skipTest('No JAX GPU available; hybrid unavailability is explicit')
+                simulate(self.gc.with_request(self.request), RK4(), options=execution)
+            self.skipTest('No JAX GPU available; device unavailability is explicit')
         for cls in (ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42,
-                    ABBA2Midpoint, BM4Midpoint, ABBA2Implicit, ABBA4Implicit,  BM4Implicit, DOP853, Radau):
+                    ABBA2Midpoint, BM4Midpoint, ABBA2Implicit, ABBA4Implicit,  BM4Implicit):
             self.compare(cls(), execution=execution)
 
 

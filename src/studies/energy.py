@@ -1,6 +1,7 @@
 """Generalized-energy convergence studies for GC experiments."""
 
 from __future__ import annotations
+from execution.options import ExecutionOptions
 
 from studies._validation import require_uncoupled_bm4
 
@@ -16,11 +17,11 @@ from ._validation import single_gc_state, unpacked_time_span, resolve_rho
 from contracts.studies._validation import integer_ratio, nonnegative_finite, positive_finite, positive_integer
 
 
-from diagnostics.methods.extended.energy.observer import GCGeneralizedEnergyObserver
+from diagnostics.methods.palindromic.energy.observer import GCGeneralizedEnergyObserver
 from dynamics import GuidingCenterDynamics
 
 from potential import Potential
-from methods.extended.bm4 import BM4Implicit
+from methods.palindromic.bm4_implicit import BM4Implicit
 from problem import InitialValueProblem
 from request import SimulationRequest
 from states.history import States
@@ -193,10 +194,10 @@ def run_generalized_energy_comparison(
 				jacobian_relative_step=config.newton_jacobian_relative_step,
 				jacobian_method="analytic",
 			),
-			progress=config.progress,
+
 		)
 		raw_solution: States = simulate(problem.with_request(request), replace(method, step=step),
-			observers=(energy_observer,))
+			observers=(energy_observer,), options=ExecutionOptions(progress=config.progress))
 		records = energy_observer.records
 		if len(records) != raw_solution.n_steps + 1:
 			raise RuntimeError(

@@ -17,7 +17,7 @@ from execution.options import ExecutionOptions
 from request import SimulationRequest
 from diagnostics.io.persistence import load_solution, save_solution
 from diagnostics.execution.run_progress import RunProgress, progress_log
-from methods.extended.bm4 import BM4Midpoint
+from methods.palindromic.bm4_midpoint import BM4Midpoint
 from potential.potential import Potential
 from simulation.runner import simulate
 from studies.local_jax_star import LocalJAXStarConfig, build_local_star, integrate_local_star, calculate_local_star

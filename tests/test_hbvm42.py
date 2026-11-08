@@ -57,9 +57,9 @@ class _QuarticWithoutJacobian:
 		del t
 		return 0.5 * state[1:2] ** 2 + 0.25 * state[0:1] ** 4
 
-	def extended_momentum_derivative(self, t: float, state: np.ndarray) -> np.ndarray:
+	def hamiltonian_time_derivative(self, t: float, state: np.ndarray) -> np.ndarray:
 		"""Autonomous test Hamiltonian has zero passive energy derivative."""
-		return np.zeros(1)
+		return np.zeros_like(state[:1])
 
 
 class HBVM42MethodTests(unittest.TestCase):
@@ -102,7 +102,7 @@ class HBVM42MethodTests(unittest.TestCase):
 		for step in (0.2, 0.1):
 			solution = simulate(self.problem.with_request(SimulationRequest.uniform(t_span=(0.0, 2.0), sample_count=11)), HBVM42(step=step, solver=NewtonSolver(max_iterations=12, backtracking=True, absolute_tolerance=1e-14, relative_tolerance=1e-13, jacobian_method='analytic')), observers=(EnergyObserver(),))
 			errors.append(float(np.linalg.norm(solution.states[-1] - reference)))
-			self.assertLess(float(solution.diagnostics["energy_error"]), 2e-13)
+			self.assertLess(float(np.max(np.abs(solution.diagnostics["energy_drift"]))), 2e-13)
 			self.assertEqual(
 				np.asarray(solution.diagnostics["nonlinear_iterations"]).shape,
 				(solution.n_steps,),

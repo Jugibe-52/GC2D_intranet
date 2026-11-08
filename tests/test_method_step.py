@@ -12,7 +12,7 @@ from execution._plan import _fixed_schedule
 from potential import Potential
 from simulation import (
 	InitialValueProblem, SimulationRequest, simulate, ExplicitEuler, RK4, GaussLegendre4, SDIRK4,
-	HBVM42, ABBA2Implicit, ABBA4Implicit, ABBA2Midpoint, BM4Implicit, BM4Midpoint, DOP853, Radau,
+	HBVM42, ABBA2Implicit, ABBA4Implicit, ABBA2Midpoint, BM4Implicit, BM4Midpoint,
 )
 
 FIXED = (ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42,
@@ -37,10 +37,6 @@ class MethodStepTests(unittest.TestCase):
 				with self.subTest(method=cls.__name__, value=invalid):
 					with self.assertRaises(ValueError):
 						cls(step=invalid)
-		for cls in (DOP853, Radau):
-			self.assertFalse(hasattr(cls(), 'step'))
-			with self.assertRaises(ValueError):
-				cls(max_step=False)
 		request = SimulationRequest.uniform()
 		self.assertFalse(hasattr(request, 'max_step'))
 		with self.assertRaises(TypeError):
@@ -91,7 +87,7 @@ class MethodStepTests(unittest.TestCase):
 					for key in ('step_start_times', 'step_times', 'step_sizes'):
 						np.testing.assert_array_equal(host.diagnostics[key], device.diagnostics[key])
 					np.testing.assert_allclose(device.states, host.states, rtol=3e-10, atol=3e-11)
-					np.testing.assert_allclose(device.diagnostics['extended_momentum'], host.diagnostics['extended_momentum'], rtol=3e-9, atol=3e-11)
+					np.testing.assert_allclose(device.diagnostics['hamiltonian_time_derivative'], host.diagnostics['hamiltonian_time_derivative'], rtol=3e-9, atol=3e-11)
 					if 'nonlinear_iterations' in host.diagnostics:
 						np.testing.assert_array_equal(host.diagnostics['nonlinear_iterations'], device.diagnostics['nonlinear_iterations'])
 					self.assertEqual(method.step, .02)

@@ -1,6 +1,7 @@
 """End-to-end transported-area comparisons for projected GC experiments."""
 
 from __future__ import annotations
+from execution.options import ExecutionOptions
 
 from solvers.nonlinear import NewtonSolver
 
@@ -21,7 +22,7 @@ from contracts.studies._validation import integer_ratio, nonnegative_finite, pos
 from dynamics import GuidingCenterDynamics
 
 from potential import Potential
-from methods.extended.bm4 import BM4Implicit
+from methods.palindromic.bm4_implicit import BM4Implicit
 from problem import InitialValueProblem
 from request import SimulationRequest
 from states.history import States
@@ -307,10 +308,10 @@ def run_area_comparison(
 				sample_count=config.output_sample_count,
 			)
 			method: BM4Implicit = BM4Implicit(
-				progress=config.progress,
+
 				solver=NewtonSolver(absolute_tolerance=config.newton_absolute_tolerance, relative_tolerance=config.newton_relative_tolerance, max_iterations=config.newton_max_iterations, jacobian_relative_step=config.newton_jacobian_relative_step, jacobian_method='analytic'),
 			)
-			solution: States = simulate(problem.with_request(request), replace(method, step=step.value), observers=(observer,))
+			solution: States = simulate(problem.with_request(request), replace(method, step=step.value), observers=(observer,), options=ExecutionOptions(progress=config.progress))
 		solutions[step.label] = solution
 		records_by_label[step.label] = observer.records
 		output_directories[step.label] = observer.output_directory

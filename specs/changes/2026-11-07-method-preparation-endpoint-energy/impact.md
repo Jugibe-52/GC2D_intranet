@@ -1,0 +1,3 @@
+# Affected components
+
+Methods and preparation contracts, host/JAX execution, execution options and controllers, dynamics energy functions, energy diagnostics and saved results are affected. Migrate public callers, custom-method tests, examples and relevant notebooks. Preserve existing uncommitted palindromic and Runge--Kutta work. High-accuracy reference studies keep independent SciPy solves rather than a replacement adaptive-method facade. Existing historical archives and change records remain readable. Update current contracts and affected architecture/theory documents with Spanish reading copies. No commits, uploads, new simulations or personal configuration changes are included.

@@ -28,9 +28,10 @@ from execution.execution import Execution
 from execution.execution_modal import Execution_Modal
 from states.generators import ranked_radial_star
 
-from methods.classical.gauss_legendre import GaussLegendre4
-from methods.classical.rk4 import RK4
-from methods.extended.bm4 import BM4Implicit, BM4Midpoint
+from methods.runge_kutta.gauss_legendre import GaussLegendre4
+from methods.runge_kutta.rk4 import RK4
+from methods.palindromic.bm4_implicit import BM4Implicit
+from methods.palindromic.bm4_midpoint import BM4Midpoint
 from potential.load import DEFAULT_FIELD_INDICES
 from potential import Grid, Potential
 from simulation.runner import simulate

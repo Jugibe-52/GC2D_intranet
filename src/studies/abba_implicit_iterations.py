@@ -1,6 +1,7 @@
 """Reusable study of nonlinear iterations in implicit ABBA integration."""
 
 from __future__ import annotations
+from execution.options import ExecutionOptions
 
 from solvers.nonlinear import BroydenSolver, NewtonSolver
 
@@ -23,8 +24,8 @@ from diagnostics.methods.implicit_iterations import (
 )
 from dynamics import GuidingCenterDynamics
 from potential import Potential
-from methods.extended.configuration import ABBA_PROJECTION_FORMULATIONS, ProjectionFormulation
-from methods.extended.abba import ABBA2Implicit
+from methods.palindromic.configuration import ABBA_PROJECTION_FORMULATIONS, ProjectionFormulation
+from methods.palindromic.abba2_implicit import ABBA2Implicit
 
 from problem import InitialValueProblem
 from solvers.nonlinear import NonlinearSolver
@@ -226,9 +227,9 @@ def run_implicit_abba_iteration_study(
 			ABBA2Implicit(
 				step=config.max_step,
 				projection_formulation=config.formulation,
-				progress=config.progress,
+
 				solver=(NewtonSolver if config.nonlinear_solver == 'newton' else BroydenSolver)(absolute_tolerance=config.newton_absolute_tolerance, relative_tolerance=config.newton_relative_tolerance, max_iterations=config.newton_max_iterations, jacobian_method='analytic'),
-			), observers=(observer,))
+			), observers=(observer,), options=ExecutionOptions(progress=config.progress))
 		runtime_seconds = perf_counter() - started
 
 	return ImplicitABBAIterationStudyResult(

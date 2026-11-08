@@ -1,14 +1,14 @@
 # BM4 implicit: code walkthrough
 
-Current BM4 advancement is inherited from ProjectedPalindromicMethod in `extended/palindromic.py`. The complete recipe executes explicit A/B/T operations. See [the current operation architecture](../../extended/simulation/palindromic-operations.md).
+Current BM4 advancement is inherited from ProjectedPalindromicMethod in `palindromic/projected_base.py`. The complete recipe executes explicit A/B/T operations. See [the current operation architecture](../../palindromic/simulation/palindromic-operations.md).
 
 The public `BM4Implicit` class is implemented in
-[`extended/bm4.py`](../../../../src/methods/extended/bm4.py).
+[`palindromic/bm4_implicit.py`](../../../../src/methods/palindromic/bm4_implicit.py).
 The former `methods.bm4` import adapters have been removed; public names remain
 available through explicit exports. See the
 [detailed architecture diagram](bm4-detailed-architecture.md),
 [compact architecture](bm4-simulation-architecture.md), and
-[shared family contract](../../extended/simulation/extended-simulation-architecture.md).
+[shared family contract](../../palindromic/simulation/palindromic-simulation-architecture.md).
 
 1. Execution injects `f` and the optional physical Jacobian into a fresh run. `initialize` prepares `GCDoubledMaps`, `DoubleFormulation`, the `BM4` recipe and projection with the configured solver.
 2. `advance` solves `u_final-v_final+2*mu=0`, evaluating `compose` from `(z+mu,z-mu)`.
@@ -34,10 +34,10 @@ physical scaling and the single outer projection remain unchanged.
 
 ## State representation and step preparation
 
-`DoubleFormulation(physical_size)` is the only state formulation. It prepares temporary copies through `lift`, `join_copies` and `split_copies`, preserving NumPy/JAX arrays and complete component blocks. Classical, HBVM and adaptive methods use the physical vector directly and instantiate no formulation. The doubled representation stores only a positive physical size; it contains no dynamics, solver or diagnostic state.
+`DoubleFormulation(physical_size)` is the only state formulation. It prepares temporary copies through `lift`, `join_copies` and `split_copies`, preserving NumPy/JAX arrays and complete component blocks. Runge--Kutta and HBVM methods use the physical vector directly and instantiate no formulation. The doubled representation stores only a positive physical size; it contains no dynamics, solver or diagnostic state.
 
 Every accepted snapshot is `IntegrationState(time, values)`: scalar time and a physical vector of shape `(d*N,)`. GC remains 2N and FC 4N with or without energy observation. Temporary doubled GC work has 4N entries; generic doubled FC work has 8N. These workspaces never become accepted states. This generic copy support does not extend GC numerical methods to FC.
 
-Execution binds the physical functions and calls `new_run(f, initial_conditions, jacobian=..., jacobian_structure=...)`. The method receives no `DynamicalSystem`, problem or temporal request. `advance(t, Z, h)` returns physical state, statistics, optional details and optional quadrature data. `EnergyObserver` owns its independent momentum and accumulates only accepted quadrature; shadow samples derive from the accepted observer state without committing it. Step callbacks are passed through `simulate(..., observers=(...,))`.
+`new_run(f, initial_conditions, *, jacobian=None)` creates a fresh run and calls `initialize(initial_conditions)`. Initial data and layout are temporary preparation inputs: the numerical base retains only functions, numerical metadata, run status and copy count. Execution owns the initial snapshot and passes it explicitly to controllers. Supplied Jacobians have independent particle shape `(N,d,d)`; finite-difference Jacobians remain dense. There is no `jacobian_structure`, `capture_quadrature` or method-level `progress` option.
 
-Enable passive energy with `simulate(..., observers=(EnergyObserver(),))`, importing `EnergyObserver` from `diagnostics.methods.energy`. Execution supplies the observer with H and `-partial_t H`. It evaluates saved physical H once and constructs the existing diagnostics. Energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. Old configured Python objects must be recreated; saved numerical archives remain readable through versioned history conversion.
+`EnergyObserver()` records physical H and the positive analytic partial time derivative `hamiltonian_time_derivative` at accepted endpoints and requested physical samples. It does not consume internal stages or integrate momentum. Per-step diagnostics are `energy_start`, `energy_end`, `energy_change`, `energy_time_derivative_start` and `energy_time_derivative_end`, with shape `(steps,N)`. Saved histories `physical_hamiltonian` (alias `hamiltonian`), `energy_drift` and `hamiltonian_time_derivative` have shape `(N,T)`. Energy variation in a time-dependent Hamiltonian is not a numerical conservation error.

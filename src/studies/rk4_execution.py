@@ -18,7 +18,7 @@ from problem import InitialValueProblem
 from request import SimulationRequest
 from diagnostics.io.persistence import load_solution, save_solution
 
-from methods.classical.rk4 import RK4
+from methods.runge_kutta.rk4 import RK4
 from potential.potential import Potential
 from simulation.runner import simulate
 from states.history import States
@@ -122,7 +122,7 @@ def run_rk4_execution_comparison(
             if solution.diagnostics[name] != baseline.diagnostics[name]:
                 raise AssertionError(f"Execution changed {name}.")
         if config.track_energy:
-            for name in ("extended_momentum", "physical_hamiltonian", "generalized_energy_error"):
+            for name in ("physical_hamiltonian", "hamiltonian_time_derivative", "energy_drift"):
                 np.testing.assert_allclose(np.asarray(solution.diagnostics[name]), np.asarray(baseline.diagnostics[name]),
                                            rtol=config.equivalence_rtol, atol=config.equivalence_atol)
         discrepancy: np.ndarray = periodic_discrepancy(baseline, solution, grid.period)

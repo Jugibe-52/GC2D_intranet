@@ -9,8 +9,7 @@ one implementation; folders are created only for processes with diagnostics.
 | --- | --- |
 | `execution` | Run progress and reference-integration progress. |
 | `methods` | Complete-step iteration summaries, shared step Jacobians, stage and trajectory symplecticity. |
-| `methods.adaptive` | Accepted dense trajectories (`trajectory.py`). |
-| `methods.extended` | ABBA Jacobians and reversibility, BM4 vectors and energy balance, generalized-energy reconstruction (`energy/`). |
+| `methods.palindromic` | ABBA Jacobians and reversibility, BM4 vectors and energy balance, generalized-energy reconstruction (`energy/`). |
 | `methods.projection` | Physical projection of doubled states, transported area and projected symplecticity. |
 | `states` | Polygon area of physical state arrays (`geometry.py`). |
 | `studies` | Comparison reductions, recurrence distances, and study-specific CSV/NPZ/HDF5 artifacts, including reference trajectories and Poincare returns. |
@@ -45,7 +44,7 @@ Imports formerly using `diagnostics.geometry`, `diagnostics.persistence`,
 `diagnostics.projection` or `diagnostics.abba_jacobian` now use
 `diagnostics.states.geometry`, `diagnostics.io.persistence`,
 `diagnostics.methods.projection` or
-`diagnostics.methods.extended.abba_jacobian`, respectively. The package table
+`diagnostics.methods.palindromic.abba_jacobian`, respectively. The package table
 also identifies the destination of the other former flat modules. Archive
 schemas, output destinations, diagnostic keys and numerical formulas are unchanged.
 
@@ -176,7 +175,7 @@ single Hairer projection solve surrounding one complete twelve-stage BM4
 cycle. The observer does not perform additional BM4 maps or finite-difference
 Jacobians.
 
-`diagnostics.methods.extended.abba_jacobian.ImplicitABBAJacobianObserver` is independent of the
+`diagnostics.methods.palindromic.abba_jacobian.ImplicitABBAJacobianObserver` is independent of the
 symplecticity studies. It records the local physical Jacobian of selected
 complete implicit ABBA steps, extracts one `2 x 2` block per independent GC
 particle, classifies the characteristic discriminant, and persists eigenvalue,
@@ -269,10 +268,6 @@ result = simulate(problem, RK4(step=0.01), request,
                   observers=(EnergyObserver(),))
 ```
 
-`EnergyObserver` is reusable immutable configuration. Execution supplies H and `-partial_t H` and prepares a fresh accumulator for each run. Physical momentum starts at zero unless `initial_momentum` explicitly provides one value per particle. Numerical methods receive no energy functions, flags or momentum arrays.
+EnergyObserver records H and positive analytic partial_t H only at accepted endpoints and requested physical samples. It has no configuration fields, initial momentum or accumulator. Per-step diagnostics have shape (steps,N); saved physical_hamiltonian, energy_drift and hamiltonian_time_derivative histories have shape (N,T). Nonautonomous energy variation is not a conservation error.
 
-`contracts.methods.quadrature.StageQuadrature` contains current-step times, physical states and signed physical weights. Weights include duration and the GC factor one half. `reduction_scale=2` for doubled GC preserves the original sum-before-normalization arithmetic and overflow behavior; the default is one. Adaptive methods supply `InterpolantQuadrature` for the accepted interval; the observer retains the established eight-node Gauss rule. Rejected iterations and output-only shadows never advance the accepted accumulator.
-
-A main step updates momentum once. Every interior output query starts from that interval's accepted left momentum; repeated queries do not accumulate. Endpoints reuse stored values. Fixed shadows provide their own shortened quadrature, and adaptive samples use the accepted interpolant. Only the current interval is retained. Saved H is evaluated once and `states.energy.energy_diagnostics` preserves the existing `(N,T)` histories and `physical_kappa` normalization.
-
-Register accepted-step callbacks through the same `observers` sequence. Their identity, order and caller-owned lifecycle are preserved. Existing GC/BM4 energy callbacks declare `requires_quadrature=True` and use `PreparedEnergyObserver` with accepted stages, avoiding reconstructed dynamics or replayed spatial maps. Built-in energy configuration works in host, JAX and remote execution; arbitrary callbacks retain their documented host restrictions.
+Historical generalized-energy studies explicitly use diagnostics.methods.stage_energy.StageEnergyObserver, retaining signed stage quadrature and archived kappa conventions. This diagnostic is separate from the generic observer and executor.

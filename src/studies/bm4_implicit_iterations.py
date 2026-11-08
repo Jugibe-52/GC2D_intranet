@@ -1,6 +1,7 @@
 """Reusable study of nonlinear iterations in Hairer-projected BM4."""
 
 from __future__ import annotations
+from execution.options import ExecutionOptions
 
 from solvers.nonlinear import BroydenSolver, NewtonSolver
 
@@ -25,7 +26,7 @@ from diagnostics.methods.implicit_iterations import (
 )
 from dynamics import GuidingCenterDynamics
 from potential import Potential
-from methods.extended.bm4 import BM4Implicit
+from methods.palindromic.bm4_implicit import BM4Implicit
 
 from problem import InitialValueProblem
 from solvers.nonlinear import NonlinearSolver
@@ -229,9 +230,9 @@ def run_bm4_implicit_iteration_study(
 			problem.with_request(request),
 			BM4Implicit(
 				step=config.max_step,
-				progress=config.progress,
+
 				solver=(NewtonSolver if config.nonlinear_solver == 'newton' else BroydenSolver)(absolute_tolerance=config.newton_absolute_tolerance, relative_tolerance=config.newton_relative_tolerance, max_iterations=config.newton_max_iterations, jacobian_relative_step=config.newton_jacobian_relative_step, jacobian_method='analytic'),
-			), observers=(observer,))
+			), observers=(observer,), options=ExecutionOptions(progress=config.progress))
 		runtime_seconds = perf_counter() - started
 
 	return BM4ImplicitIterationStudyResult(

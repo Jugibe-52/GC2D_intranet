@@ -57,8 +57,7 @@ def _methods():
 
 def _prepare(method, problem, request, *, tracking=False, observe=False):
 	return method.new_run(problem.dynamics.vector_field, problem.initial_conditions,
-		jacobian=problem.dynamics.particle_vector_field_jacobians, jacobian_structure='particle',
-		capture_quadrature=tracking, observe=observe)
+		jacobian=problem.dynamics.particle_vector_field_jacobians)
 
 
 class MethodIntegrationTests(unittest.TestCase):
@@ -75,8 +74,8 @@ class MethodIntegrationTests(unittest.TestCase):
 				self.assertIs(type(run), type(method))
 				self.assertIsNot(run, method)
 				self.assertEqual(events, [])
-				self.assertFalse(run.initial_state.flags.writeable)
-		with patch("methods.extended.palindromic.solve_projection", side_effect=AssertionError("Unexpected solve")):
+				self.assertFalse(hasattr(run, 'initial_state'))
+		with patch("methods.palindromic.projected_base.solve_projection", side_effect=AssertionError("Unexpected solve")):
 			_prepare(BM4Implicit(step=(0.34 - 0.3) / 2), problem, _request())
 
 	def test_run_advances_and_shadow_samples_do_not_emit_or_accumulate(self) -> None:
@@ -85,11 +84,11 @@ class MethodIntegrationTests(unittest.TestCase):
 			with self.subTest(method=method):
 				events = []
 				run = _prepare(replace(method, step=(0.34 - 0.3) / 2), problem, _request(True), tracking=tracking, observe=True)
-				initial = run.initial_state.copy()
+				initial = problem.initial_state.copy()
 				first = run.advance(0.3, initial, 0.02)
 				run.advance(0.3, initial, 0.005)
 				self.assertEqual(events, [])
-				np.testing.assert_array_equal(initial, run.initial_state)
+				np.testing.assert_array_equal(initial, problem.initial_state)
 				np.testing.assert_array_equal(first.state, run.advance(0.3, initial, 0.02).state)
 				observers = ((EnergyObserver(),) if tracking else ()) + (events.append,)
 				dense = _execute_prepared(run, problem, _request(True), observers=observers)
@@ -126,14 +125,14 @@ class MethodIntegrationTests(unittest.TestCase):
 					np.testing.assert_equal(plain.diagnostics[key], observed.diagnostics[key])
 
 	def test_unobserved_bm4_does_not_replay_stage_events(self) -> None:
-		with patch("methods.extended.bm4.stage_events", side_effect=AssertionError("Unexpected event construction")):
+		with patch("methods.palindromic.bm4_implicit.stage_events", side_effect=AssertionError("Unexpected event construction")):
 			simulate(_problem().with_request(_request(True)), BM4Implicit(step=(0.34 - 0.3) / 2))
 
 	def test_controller_can_supply_nonuniform_accepted_steps(self) -> None:
 		"""The coordinator uses accepted intervals, independent of step policy."""
 		class PrescribedController(FixedStepController):
-			def steps(self, run, request):
-				state = run.initial_state.copy()
+			def steps(self, run, request, initial_state):
+				state = initial_state.copy()
 				grid = (0.3, 0.31, 0.33, 0.34)
 				for index, (t, end) in enumerate(zip(grid[:-1], grid[1:])):
 					info = StepInfo(index, t, end - t, end, state.copy())
@@ -143,7 +142,7 @@ class MethodIntegrationTests(unittest.TestCase):
 		problem = _problem()
 		run = _prepare(BM4Implicit(step=(0.34 - 0.3) / 2), problem, _request(True))
 		data = _execute_prepared(run, problem, _request(True), controller=PrescribedController())
-		state = run.initial_state.copy()
+		state = problem.initial_state.copy()
 		for t, end in zip((0.3, 0.31, 0.33), (0.31, 0.33, 0.34)):
 			state = run.advance(t, state, end - t).state
 		np.testing.assert_array_equal(data.states[-1], state)
@@ -170,7 +169,8 @@ class MethodIntegrationTests(unittest.TestCase):
 				second = _prepare(replace(method, step=(0.34 - 0.3) / 2), other, _request(True))
 				self.assertFalse(hasattr(first, "problem"))
 				self.assertFalse(hasattr(second, "dynamics"))
-				self.assertFalse(np.shares_memory(first.initial_state, second.initial_state))
+				self.assertFalse(hasattr(first, 'initial_state'))
+				self.assertFalse(hasattr(second, 'initial_state'))
 				self.assertFalse(hasattr(method, "initial_state"))
 				result = _execute_prepared(first, problem, _request())
 				_execute_prepared(second, other, _request(True))

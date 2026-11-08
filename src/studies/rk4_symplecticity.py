@@ -10,7 +10,7 @@ import numpy as np
 
 
 from potential import Potential
-from methods.classical.rk4 import RK4
+from methods.runge_kutta.rk4 import RK4
 
 from ._gc_symplecticity import (
 	GCSymplecticityConfig,
@@ -105,7 +105,7 @@ def run_rk4_symplecticity_study(
 		area,
 		notebook_path=notebook_path,
 		config=config,
-		method_factory=lambda: RK4(progress=config.progress),
+		method_factory=lambda: RK4(),
 		result_type=RK4SymplecticityResult,
 		project_root=project_root,
 		metadata=metadata,

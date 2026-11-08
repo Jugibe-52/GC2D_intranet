@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from methods.extended.abba import ABBA2Implicit
+from methods.palindromic.abba2_implicit import ABBA2Implicit
 from diagnostics.methods.energy import EnergyObserver
 from solvers import NewtonSolver
 
@@ -26,7 +26,7 @@ from simulation import (
 	SimulationRequest,
 	simulate,
 )
-from methods.extended.core.midpoint import midpoint_step
+from methods.palindromic.core.midpoint import midpoint_step
 
 from tests._extended_reference.abba_maps import uncoupled_maps
 from studies import (

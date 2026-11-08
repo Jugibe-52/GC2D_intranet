@@ -83,9 +83,8 @@ class IndependentFormulationTests(unittest.TestCase):
 		for method in (ABBA2Midpoint(), ABBA2Implicit(solver=NewtonSolver()), ABBA2Implicit(solver=BroydenSolver())):
 			for tracking in (False, True):
 				run = replace(method, step=.02).new_run(problem.dynamics.vector_field,
-					problem.initial_conditions, jacobian=problem.dynamics.particle_vector_field_jacobians,
-					jacobian_structure='particle', capture_quadrature=tracking)
-				first = run.advance(.3, run.initial_state, .02)
+					problem.initial_conditions, jacobian=problem.dynamics.particle_vector_field_jacobians)
+				first = run.advance(.3, problem.initial_state, .02)
 				self.assertEqual(first.state.shape, problem.initial_state.shape)
 				for offset, duration in ((0., .02), (.03, .007)):
 					candidate = first.state + offset; before = candidate.copy()
@@ -93,11 +92,10 @@ class IndependentFormulationTests(unittest.TestCase):
 					np.testing.assert_array_equal(candidate, before)
 					fresh_initial = type(problem.initial_conditions)(candidate, layout=problem.layout)
 					fresh = method.new_run(problem.dynamics.vector_field, fresh_initial,
-						jacobian=problem.dynamics.particle_vector_field_jacobians,
-						jacobian_structure='particle', capture_quadrature=tracking)
-					expected = fresh.advance(.32, fresh.initial_state, duration)
+						jacobian=problem.dynamics.particle_vector_field_jacobians)
+					expected = fresh.advance(.32, candidate, duration)
 					np.testing.assert_array_equal(actual.state, expected.state)
-					self.assertEqual(actual.quadrature is not None, tracking)
+					self.assertIsNotNone(actual.quadrature)
 					if tracking:
 						np.testing.assert_array_equal(actual.quadrature.times, expected.quadrature.times)
 						np.testing.assert_array_equal(actual.quadrature.states, expected.quadrature.states)

@@ -69,7 +69,7 @@ data live in `data/`. Respect `.gitignore` when adding notebooks or outputs.
   `formulations/`, `states/` and `studies/`. Keep common output and transport in
   `io/`; create other process packages only when they have an implementation.
 - Place method-family diagnostics under that family, such as
-  `diagnostics/methods/extended/`. Keep reusable metrics in one shared module.
+  `diagnostics/methods/palindromic/`. Keep reusable metrics in one shared module.
   Classify by the observed operation, not by the metric's name: iteration
   summaries for complete steps belong to `methods/`, while observation of
   individual algebraic iterations belongs to `solvers/` when introduced.

@@ -1,17 +1,17 @@
 # Numerical model documentation
 
-All 12 methods share executor-owned orchestration, method-specific preparation
+The ten named fixed methods share executor-owned orchestration, method-specific preparation
 and the [integration contract](../simulation/integration-architecture.md).
-Ten methods use fixed control; DOP853 and Radau supply adaptive control.
+DOP853 and Radau remain standalone SciPy reference solvers used by studies.
 Every model retains its own numerical theory and detailed simulation diagram.
 Physical dynamics and potential contracts live under [dynamics](../dynamics/).
 `Execution_Modal` can execute a complete CPU integration remotely and return its
 physical history for local validation and persistence. The numerical methods
 keep their existing algorithms; see the [Modal executor contract](../simulation/modal-execution.md).
 
-Execution injects `f(t, z)` and optional derivatives into every method. Classical, HBVM and adaptive methods work directly on physical state; only doubled methods use `DoubleFormulation`. Nonlinear controls belong to `NewtonSolver` or `BroydenSolver`. Energy and step callbacks are supplied through `simulate(..., observers=(EnergyObserver(), callback))`, independently of numerical method configuration.
+Execution injects `f(t, z)` and optional derivatives into every method. Runge--Kutta and HBVM methods work directly on physical state; only doubled methods use `DoubleFormulation`. Nonlinear controls belong to `NewtonSolver` or `BroydenSolver`. Energy and step callbacks are supplied through `simulate(..., observers=(EnergyObserver(), callback))`, independently of numerical method configuration.
 
-| Public method | Canonical theory | Simulation architecture | Numerical scope |
+| Method or reference | Canonical theory | Simulation architecture | Numerical scope |
 |---|---|---|---|
 | `BM4Implicit` | [source](bm4-implicit/tex/theory.tex) · [PDF](bm4-implicit/tex/theory.pdf) | [runtime guide](bm4-implicit/simulation/bm4-simulation-architecture.md) | Fixed; twelve signed stages, one symmetric projection |
 | `BM4Midpoint` | [source](bm4-midpoint/tex/theory.tex) · [PDF](bm4-midpoint/tex/theory.pdf) | [runtime guide](bm4-midpoint/simulation/bm4-midpoint-simulation-architecture.md) | Fixed; twelve signed stages, one arithmetic mean |
@@ -23,8 +23,8 @@ Execution injects `f(t, z)` and optional derivatives into every method. Classica
 | `GaussLegendre4` | [source](gauss-legendre4/tex/theory.tex) · [PDF](gauss-legendre4/tex/theory.pdf) | [runtime guide](gauss-legendre4/simulation/gauss-legendre4-simulation-architecture.md) | Fixed; 4th-order method |
 | `SDIRK4` | [source](sdirk4/tex/theory.tex) · [PDF](sdirk4/tex/theory.pdf) | [runtime guide](sdirk4/simulation/sdirk4-simulation-architecture.md) | Fixed; 4th-order method |
 | `HBVM42` | [source](hbvm42/tex/theory.tex) · [PDF](hbvm42/tex/theory.pdf) | [runtime guide](hbvm42/simulation/hbvm42-simulation-architecture.md) | Fixed; 4th-order method |
-| `DOP853` | [source](dop853/tex/theory.tex) · [PDF](dop853/tex/theory.pdf) | [runtime guide](dop853/simulation/dop853-simulation-architecture.md) | Adaptive; SciPy session and dense output |
-| `Radau` | [source](radau/tex/theory.tex) · [PDF](radau/tex/theory.pdf) | [runtime guide](radau/simulation/radau-simulation-architecture.md) | Adaptive; SciPy session and dense output |
+| `DOP853` | [source](dop853/tex/theory.tex) · [PDF](dop853/tex/theory.pdf) | [runtime guide](dop853/simulation/dop853-simulation-architecture.md) | Standalone SciPy reference; outside simulation API |
+| `Radau` | [source](radau/tex/theory.tex) · [PDF](radau/tex/theory.pdf) | [runtime guide](radau/simulation/radau-simulation-architecture.md) | Standalone SciPy reference; outside simulation API |
 
 The [ABBA family guide](abba/simulation/abba-numerical-architecture.md) and its
 [theory](abba/tex/theory.tex) describe three public classes and **18 normalized

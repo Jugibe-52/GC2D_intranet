@@ -62,13 +62,13 @@ class _LinearTimeHamiltonian:
 			(particle_count, *times.shape),
 		).copy()
 
-	def extended_momentum_derivative(
+	def hamiltonian_time_derivative(
 		self,
 		_t: float,
 		state: np.ndarray,
 	) -> np.ndarray:
-		"""Return the exact conjugate equation ``kappa'=-slope``."""
-		return np.full(state.size // 2, -self.slope, dtype=float)
+		"""Return the exact positive partial time derivative."""
+		return np.full_like(state[:state.shape[0] // 2], self.slope, dtype=float)
 
 
 def _problem(*, particle_count: int = 1) -> InitialValueProblem:
@@ -103,13 +103,13 @@ class ABBAStateExtensionTests(unittest.TestCase):
 		)
 
 	def test_solver_and_observers_are_no_longer_method_controls(self) -> None:
-		midpoint = ABBA2Midpoint('physical', True)
-		self.assertIs(midpoint.progress, True)
+		midpoint = ABBA2Midpoint('physical')
+		self.assertFalse(hasattr(midpoint, 'progress'))
 		self.assertFalse(hasattr(midpoint, 'track_energy'))
 		solver = BroydenSolver(1e-10, 1e-9, 20)
-		implicit = ABBA2Implicit('reduced_multiplier', 'physical', True, solver=solver)
+		implicit = ABBA2Implicit('reduced_multiplier', 'physical', solver=solver)
 		self.assertIs(implicit.solver, solver)
-		self.assertIs(implicit.progress, True)
+		self.assertFalse(hasattr(implicit, 'progress'))
 		for controls in ({'track_energy': True}, {'newton_max_iterations': 20}, {'step_observer': None}):
 			with self.assertRaises(TypeError): ABBA2Implicit(**controls)
 
@@ -141,14 +141,14 @@ class ABBAStateExtensionTests(unittest.TestCase):
 				np.testing.assert_array_equal(tracked.states, untracked.states)
 				self.assertEqual(tracked.states.shape, (2, 6))
 				self.assertEqual(
-					np.asarray(tracked.diagnostics["extended_momentum"]).shape,
+					np.asarray(tracked.diagnostics["hamiltonian_time_derivative"]).shape,
 					(3, 2),
 				)
 				self.assertEqual(tracked.diagnostics["state_extension"], "physical")
 				self.assertIs(tracked.diagnostics["track_energy"], True)
-				self.assertGreaterEqual(tracked.diagnostics["energy_error"], 0.0)
+				self.assertNotIn("energy_error", tracked.diagnostics)
 
-	def test_physical_tracking_has_the_exact_conjugate_sign_and_factor(self) -> None:
+	def test_physical_tracking_has_the_exact_positive_partial_derivative(self) -> None:
 		particle_count = 3
 		slope = 1.75
 		configuration = GuidingCenterDynamics.coordinates.pack_components(np.linspace(0.8, 1.0, particle_count), np.linspace(1.1, 1.3, particle_count))
@@ -161,36 +161,28 @@ class ABBAStateExtensionTests(unittest.TestCase):
 			with self.subTest(method=method_type.__name__):
 				solution = simulate(problem.with_request(request), replace(method_type(), step=0.1), observers=(EnergyObserver(),))
 				expected = np.broadcast_to(
-					-slope * (solution.t - solution.t[0]),
+					slope * np.ones_like(solution.t),
 					(particle_count, solution.t.size),
 				)
 				np.testing.assert_allclose(
-					np.asarray(solution.diagnostics["extended_momentum"]),
+					np.asarray(solution.diagnostics["hamiltonian_time_derivative"]),
 					expected,
 					rtol=0.0,
 					atol=2e-15,
 				)
-				self.assertLess(
-					float(solution.diagnostics["energy_error"]),
-					2e-15,
-				)
+				np.testing.assert_allclose(solution.diagnostics["energy_drift"], slope * (solution.t-solution.t[0])[None, :].repeat(particle_count, axis=0), atol=2e-15)
 
-	def test_non_finite_momentum_increment_is_rejected_immediately(self) -> None:
-		configuration = GuidingCenterDynamics.coordinates.pack_components(np.asarray([0.8]), np.asarray([1.1]))
-		problem = InitialValueProblem(_LinearTimeHamiltonian(float(np.finfo(float).max)), configuration, layout=GuidingCenterDynamics.coordinates)
-		with self.assertRaisesRegex(ValueError, "momentum increment became non-finite"):
-			simulate(problem.with_request(_request(duration=1.0)), ABBA2Midpoint(step=1.0), observers=(EnergyObserver(),))
 
 	def test_full_projection_is_rejected_instead_of_changing_the_physical_map(self) -> None:
 		for formulation in ABBA_PROJECTION_FORMULATIONS:
 			with self.assertRaisesRegex(ValueError, "removed"):
 				ABBA2Implicit(state_extension="fully_extended", projection_formulation=formulation)
 
-	def test_passive_diagnostics_close_the_generalized_energy_identity(self) -> None:
+	def test_passive_diagnostics_report_physical_energy_change(self) -> None:
 		solution = simulate(_problem().with_request(_request()), ABBA4Implicit(step=0.1), observers=(EnergyObserver(),))
 		d = solution.diagnostics
-		np.testing.assert_array_equal(d["generalized_energy"], d["physical_hamiltonian"] + d["extended_momentum"])
-		np.testing.assert_array_equal(d["extended_time"], solution.t[None, :])
+		np.testing.assert_array_equal(d["energy_drift"], d["physical_hamiltonian"] - d["physical_hamiltonian"][:, :1])
+		self.assertNotIn("generalized_energy", d)
 
 	def test_old_full_extension_requires_an_explicit_migration(self) -> None:
 		for cls in _ALL_METHODS:
@@ -200,7 +192,7 @@ class ABBAStateExtensionTests(unittest.TestCase):
 	def test_disabled_physical_tracking_has_no_momentum_diagnostics(self) -> None:
 		solution = simulate(_problem().with_request(_request()), ABBA2Implicit(step=0.1))
 		self.assertIs(solution.diagnostics["track_energy"], False)
-		self.assertNotIn("extended_momentum", solution.diagnostics)
+		self.assertNotIn("hamiltonian_time_derivative", solution.diagnostics)
 		self.assertNotIn("energy_error", solution.diagnostics)
 
 	def test_invalid_extension_fails_during_method_configuration(self) -> None:

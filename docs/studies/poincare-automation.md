@@ -50,7 +50,7 @@ OS lock prevents two simultaneous writers to the same study.
 | `--reference-length` | `0.06` meters; defines the requested rho convention |
 | `--sigma` | Omitted: no smoothing; otherwise nonnegative grid-sample width |
 | `--interpolation-order` | `3`; `5` is also supported |
-| `--coupling-frequency` | `0`; per-cycle BM4 coupling rate, required zero for classical methods |
+| `--coupling-frequency` | `0`; per-cycle BM4 coupling rate, required zero for Runge--Kutta methods |
 | `--newton-absolute-tolerance` | `1e-12` in runtime coordinates |
 | `--newton-relative-tolerance` | `1e-11`; solver threshold, not trajectory-error guarantee |
 | `--newton-max-iterations` | `40`; analytic Jacobian, relative step `cbrt(eps)` |

@@ -1,6 +1,7 @@
 """Reference accuracy and Newton-work refinement for four implicit GC methods."""
 
 from __future__ import annotations
+from execution.options import ExecutionOptions
 
 from solvers.nonlinear import NewtonSolver
 
@@ -29,9 +30,9 @@ from diagnostics.studies.reference_trajectory import StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
 
 from potential import Potential
-from methods.extended.abba import ABBA4Implicit
-from methods.extended.bm4 import BM4Implicit
-from methods.extended.abba import ABBA2Implicit
+from methods.palindromic.abba4_implicit import ABBA4Implicit
+from methods.palindromic.bm4_implicit import BM4Implicit
+from methods.palindromic.abba2_implicit import ABBA2Implicit
 from problem import InitialValueProblem
 from methods.base import FixedStepMethod
 from request import SimulationRequest
@@ -240,18 +241,18 @@ def _configured_method(
 	if method_name == "ABBA2Implicit[reduced_multiplier]":
 		return ABBA2Implicit(
 			projection_formulation='reduced_multiplier',
-			progress=config.progress,
+
 			solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic'),
 		)
 	if method_name == "ABBA4Implicit":
 		return ABBA4Implicit(
 			projection_placement='around_complete_composition',
-			progress=config.progress,
+
 			solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic'),
 		)
 	if method_name == "BM4Implicit":
 		return BM4Implicit(
-			progress=config.progress,
+
 			solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_relative_step=config.newton_jacobian_relative_step, jacobian_method='analytic'),
 		)
 	assert False, f"Unknown implicit accuracy method {method_name!r}."
@@ -610,7 +611,7 @@ def run_implicit_method_accuracy_study(
 			solution: States = simulate(
 				problem.with_request(request),
 				replace(_configured_method(method_name, config), step=step),
-			)
+			 options=ExecutionOptions(progress=config.progress))
 			runtimes[method_name][step] = perf_counter() - started
 			solutions[method_name][step] = solution
 			indices: np.ndarray = reference_indices_for_times(reference, solution.t)

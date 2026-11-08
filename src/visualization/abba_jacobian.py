@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.figure import Figure
 
-from diagnostics.methods.extended.abba_jacobian.observer import ImplicitABBAJacobianSample
+from diagnostics.methods.palindromic.abba_jacobian.observer import ImplicitABBAJacobianSample
 
 
 if TYPE_CHECKING:

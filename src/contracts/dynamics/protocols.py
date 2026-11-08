@@ -26,7 +26,7 @@ class HamiltonianSystem(DynamicalSystem, Protocol):
 	"""Physical dynamics supporting optional energy-balance tracking.
 
 	Execution binds an optional energy observer. The dynamics supplies
-	both physical Hamiltonian values and ``-partial_t H`` in the same energy
+	both physical Hamiltonian values and ``partial_t H`` in the same energy
 	normalization; autonomous systems must provide an explicit zero derivative.
 	"""
 
@@ -37,12 +37,12 @@ class HamiltonianSystem(DynamicalSystem, Protocol):
 	) -> Any:
 		"""Return one Hamiltonian value per particle and optional saved time."""
 
-	def extended_momentum_derivative(
+	def hamiltonian_time_derivative(
 		self,
 		t: Any,
 		state: Any,
 	) -> Any:
-		"""Return minus the explicit time derivative of the Hamiltonian."""
+		"""Return the positive explicit time derivative of the Hamiltonian."""
 
 
 @runtime_checkable

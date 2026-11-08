@@ -1,6 +1,7 @@
 """Aligned trajectory and nonlinear-work comparison for three implicit methods."""
 
 from __future__ import annotations
+from execution.options import ExecutionOptions
 
 from solvers.nonlinear import BroydenSolver, NewtonSolver
 
@@ -26,8 +27,8 @@ from studies._trajectory_distances import minimum_image_displacement
 
 from dynamics import GuidingCenterDynamics
 from potential import Potential
-from methods.extended.bm4 import BM4Implicit
-from methods.extended.abba import ABBA2Implicit
+from methods.palindromic.bm4_implicit import BM4Implicit
+from methods.palindromic.abba2_implicit import ABBA2Implicit
 
 from problem import InitialValueProblem
 from solvers.nonlinear import NonlinearSolver
@@ -289,16 +290,16 @@ def run_implicit_trajectory_comparison(
 	methods: tuple[FixedStepMethod[Any], ...] = (
 		ABBA2Implicit(
 			projection_formulation='reduced_multiplier',
-			progress=config.progress,
+
 			solver=(NewtonSolver if config.nonlinear_solver == 'newton' else BroydenSolver)(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic'),
 		),
 		ABBA2Implicit(
 			projection_formulation='simultaneous_state_multiplier',
-			progress=config.progress,
+
 			solver=(NewtonSolver if config.nonlinear_solver == 'newton' else BroydenSolver)(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic'),
 		),
 		BM4Implicit(
-			progress=config.progress,
+
 			solver=(NewtonSolver if config.nonlinear_solver == 'newton' else BroydenSolver)(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_relative_step=config.newton_jacobian_relative_step, jacobian_method='analytic'),
 		),
 	)
@@ -306,7 +307,7 @@ def run_implicit_trajectory_comparison(
 	runtimes: dict[str, float] = {}
 	for method_name, method in zip(IMPLICIT_METHOD_NAMES, methods, strict=True):
 		started: float = perf_counter()
-		solutions[method_name] = simulate(problem.with_request(request), replace(method, step=config.integration_step))
+		solutions[method_name] = simulate(problem.with_request(request), replace(method, step=config.integration_step), options=ExecutionOptions(progress=config.progress))
 		runtimes[method_name] = perf_counter() - started
 
 	return ImplicitTrajectoryComparisonResult(

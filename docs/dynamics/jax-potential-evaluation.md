@@ -167,25 +167,13 @@ identified synthetic field. A Git LFS pointer is not a usable HDF5 input.
 Potential-evaluation timings do not predict complete BM4/ABBA integration
 performance.
 
-The focused potential suites cover numerical equivalence, periodicity,
-derivatives, supported spline degrees, explicit class selection, NumPy grid reconstruction,
-immutability, device reuse, serialization, JIT composition and automatic
-differentiation. Integration tests compare the shared GC/FC physics through
-fixed and hybrid methods. GPU checks are skipped when hardware is unavailable.
+DOP853 and Radau are standalone SciPy reference solvers used directly by studies. They are no longer methods in `simulation` or `methods`, and there is no adaptive controller or SciPy/JAX hybrid path in execution. Fixed methods own `step`; requests own the interval and saved times. Host progress is configured with `options=ExecutionOptions(progress=True)`.
 
 ```bash
 python -m unittest discover -s tests -p 'test_jax_potential.py' -q
 python -m unittest discover -s tests -p 'test_potential_execution.py' -q
 python -m unittest discover -s tests -p 'test_jax_methods.py' -q
 ```
-
-Simulation preparation in `execution._jax` binds the requested device and shared
-GC/FC equations to `JaxPotential` automatically. A simulation caller can keep a
-base `Potential`; no manual backend-specific potential construction is required.
-Standalone `JaxPotential` retains its own evaluation guards, device coefficient
-cache and input placement rules. Numerical JIT kernels remain beside their
-algorithms. Physics modules do not import execution; the hybrid SciPy/JAX bridge
-belongs to `execution._jax`.
 
 ## Component-owned preparation
 

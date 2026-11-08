@@ -8,7 +8,7 @@ independently of these options; see the [executor contract](execution.md).
 import jax
 from execution.options import ExecutionOptions
 from diagnostics import EnergyObserver
-from methods.extended.bm4 import BM4Implicit
+from methods.palindromic.bm4_implicit import BM4Implicit
 from simulation.runner import simulate
 
 jax.config.update("jax_enable_x64", True)
@@ -29,27 +29,13 @@ or change of numerical method is performed.
 
 ## Execution scope
 
-| Methods | JAX work | Host work during integration |
-|---|---|---|
-| ExplicitEuler, RK4 | Batched fields, stages and complete fixed time loop | Final result export |
-| GaussLegendre4, SDIRK4, HBVM42 | Fields, Jacobians, batched Newton solves, passive energy and time loop | Final result export |
-| ABBA2Midpoint, BM4Midpoint | Signed composition, arithmetic projection, energy and time loop | Final result export |
-| ABBA2Implicit, ABBA4Implicit, BM4Implicit | Composition, residuals, Newton/Broyden, Hairer projection, energy and time loop | Final result export |
-| DOP853, Radau | Batched field and energy evaluations | SciPy adaptive controller, stages, rejection, dense output and Radau Newton/LU |
+DOP853 and Radau are standalone SciPy reference solvers used directly by studies. They are no longer methods in `simulation` or `methods`, and there is no adaptive controller or SciPy/JAX hybrid path in execution. Fixed methods own `step`; requests own the interval and saved times. Host progress is configured with `options=ExecutionOptions(progress=True)`.
 
 The fixed methods keep state, nonlinear work and output buffers on one selected
 device until completion. `execution_mode="device_resident"` records this path.
 Particles are processed in parallel within each stage; dependent stages,
 Newton corrections and successive time steps remain sequential. This is
 single-device execution, not CPU process pools or multi-GPU sharding.
-
-DOP853 and Radau deliberately retain their existing SciPy numerical solvers.
-They publish `execution_mode="hybrid_scipy_controller"`,
-`adaptive_controller="scipy"`, and `backend="scipy"`, alongside the selected
-`execution_backend="jax"` and device metadata. Each field evaluation crosses
-the NumPy/device boundary. A user-supplied Radau Jacobian retains its original
-host callback semantics. This route can be slower than CPU for small batches;
-it does not claim that the complete adaptive solver runs on GPU.
 
 All routes return the same immutable NumPy `States`, with component-major
 physical states and canonical energy histories. Initial field preparation,
@@ -59,7 +45,7 @@ splines. Preparation creates `JaxGuidingCenterDynamics` or
 sharing those knots and coefficients without refitting, repeating gyroaveraging
 or mutating the source. The subclasses only declare coordinates; all physical
 methods are inherited. Built-in GC dynamics are supported by every
-method. FC dynamics are supported by the classical and adaptive methods;
+method. FC dynamics are supported by Runge--Kutta and HBVM methods;
 ABBA/BM4 retain their existing planar-GC restriction. Custom dynamics and method
 subclasses are rejected rather than silently replacing their equations.
 
@@ -71,8 +57,7 @@ operations; they do not import JAX or choose devices. `JaxNewtonSolver` and
 `JaxBroydenSolver` inherit ordinary solver controls and expose the same solve
 inputs. Their iteration loops and linear algebra run on the selected device.
 
-Analytic derivatives retain declared independent particle blocks; dense
-functions retain cross-particle terms. Centered differences differentiate the
+Analytic derivatives use independent particle blocks. Dense finite-difference matrices retain cross-particle terms. Centered differences differentiate the
 same complete field or map on both routes, probing every global coordinate.
 JAX vectorizes these probes, recorded as
 `finite_difference_batching="vectorized_global_columns"`. HBVM counts the same
@@ -90,8 +75,7 @@ Convergence is still global across the batch: tolerances use the original
 physical-state infinity norm, and particles share the original residual stopping
 criterion. HBVM retains its matrix row-sum residual norm and its damping limit.
 Negative composition coefficients, stage evaluation times, reduced and
-simultaneous projection equations, and physical-kappa normalization remain
-unchanged. Shadow samples do not contribute accepted-step nonlinear counters.
+simultaneous projection equations remain unchanged. Shadow samples do not contribute accepted-step nonlinear counters.
 
 Broyden retains the original **global** rank-one Jacobian update and dense solve.
 Independent per-particle secant updates would change that iteration. Its field
@@ -105,7 +89,7 @@ Failed solves raise an error without returning a successful `States`.
 Nonlinear histories retain their existing names, shapes and legacy Newton aliases.
 Floating-point reassociation may change the correction count at a tolerance
 boundary; equivalence means compatible trajectories and converged residuals,
-not universal bitwise equality or identical adaptive step grids.
+not universal bitwise equality.
 
 ## Lifecycle, callbacks and measurement
 
@@ -123,7 +107,7 @@ result. It contains no stage equations or per-family kernels. The shared
 reject unknown overrides before compilation. The retired method-owned dispatch,
 options and alternate JAX-step modules have no aliases.
 
-The numerical map satisfies `contracts.methods.compiled.CompiledStep`, which binds a physical map, explicit functions and numerical controls on the resolved device. Its call returns `(state, quadrature, statistics, valid)`. Execution owns the optional energy accumulator independently: it evaluates rates with `vmap` and reduces signed weighted stages in their original order with `lax.scan`, preserving the quadrature reduction scale. No host callback or complete stage history is required. `execution._plan` owns fixed scheduling and sampling decisions; `execution._jax_fixed` consumes that plan and owns convergence checks and bulk physical export. `Execution.run` owns recorder allocation, run status and finalization. Prepared maps snapshot controls; exact-type compatibility checks reject unsupported method overrides before tracing.
+JAX compiles the same fixed-step numerical maps and a physical-only accepted-state loop. A prepared step returns `(state, statistics, converged)`. Execution evaluates endpoint H and analytic positive partial_t H on the device, records requested histories and accepted-step diagnostics, then exports NumPy States. Initial data are explicit inputs to step/integration preparation. Python callbacks, iteration observers and progress reporting require host execution.
 
 `Execution.run` calls `execution._jax_fixed.prepare_integration` before recorder
 allocation and the JAX worker, passing the common `FixedStepPlan` already built
@@ -144,9 +128,7 @@ and records physical history and diagnostics. Both preparation and execution
 stay inside the executor's lifecycle guard; failures finish the consumed run.
 The prepared object is private and process-local; remote workers compile locally.
 
-`IntegrationMethod.new_run` receives prepared `f`, independent initial data and an optional Jacobian; it retains no dynamics object, ExecutionOptions or energy functions. Configured instances remain reusable. The fixed driver uses `lax.scan` for accepted steps and independent shortened maps for off-grid output. A shortened energy sample starts from the same accepted left accumulator and never changes it. Only requested states, auxiliary samples and small accepted-step statistics are retained. Bounded caches reuse compatible compiled functions; `JaxPotential` reuses concrete device coefficients without refitting splines or persisting traced constants.
-
-Fixed JAX methods require `progress=False` and `solver.iteration_observer=None`. `observers=(EnergyObserver(),)` is supported as built-in configuration; arbitrary Python callbacks are rejected before compilation and remain available through the CPU controller. Hybrid adaptive methods retain normal progress and callback contracts because their controller already resides on the host.
+Tests cover physical-only accepted states, isolated preparation, independent shadow samples, particle-block Jacobians, endpoint-only energy evaluation, analytic time differentiation, and CPU/JAX agreement. Model tests retain convergence, projection and nonlinear-work checks. Independent SciPy reference tests cover the retired adaptive API boundary.
 
 Measure the first call separately from warmed calls. Complete `simulate` timings
 include input/output transfers, diagnostics and immutable result construction,
@@ -158,12 +140,3 @@ them. The RK4 calculation/visualisation notebook pair remains a reproducible
 256-particle example of this timing protocol.
 
 ## Validation
-
-`tests/test_jax_methods.py` covers every fixed and adaptive method, GC/FC,
-analytic and finite-difference Jacobians, Newton/Broyden, both projection
-formulations, harmonic coupling, energy tracking, irregular/sparse samples,
-run isolation, custom Radau Jacobians, observers on the hybrid path and explicit
-failure cases. All families have a GPU equivalence test which skips when no
-accelerator is available. Existing method tests continue to validate order and
-geometric identities of the canonical CPU algorithms; RK4 additionally has an
-exact-solution fourth-order test for its compiled route.

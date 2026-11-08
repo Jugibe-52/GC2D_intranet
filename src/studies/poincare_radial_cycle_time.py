@@ -22,7 +22,7 @@ from diagnostics.io.persistence import StoredSolution, load_solution, save_solut
 from diagnostics.io.storage import ArtifactStore
 from execution.execution import Execution
 
-from methods.extended.bm4 import BM4Midpoint
+from methods.palindromic.bm4_midpoint import BM4Midpoint
 from potential.load import DEFAULT_FIELD_INDICES
 from potential import Potential
 from simulation.runner import simulate

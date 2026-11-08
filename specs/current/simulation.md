@@ -2,8 +2,8 @@
 schema_version = 1
 kind = "spec"
 id = "simulation"
-sources = ["src/contracts/methods/adaptive/scipy.py", "src/execution/_scipy.py", "src/dynamics/gc.py", "src/contracts/methods/functions.py", "src/contracts/methods/quadrature.py", "src/diagnostics/methods/energy.py", "src/solvers/derivatives.py", "src/formulations/state.py", "src/states/initial.py", "src/solvers/nonlinear.py", "src/methods/projection.py", "src/methods/extended/core/projection.py", "src/simulation/runner.py", "src/problem.py", "src/request.py", "src/execution/execution.py", "src/execution/_plan.py", "src/contracts/execution/plan.py", "src/execution/_jax_step.py", "src/execution/_jax_fixed.py", "src/execution/_jax.py", "src/dynamics/jax_dynamics.py", "src/dynamics/jax_coordinates.py", "src/methods/base.py", "src/execution/options.py", "src/contracts/arrays.py", "src/contracts/methods/base.py", "src/contracts/execution/controllers.py", "src/contracts/dynamics/protocols.py", "src/contracts/methods/maps.py", "src/contracts/methods/projection.py"]
-documents = ["docs/simulation/initial-solvers-formulations.md", "docs/simulation/integration-architecture.md", "docs/simulation/execution.md", "docs/simulation/jax-execution.md"]
+sources = ["src/methods/palindromic/base.py", "src/methods/palindromic/projected_base.py", "src/methods/palindromic/midpoint_base.py", "src/methods/palindromic/abba2_implicit.py", "src/methods/palindromic/abba4_implicit.py", "src/methods/palindromic/abba2_midpoint.py", "src/methods/palindromic/bm4_implicit.py", "src/methods/palindromic/bm4_midpoint.py", "src/methods/palindromic/implicit.py", "src/methods/palindromic/midpoint.py", "src/methods/runge_kutta/base.py", "src/methods/runge_kutta/tableau.py", "src/methods/runge_kutta/explicit.py", "src/methods/runge_kutta/diagonally_implicit.py", "src/methods/runge_kutta/implicit.py", "src/contracts/methods/runge_kutta/gauss_legendre.py", "src/dynamics/gc.py", "src/contracts/methods/functions.py", "src/contracts/methods/quadrature.py", "src/diagnostics/methods/energy.py", "src/solvers/derivatives.py", "src/formulations/state.py", "src/states/initial.py", "src/solvers/nonlinear.py", "src/methods/projection.py", "src/methods/palindromic/core/projection.py", "src/simulation/runner.py", "src/problem.py", "src/request.py", "src/execution/execution.py", "src/execution/_plan.py", "src/contracts/execution/plan.py", "src/execution/_jax_step.py", "src/execution/_jax_fixed.py", "src/execution/_jax.py", "src/dynamics/jax_dynamics.py", "src/dynamics/jax_coordinates.py", "src/methods/base.py", "src/execution/options.py", "src/contracts/arrays.py", "src/contracts/methods/base.py", "src/contracts/execution/controllers.py", "src/contracts/dynamics/protocols.py", "src/contracts/methods/maps.py", "src/contracts/methods/projection.py"]
+documents = ["docs/simulation/runge-kutta.md", "docs/simulation/initial-solvers-formulations.md", "docs/simulation/integration-architecture.md", "docs/simulation/execution.md", "docs/simulation/jax-execution.md"]
 
 [[requirements]]
 id = "SIM-001"
@@ -15,7 +15,7 @@ tests = ["tests/test_core.py::SimulationTests.test_problem_and_request_validate_
 
 [[requirements]]
 id = "SIM-003"
-tests = ["tests/test_temporal_preparation.py", "tests/test_projection_problem.py", "tests/test_fixed_step_plan.py", "tests/test_function_methods.py", "tests/test_solver_configuration.py", "tests/test_energy_observation.py", "tests/test_execution.py::ExecutionTests.test_default_and_explicit_executor_produce_the_same_solution", "tests/test_execution.py::ExecutionTests.test_result_preparation_and_finalization_failures_consume_only_the_run", "tests/test_compiled_step_contract.py::CompiledStepContractTests.test_fixed_and_hybrid_runs_finalize_the_allocated_result_once", "tests/test_execution.py::ExecutionTests.test_simulation_dispatches_one_complete_job_to_the_subclass", "tests/test_execution.py::ExecutionTests.test_local_executor_owns_preparation_and_drives_the_controller", "tests/test_execution.py::ExecutionTests.test_executor_failure_propagates_without_local_fallback", "tests/test_execution.py::ExecutionTests.test_external_provider_prepares_a_run_without_an_integration_entry_point", "tests/test_execution.py::ExecutionTests.test_controller_preparation_failure_consumes_only_the_fresh_run", "tests/test_jax_methods.py", "tests/test_compiled_step_contract.py"]
+tests = ["tests/test_palindromic_family.py", "tests/test_palindromic_operations.py", "tests/test_runge_kutta.py", "tests/test_temporal_preparation.py", "tests/test_projection_problem.py", "tests/test_fixed_step_plan.py", "tests/test_function_methods.py", "tests/test_solver_configuration.py", "tests/test_energy_observation.py", "tests/test_execution.py::ExecutionTests.test_default_and_explicit_executor_produce_the_same_solution", "tests/test_execution.py::ExecutionTests.test_result_preparation_and_finalization_failures_consume_only_the_run", "tests/test_compiled_step_contract.py::CompiledStepContractTests.test_fixed_runs_finalize_the_allocated_result_once", "tests/test_execution.py::ExecutionTests.test_simulation_dispatches_one_complete_job_to_the_subclass", "tests/test_execution.py::ExecutionTests.test_local_executor_owns_preparation_and_drives_the_controller", "tests/test_execution.py::ExecutionTests.test_executor_failure_propagates_without_local_fallback", "tests/test_execution.py::ExecutionTests.test_external_provider_prepares_a_run_without_an_integration_entry_point", "tests/test_execution.py::ExecutionTests.test_controller_preparation_failure_consumes_only_the_fresh_run", "tests/test_jax_methods.py", "tests/test_compiled_step_contract.py"]
 
 [[requirements]]
 id = "SIM-004"
@@ -40,12 +40,7 @@ Independent shadow samples may use shorter durations without moving the main
 trajectory. Host and JAX use the same schedule and record effective durations
 in `step_sizes`. `advance` remains the numerical operation.
 
-DOP853/Radau instead own `max_step` (default 0.1), an upper bound for their
-adaptive controller. Move former request `max_step` arguments to the method:
-`step` for fixed methods, `max_step` for adaptive methods. Requests no longer
-accept a step argument. A non-divisible interval intentionally gives a different
-main grid from the former uniform rescaling policy; old saved results retain
-their recorded grids.
+DOP853 and Radau are standalone SciPy reference solvers used directly by studies. They are no longer methods in `simulation` or `methods`, and there is no adaptive controller or SciPy/JAX hybrid path in execution. Fixed methods own `step`; requests own the interval and saved times. Host progress is configured with `options=ExecutionOptions(progress=True)`.
 
 ## SIM-001: Validated problem snapshot
 
@@ -81,17 +76,6 @@ validates the request; it does not relax the runner's output equality contract.
 
 ## SIM-003: One complete execution job
 
-`simulate` validates its orchestration inputs and delegates one complete job to
-`Execution.run`. Omitting the executor selects local execution; omitting options
-selects NumPy/SciPy without importing JAX. Execution owns environment preparation,
-fresh-run validation, running/finished transitions, one States allocation and
-one finalization. Internal host and compiled workers fill the open recorder and
-return numerical diagnostics. Fixed JAX uses bulk recording; DOP853/Radau retain
-SciPy control with JAX field callbacks prepared in execution._jax. Methods own
-numerical operations and controllers own accepted intervals/sampling. Physics
-modules have no dependency on execution. Standalone JaxPotential remains usable
-with its own evaluation guards and caches.
-
 Private backend, observer and numerical-run preparation helpers live in
 `execution.execution`. Backend preparation resolves the mode and device once
 and binds the prepared dynamics directly. Observer preparation reads
@@ -119,14 +103,11 @@ run before result allocation. Custom controllers retain their own policies.
 See [shared planning](../../docs/simulation/execution.md#shared-fixed-step-plan)
 and `tests/test_fixed_step_plan.py`.
 
-`NumericalMethod.new_run(f, initial_conditions, *, jacobian=None, jacobian_structure="dense", observe=False, capture_quadrature=False)` receives a physical vector field and independent initial data. Execution resolves dynamics capabilities and supplies any physical Jacobian explicitly. The prepared run retains no `InitialValueProblem`, `DynamicalSystem` or temporal request. `jacobian_structure` distinguishes dense matrices from independent particle blocks; it does not identify a physical model.
+`new_run(f, initial_conditions, *, jacobian=None)` creates a fresh run and calls `initialize(initial_conditions)`. Initial data and layout are temporary preparation inputs: the numerical base retains only functions, numerical metadata, run status and copy count. Execution owns the initial snapshot and passes it explicitly to controllers. Supplied Jacobians have independent particle shape `(N,d,d)`; finite-difference Jacobians remain dense. There is no `jacobian_structure`, `capture_quadrature` or method-level `progress` option.
 
-`new_run` returns a fresh ready `IntegrationMethod`, copying constructor configuration and initializing owned physical snapshots. `initialize`, `advance`, `build_observation` and `controller` define its numerical behavior. Methods have no energy accumulator or history diagnosis. Fixed methods share one `advance` implementation across array types. Execution owns JAX compatibility checks and compilation; `NumericalMethod` has no backend declaration. The adaptive implementation retains its local hybrid declaration. CPU extensions can inherit `FixedStepMethod` or supply their own controller.
-
-Execution registers `observers=()` separately from the method. `EnergyObserver()` is immutable configuration for a fresh per-run accumulator; ordinary callbacks keep their supplied identity and caller-owned lifecycle. Execution attaches the original dynamics identity to accepted events and calls each callback once per main step, in registration order. Shadow samples do not emit accepted events. A callback declaring `requires_quadrature=True` requests current-step quadrature without enabling saved energy histories.
+`EnergyObserver()` records physical H and the positive analytic partial time derivative `hamiltonian_time_derivative` at accepted endpoints and requested physical samples. It does not consume internal stages or integrate momentum. Per-step diagnostics are `energy_start`, `energy_end`, `energy_change`, `energy_time_derivative_start` and `energy_time_derivative_end`, with shape `(steps,N)`. Saved histories `physical_hamiltonian` (alias `hamiltonian`), `energy_drift` and `hamiltonian_time_derivative` have shape `(N,T)`. Energy variation in a time-dependent Hamiltonian is not a numerical conservation error.
 
 Configurations remain reusable; consumed runs finish after success or failure and errors propagate without a local fallback. Algebraic controls belong exclusively to `solver=...`; execution accepts the separate `observers=()` argument.
-
 
 The numerical base is defined in methods.base and exported as methods.IntegrationMethod.
 Execution contains its own private host and compiled JAX loops, fixed control,
@@ -161,13 +142,13 @@ No mutable evaluation cache is shared between candidates, solves or JAX traces.
 
 Both BM4 constructors omit coupling_frequency and bind uncoupled CPU/JAX maps.
 Their weights, endpoint clock and projections stay unchanged. Independent C
-remains available through methods.extended.maps.HarmonicCoupling. Legacy calculation
+remains available through methods.palindromic.maps.HarmonicCoupling. Legacy calculation
 rates must be zero; stored coupled results retain their original metadata.
-See [the migration guide](../../docs/models/extended/simulation/uncoupled-bm4.md).
+See [the migration guide](../../docs/models/palindromic/simulation/uncoupled-bm4.md).
 
 ## Explicit palindromic operations
 
-All ABBA/BM4 presets inherit PalindromicMethod. Composition is a public tuple[Operation, ...] type alias. Recipes contain explicit A/B/T/C operations with signed full-step coefficients; only T advances the clock. Generic PalindromicImplicit and PalindromicMidpoint accept validated recipes for experiments. Existing presets merge consecutive T operations and keep their mathematical maps, grouped observations and solver controls. Fixed recipes are tuple literals on the method classes, shared by variants without dataclass fields. Preparation validates tuples once; names belong to the method. Observation adapters reconstruct groups from elementary traces without replay. Elementary ABBA2/ABBA4/BM4 counts are 5/15/30; clock rounding may differ from separate additions. Generic C requires an explicit operation and HarmonicCoupling; BM4 stays uncoupled. See [the operation architecture](../../docs/models/extended/simulation/palindromic-operations.md). ABBA2Implicit, ABBA4Implicit and BM4Implicit directly inherit ProjectedPalindromicMethod, including preparation and advancement. ABBA4 declares a complete tuple and retains one exterior projection. ABBA6 and ABBA-specific intermediate bases are removed.
+All ABBA/BM4 presets inherit PalindromicMethod. Composition is a public tuple[Operation, ...] type alias. Recipes contain explicit A/B/T/C operations with signed full-step coefficients; only T advances the clock. Generic PalindromicImplicit and PalindromicMidpoint accept validated recipes for experiments. Existing presets merge consecutive T operations and keep their mathematical maps, grouped observations and solver controls. Fixed recipes are tuple literals on the method classes, shared by variants without dataclass fields. Preparation validates tuples once; names belong to the method. Observation adapters reconstruct groups from elementary traces without replay. Elementary ABBA2/ABBA4/BM4 counts are 5/15/30; clock rounding may differ from separate additions. Generic C requires an explicit operation and HarmonicCoupling; BM4 stays uncoupled. See [the operation architecture](../../docs/models/palindromic/simulation/palindromic-operations.md). ABBA2Implicit, ABBA4Implicit and BM4Implicit directly inherit ProjectedPalindromicMethod, including preparation and advancement. ABBA4 declares a complete tuple and retains one exterior projection. ABBA6 and ABBA-specific intermediate bases are removed.
 
 ## Preparation result types
 
@@ -220,11 +201,7 @@ canonical contracts, and internal consumers import their defining modules.
 
 `DoubleFormulation(physical_size)` is the only state formulation. It prepares two temporary physical copies through `lift`, `join_copies` and `split_copies`, preserving NumPy/JAX backends and complete FC velocity blocks. It stores only a positive vector size; it owns no dynamics, layout, time, momentum, solver or projection. Methods using ordinary physical arrays need no formulation; `SingleFormulation` is removed.
 
-Every accepted snapshot is `IntegrationState(time, values)`: scalar time and physical `values` of shape `(d*N,)`. GC remains 2N and FC 4N with or without energy observation. Doubled GC work has 4N entries; generic doubled FC work has 8N. Workspaces are temporary and never become accepted states. Optional quadrature accompanies a sample without storing energy momentum. Generic copy support does not extend GC numerical methods to FC.
-
-Execution supplies `f(t, z)`, independent initial data and an optional Jacobian to the numerical method. `advance(t, z, h)` returns physical `StepResult.state`, numerical work and optional quadrature. `EnergyObserver`, supplied through `simulate(..., observers=(EnergyObserver(),))`, owns a fresh passive accumulator for each run. Accepted steps update it once; each shadow sample starts independently from the accepted left endpoint. JAX carries a separate functional accumulator through the compiled loop.
-
-Execution gives the energy observer H and `-partial_t H`. The observer evaluates saved physical H once; `states.energy.energy_diagnostics` combines supplied H and physical kappa without evaluating dynamics. Existing energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. The default initial kappa is zero; `EnergyObserver(initial_momentum=...)` accepts an explicit physical value per particle. Numerical archives require no migration; old pickled configured objects should be recreated.
+Every accepted `IntegrationState(time, values)` contains only a scalar time and an owned physical vector `(d*N,)`. Sampling snapshots carry no quadrature or momentum. `DoubleFormulation(physical_size)` creates temporary copies only for doubled methods; its size belongs to that representation, not to IntegrationMethod. Shadow samples use independent shortened maps from the accepted left endpoint and do not change the main trajectory.
 
 ## Prepared guiding-center Hamiltonian
 
@@ -239,6 +216,17 @@ and the finite-difference and compiled regression checks in
 
 ## Temporal and derivative preparation
 
-`new_run(f, initial_conditions, ...)` and `initialize()` do not receive a temporal request or initial time. Methods retain no `request`. Execution owns interval setup and output scheduling; `advance(t, state, h)` receives the time needed for each numerical step.
-
 `auto` selects a supplied Jacobian without evaluating it, or finite differences when no derivative is supplied. For Newton corrections, `analytic` requires a derivative and `finite_difference` explicitly forces approximation. Broyden continues to use the projection-supplied initial matrix and residual updates without evaluating field derivatives. Shapes and finite values are checked at actual evaluations. A supplied derivative failure propagates; auto does not silently fall back. Gauss, SDIRK, HBVM and projected compositions share `solvers.derivatives.resolve_jacobian_method`. HBVM retains its validation boundary after the first residual. Numerical stage and projection equations are unchanged.
+
+## Runge–Kutta family
+
+The four methods formerly grouped as classical belong to `methods.runge_kutta`. Their immutable A/B/C Butcher tableaux drive explicit, sequential diagonal or coupled implicit algorithms inherited from reusable classes. Public recipe names, solvers, observations, sampling and passive energy are preserved. Generic families also support JAX; their coefficients distinguish compiled configurations. The `methods.classical` and `contracts.methods.classical` namespaces are retired without aliases. See the [family contract](../../docs/simulation/runge-kutta.md).
+
+## Palindromic module ownership
+
+The numerical family is `methods.palindromic`, mirrored by contracts and
+diagnostics. Each concrete method and shared base has one defining module;
+public names from `simulation` remain unchanged. Recipes, projection placement,
+solver controls and NumPy/JAX algorithms are unchanged. Retired `extended`
+family routes have no aliases. See the
+[module map](../../docs/models/palindromic/simulation/palindromic-simulation-architecture.md).

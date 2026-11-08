@@ -364,18 +364,18 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 					untracked.states,
 				)
 				self.assertNotIn(
-					"extended_momentum",
+					"hamiltonian_time_derivative",
 					untracked.diagnostics,
 				)
 				self.assertEqual(
-					np.asarray(tracked.diagnostics["extended_momentum"]).shape,
+					np.asarray(tracked.diagnostics["hamiltonian_time_derivative"]).shape,
 					(1, tracked.t.size),
 				)
 				self.assertEqual(
-					float(tracked.diagnostics["extended_momentum"][0, 0]),
+					float(tracked.diagnostics["energy_drift"][0, 0]),
 					0.0,
 				)
-				self.assertGreaterEqual(tracked.diagnostics["energy_error"], 0.0)
+				self.assertNotIn("energy_error", tracked.diagnostics)
 
 		np.testing.assert_array_equal(
 			self.midpoint_solutions[("physical", True)].states,

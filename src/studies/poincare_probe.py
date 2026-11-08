@@ -21,7 +21,7 @@ from dynamics import GuidingCenterDynamics
 
 from potential import Grid, Potential
 from problem import InitialValueProblem
-from methods.classical.rk4 import RK4
+from methods.runge_kutta.rk4 import RK4
 from request import SimulationRequest
 from simulation.runner import simulate
 from studies.poincare_periodicity import SavedPoincareSection

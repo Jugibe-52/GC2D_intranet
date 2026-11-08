@@ -412,8 +412,8 @@ md(r"""
 - [HDF5 import and units](../../docs/dynamics/gc2d-h5-import.md).
 - [Physical guiding-center dynamics](../../src/dynamics/gc.py).
 - [BM4Implicit method and projection](../../docs/models/bm4-implicit/simulation/bm4-simulation-architecture.md).
-- [BM4 accepted-stage energy observer](../../src/diagnostics/methods/extended/energy/observer.py).
-- [Classical RK4 and optional momentum evolution](../../src/methods/classical/rk4.py).
+- [BM4 accepted-stage energy observer](../../src/diagnostics/methods/palindromic/energy/observer.py).
+- [Classical RK4 and optional momentum evolution](../../src/methods/runge_kutta/rk4.py).
 - [DOP853/Radau reference pipeline](../../src/studies/reference_trajectory.py).
 - Hairer, Lubich and Wanner, *Geometric Numerical Integration*, IX.8: the long-time
   near-conservation result is conditional; it does not assert conservation of a

@@ -11,7 +11,7 @@ from dynamics.coordinates import PhysicalCoordinates, GCCoordinates, FCCoordinat
 from tests.coordinate_fixtures import ThreeCoordinates, FiveCoordinates, UnclassifiedCoordinates, ReorderedCoordinates
 from dynamics.fc import FullCyclotronDynamics
 from execution.state import IntegrationState
-from diagnostics.methods.energy import EnergyObserver, momentum_increment
+from diagnostics.methods.energy import EnergyObserver
 from execution._host import FixedStepController
 from simulation import InitialConditions, InitialValueProblem, RK4, ABBA2Implicit, SimulationRequest, simulate
 from tests.test_method_integration import _problem
@@ -74,7 +74,7 @@ class PhysicalWorkspaceTests(unittest.TestCase):
 			describe_coordinates(source)
 
 	def test_method_guards_require_explicit_gc_or_fc_conventions(self) -> None:
-		from methods.extended.maps import GCDoubledMaps
+		from methods.palindromic.maps import GCDoubledMaps
 		from methods.splitting import FCSplitMaps
 		for layout in (UnclassifiedCoordinates(), ReorderedCoordinates(), FCCoordinates()):
 			with self.subTest(layout=type(layout)), self.assertRaises(TypeError):
@@ -145,32 +145,6 @@ with patch.object(GuidingCenterDynamics, '__init__', side_effect=AssertionError(
 			result = subprocess.run([sys.executable, '-c', script, directory], capture_output=True, text=True)
 			self.assertEqual(result.returncode, 0, result.stderr)
 
-	def test_shadow_samples_preserve_accepted_nonzero_momentum(self):
-		problem = _problem(); request = SimulationRequest((.15, .255), np.array([.15, .153, .181, .255]))
-		for cls in (RK4, ABBA2Implicit):
-			run = cls(step=.02).new_run(problem.dynamics.vector_field, problem.initial_conditions,
-				jacobian=problem.dynamics.particle_vector_field_jacobians, jacobian_structure='particle', capture_quadrature=True)
-			initial_momentum = np.full(problem.particle_count, .7)
-			energy = EnergyObserver(initial_momentum=initial_momentum).new_run(
-				problem.dynamics.hamiltonian, problem.dynamics.extended_momentum_derivative,
-				particle_count=problem.particle_count, initial_time=.15)
-			controller = FixedStepController()
-			info, result = next(controller.steps(run, request))
-			before = result.state.copy()
-			energy.accept(info.index, info.time, info.end_time, result.quadrature)
-			momentum_before = energy.momentum
-			for time in (.153, .159, .153):
-				sample = controller.sample(run, info, result, time)
-				expected = run.advance(info.time, info.state_before, time-info.time)
-				np.testing.assert_array_equal(sample.values, expected.state)
-				observed = energy.sample(time, sample.quadrature)
-				np.testing.assert_array_equal(observed, initial_momentum + momentum_increment(
-					problem.dynamics.extended_momentum_derivative, expected.quadrature, problem.particle_count))
-				np.testing.assert_array_equal(result.state, before)
-				np.testing.assert_array_equal(energy.momentum, momentum_before)
-				observed[:] = 99
-				np.testing.assert_array_equal(energy.momentum, momentum_before)
-			with self.assertRaises(ValueError): run.advance(.15, np.tile(run.initial_state, 2), .02)
 
 	def test_snapshots_copy_and_serialize_physical_arrays(self):
 		z=np.array([1.,2.]); state=IntegrationState(.3,z)
@@ -179,17 +153,3 @@ with patch.object(GuidingCenterDynamics, '__init__', side_effect=AssertionError(
 			np.testing.assert_array_equal(value.values,[1,2])
 			self.assertFalse(value.values.flags.writeable)
 			self.assertFalse(hasattr(value, 'momentum'))
-
-	def test_adaptive_step_result_does_not_expose_live_solver_state(self):
-		from methods import DOP853, Radau
-		problem = _problem()
-		request = SimulationRequest((.15, .255), np.array([.15, .255]))
-		for cls in (DOP853, Radau):
-			run = cls(max_step=.02).new_run(problem.dynamics.vector_field, problem.initial_conditions, capture_quadrature=True)
-			run.controller().prepare(run, request)
-			result = run.advance(.15, run.initial_state, .02)
-			physical = run.solver.y.copy()
-			self.assertFalse(np.shares_memory(result.state, run.solver.y))
-			result.state[:] = 99
-			np.testing.assert_array_equal(run.solver.y, physical)
-			np.testing.assert_array_equal(run.current_state.values, physical)

@@ -31,10 +31,10 @@ and capabilities rather than extra execution stages.
 ## Runtime sequence
 
 1. The caller supplies a physical problem, numerical method, `SimulationRequest` and optional observers.
-2. `Execution.run` resolves physical functions and prepares the method from `f`, independent initial data and an optional Jacobian; it allocates `States` and owns run transitions.
-3. The controller manages physical `IntegrationState(time, values)` endpoints; an independent observer owns energy momentum.
-4. Each accepted interval produces statistics and requested samples. Fixed shadows start from its left endpoint; adaptive methods evaluate accepted dense output. No formulation extracts accepted output. JAX records its physical history in bulk.
-5. The energy observer evaluates saved H; `states.energy` combines supplied arrays. Execution combines diagnostics and calls `States.finalize` once.
+2. `Execution.run` binds functions and prepares the method from temporary initial data; it allocates `States` and owns run transitions.
+3. The controller manages physical `IntegrationState(time, values)` endpoints. Execution supplies the initial snapshot explicitly.
+4. Accepted steps produce statistics and requested samples. Independent shortened maps sample from the left endpoint. JAX records physical history in bulk.
+5. EnergyObserver evaluates H and positive analytic partial_t H at accepted endpoints and saved samples. Execution combines diagnostics and calls `States.finalize` once.
 6. `simulate` validates time, layout and initial-state agreement and returns the completed `States`.
 
 ## Extended-family detail
@@ -50,7 +50,7 @@ quadrature reuse the shared numerical implementation and accepted stage data.
 For planar guiding-center particles, physical states always have `2N` coordinates and doubled workspaces `4N`. Only spatial variables enter projection. Passive physical momentum has `N` entries in the observer and saved `(N,T)` diagnostics; it never enlarges a physical state or nonlinear unknown.
 
 For method-specific details, see the
-[extended-family architecture](../models/extended/simulation/extended-simulation-architecture.md)
+[palindromic-family architecture](../models/palindromic/simulation/palindromic-simulation-architecture.md)
 and the [integration and state-formulation guide](integration-architecture.md).
 
 ## Regeneration

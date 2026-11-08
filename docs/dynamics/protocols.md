@@ -3,27 +3,15 @@
 `src/contracts/dynamics/protocols.py` defines two general runtime-checkable protocols.
 Implementations satisfy them structurally, without explicit inheritance.
 
-| Contract | Required members | Purpose |
-|---|---|---|
-| `DynamicalSystem` | `state_dimension`, `vector_field(t, state)` | Integrate physical trajectories. |
-| `HamiltonianSystem` | All `DynamicalSystem` members, `hamiltonian(t, state)`, `extended_momentum_derivative(t, state)` | Support optional energy-balance tracking. |
+GC evaluates H from its already normalized Hamiltonian potential and obtains positive partial_t H with `evaluate(t,x,y,dt=1)`. Space is represented by splines and time by Fourier factors; time differentiation is analytic, including the frequency factors. FC differentiates the electric-potential term with its existing physical scaling. The result is a partial time derivative at fixed physical state, not a finite difference of sampled energy or a total derivative along the numerical trajectory.
 
-`HamiltonianSystem` extends `DynamicalSystem`. Its energy methods return one
-value per particle; Hamiltonian evaluation also supports saved time histories.
-The momentum derivative is `-partial_t H` with the same energy normalization
-as `hamiltonian`. Autonomous systems provide an explicit zero derivative.
+`DynamicalSystem` requires `state_dimension` and `vector_field(t,state)`. `HamiltonianSystem` additionally requires `hamiltonian(t,state)` and positive `hamiltonian_time_derivative(t,state)`. Both energy operations return `(N,)` for a scalar time and `(N,T)` for a saved history; autonomous models explicitly return zeros with the same shape. Jacobian and exact-flow capabilities remain separate protocols.
 
-Registering `EnergyObserver()` through `observers=` selects optional Hamiltonian capabilities in execution. Tracking integrates separate per-particle physical momentum and measures `H + kappa`; it changes neither physical states nor integration decisions.
+`EnergyObserver()` records physical H and the positive analytic partial time derivative `hamiltonian_time_derivative` at accepted endpoints and requested physical samples. It does not consume internal stages or integrate momentum. Per-step diagnostics are `energy_start`, `energy_end`, `energy_change`, `energy_time_derivative_start` and `energy_time_derivative_end`, with shape `(steps,N)`. Saved histories `physical_hamiltonian` (alias `hamiltonian`), `energy_drift` and `hamiltonian_time_derivative` have shape `(N,T)`. Energy variation in a time-dependent Hamiltonian is not a numerical conservation error.
 
 `GuidingCenterJacobianSystem` and `CyclotronSplitSystem` remain separate,
 specialized contracts for analytic Jacobians and cyclotron splitting. They are
 independent of the energy-tracking choice.
-
-The former `ExtendedHamiltonianSystem` protocol has been removed. Import
-`HamiltonianSystem` when preparing energy observers. A custom implementation
-that previously supplied only `hamiltonian` must also supply the basic dynamics
-members and `extended_momentum_derivative` to satisfy the unified contract.
-Evaluating a Hamiltonian directly remains possible without enabling tracking.
 
 ## NumPy and JAX arrays
 
@@ -63,8 +51,7 @@ GC/FC prepare their own explicit subclasses and delegate potential conversion to
 `Potential._as_jax()`, sharing samples, fitted splines and GC `hamiltonian_potential`.
 They neither repeat gyroaveraging nor modify the source. Already compatible JAX
 objects are reused; unknown subclass overrides are rejected. Each component
-bounds its preparation cache. Device selection, compilation caches and the SciPy
-adaptive host adapter remain in execution. Base NumPy imports never load optional
+bounds its preparation cache. Device selection, compilation caches remain in execution. Base NumPy imports never load optional
 JAX. Initial data and saved `States` retain structural NumPy snapshots and
 unchanged component order. See the [potential contract](jax-potential-evaluation.md).
 
@@ -94,24 +81,12 @@ GC numerical methods to FC.
 
 Execution retains the problem's source identity and binds `f(t, Z)` and optional
 analytic derivatives before calling `new_run(f, initial_conditions, *,
-jacobian=None)`. Derivatives explicitly distinguish dense matrices from
-independent-particle blocks. Methods do not retain dynamics or inspect bound
+jacobian=None)`. Supplied derivatives always use independent particle blocks; numerical differences are dense. Methods do not retain dynamics or inspect bound
 function owners. FC splitting composes the supplied `cyclotron_flow(t, state,
 duration)` and `electric_kick(t, state, duration)` functions; their physical
 equations belong to `FullCyclotronDynamics`.
 
-The method prepares copies, projection equations and physical stages.
-`advance(t, Z, h)` returns physical `StepResult.state` and optional numerical
-quadrature data. The energy observer owns separate zero or supplied initial
-momentum, advances it once after acceptance, and evaluates saved H once.
-Fixed shadow samples use shortened-map quadrature from the left observer state;
-adaptive samples use the accepted interpolant. JAX carries a separate functional
-energy accumulator through the compiled execution loop.
-
-`states.energy.energy_diagnostics` combines supplied H and physical kappa without
-dynamics evaluation. Existing energy labels and `(N,T)` auxiliary histories stay
-unchanged; `extended_time` is broadcast from scalar sample times. Numerical
-archives require no migration; old pickled configured objects should be recreated.
+Specialized historical generalized-energy studies explicitly use stage diagnostics under `diagnostics.methods.stage_energy` and `studies._generalized_energy`. They retain their signed quadrature, physical kappa normalization and archive labels. Generic execution has no momentum accumulator. `States.k` and `States.err` remain readers for historical diagnostics and return `None` when absent. Old numerical archives remain readable; recreate configured-object pickles after the API change.
 
 ## Guiding-center Hamiltonian
 
@@ -120,7 +95,7 @@ representing `H = Phi_rho / B`. Construction applies the selected gyro-radius
 in the source coordinate units and divides the mean and modes by finite,
 nonzero signed B. `vector_field` evaluates `H_x` and `H_y` through the existing
 splines and packs `(-H_y, H_x)`. `hamiltonian(t, state)`, particle Jacobians and
-`extended_momentum_derivative` all use the same object and normalization.
+`hamiltonian_time_derivative` all use the same object and normalization.
 JAX preparation shares its splines without rebuilding them.
 
 `Potential.electric_field` retains `(-Phi_x, -Phi_y)` and its full-cyclotron

@@ -1,6 +1,7 @@
 """Reusable local-Jacobian study for implicit ABBA guiding-centre steps."""
 
 from __future__ import annotations
+from execution.options import ExecutionOptions
 
 from solvers.nonlinear import NewtonSolver
 
@@ -16,7 +17,7 @@ from ._validation import sample_count as validated_sample_count
 from contracts.studies._validation import finite_time_span, nonnegative_finite, positive_finite, positive_integer
 
 
-from diagnostics.methods.extended.abba_jacobian.observer import (
+from diagnostics.methods.palindromic.abba_jacobian.observer import (
 	ImplicitABBAJacobianMethod,
 	ImplicitABBAJacobianObserver,
 	ImplicitABBAJacobianOutputBlock,
@@ -25,8 +26,8 @@ from diagnostics.methods.extended.abba_jacobian.observer import (
 )
 from dynamics import GuidingCenterDynamics
 from potential import Potential
-from methods.extended.configuration import ABBA_PROJECTION_FORMULATIONS, ProjectionFormulation
-from methods.extended.abba import ABBA2Implicit
+from methods.palindromic.configuration import ABBA_PROJECTION_FORMULATIONS, ProjectionFormulation
+from methods.palindromic.abba2_implicit import ABBA2Implicit
 
 from problem import InitialValueProblem
 
@@ -302,9 +303,9 @@ def run_implicit_abba_jacobian_study(
 			ABBA2Implicit(
 				step=config.max_step,
 				projection_formulation=config.formulation,
-				progress=config.progress,
+
 				solver=NewtonSolver(absolute_tolerance=config.newton_absolute_tolerance, relative_tolerance=config.newton_relative_tolerance, max_iterations=config.newton_max_iterations, jacobian_method='analytic'),
-			), observers=(observer,))
+			), observers=(observer,), options=ExecutionOptions(progress=config.progress))
 		runtime_seconds = perf_counter() - started
 
 	return ImplicitABBAJacobianStudyResult(

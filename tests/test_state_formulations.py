@@ -11,7 +11,7 @@ from contracts.dynamics.protocols import DynamicalSystem, HamiltonianSystem
 from dynamics import FullCyclotronDynamics
 
 from simulation import (
-	ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42, DOP853, Radau, ABBA2Midpoint, ABBA2Implicit,
+	ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42, ABBA2Midpoint, ABBA2Implicit,
 	ABBA4Implicit, BM4Midpoint, BM4Implicit, InitialValueProblem, SimulationRequest, simulate,
 	DoubleFormulation,
 )
@@ -19,7 +19,7 @@ from tests.test_method_integration import _problem
 from diagnostics.methods.energy import EnergyObserver
 from solvers.nonlinear import NewtonSolver, BroydenSolver
 
-CLASSICAL = (ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42, DOP853, Radau)
+CLASSICAL = (ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42)
 DUPLICATED = (ABBA2Midpoint, ABBA2Implicit, ABBA4Implicit,  BM4Midpoint, BM4Implicit)
 
 
@@ -35,15 +35,15 @@ class RotatingHamiltonian:
         x, y = np.split(state, 2, axis=0)
         return (x*x + y*y)/2 + 1e6*np.asarray(time)**5
 
-    def extended_momentum_derivative(self, time, state):
-        return np.full(state.size // 2, -5e6*time**4)
+    def hamiltonian_time_derivative(self, time, state):
+        return np.ones_like(np.split(state, 2, axis=0)[0]) * 5e6*np.asarray(time)**4
 
 
 class FourStateFormulationTests(unittest.TestCase):
     def test_hamiltonian_contract_requires_dynamics_and_both_energy_operations(self):
         source = RotatingHamiltonian()
         members = {name: getattr(source, name) for name in (
-            'state_dimension', 'vector_field', 'hamiltonian', 'extended_momentum_derivative')}
+            'state_dimension', 'vector_field', 'hamiltonian', 'hamiltonian_time_derivative')}
         self.assertIsInstance(source, DynamicalSystem)
         self.assertIsInstance(source, HamiltonianSystem)
         for missing in members:
@@ -61,7 +61,7 @@ class FourStateFormulationTests(unittest.TestCase):
             raise AssertionError('Untracked integration must not evaluate energy.')
 
         for energy_members in ({}, {'hamiltonian': unused_energy},
-                               {'extended_momentum_derivative': unused_energy}):
+                               {'hamiltonian_time_derivative': unused_energy}):
             dynamics = SimpleNamespace(
                 state_dimension=source.dynamics.state_dimension,
                 vector_field=source.dynamics.vector_field,
@@ -72,11 +72,11 @@ class FourStateFormulationTests(unittest.TestCase):
             self.assertNotIsInstance(dynamics, HamiltonianSystem)
             for cls in CLASSICAL + DUPLICATED:
                 with self.subTest(method=cls.__name__, energy_members=tuple(energy_members)):
-                    plain = simulate(problem.with_request(request), cls(**({"max_step": 0.02} if cls in (DOP853, Radau) else {"step": 0.02})))
+                    plain = simulate(problem.with_request(request), cls(step=0.02))
                     self.assertEqual(plain.states.shape, (2, 2))
                     self.assertNotIn('physical_hamiltonian', plain.diagnostics)
                     with self.assertRaisesRegex(TypeError, 'HamiltonianSystem'):
-                        simulate(problem.with_request(request), cls(**({"max_step": 0.02} if cls in (DOP853, Radau) else {"step": 0.02})), observers=(EnergyObserver(),))
+                        simulate(problem.with_request(request), cls(step=0.02), observers=(EnergyObserver(),))
 
     def test_all_methods_have_actual_dimensions_and_passive_energy(self):
         source = _problem()
@@ -85,54 +85,38 @@ class FourStateFormulationTests(unittest.TestCase):
             problem = InitialValueProblem(source.dynamics, GuidingCenterDynamics.coordinates.pack_components(np.linspace(1., 1.2, particles), np.linspace(1.2, 1.4, particles)), layout=GuidingCenterDynamics.coordinates)
             for cls in CLASSICAL + DUPLICATED:
                 with self.subTest(method=cls.__name__, particles=particles):
-                    plain = simulate(problem.with_request(request), cls(**({"max_step": .02} if cls in (DOP853, Radau) else {"step": .02})))
+                    plain = simulate(problem.with_request(request), cls(step=.02))
                     events = []
                     method = cls()
-                    run = replace(method, **({"max_step": .02} if isinstance(method, (DOP853, Radau)) else {"step": .02})).new_run(problem.dynamics.vector_field, problem.initial_conditions,
-                        jacobian=None if cls in (DOP853, Radau) else getattr(problem.dynamics, 'particle_vector_field_jacobians', None),
-                        jacobian_structure='particle', capture_quadrature=True)
+                    run = replace(method, step=.02).new_run(problem.dynamics.vector_field, problem.initial_conditions,
+                        jacobian=getattr(problem.dynamics, 'particle_vector_field_jacobians', None))
                     spatial = (4 if cls in DUPLICATED else 2)*particles
-                    self.assertEqual(run.initial_state.size, 2 * particles)
+                    self.assertFalse(hasattr(run, 'initial_state'))
                     self.assertFalse(hasattr(run, 'initial_momentum'))
                     self.assertEqual(plain.diagnostics['accepted_internal_state_dimension'], 2 * particles)
                     self.assertEqual(plain.diagnostics['workspace_state_dimension'], spatial)
-                    tracked = simulate(problem.with_request(request), replace(method, **({"max_step": .02} if isinstance(method, (DOP853, Radau)) else {"step": .02})), observers=(EnergyObserver(), events.append))
+                    tracked = simulate(problem.with_request(request), replace(method, step=.02), observers=(EnergyObserver(), events.append))
                     np.testing.assert_array_equal(plain.states, tracked.states)
                     for key in ('step_times', 'nonlinear_iterations', 'residual_evaluations',
                                 'nonlinear_residual_norms', 'nonlinear_tolerances',
                                 'function_evaluations', 'jacobian_evaluations', 'lu_decompositions'):
                         if key in plain.diagnostics:
                             np.testing.assert_array_equal(plain.diagnostics[key], tracked.diagnostics[key])
-                    np.testing.assert_array_equal(tracked.diagnostics['extended_time'], np.broadcast_to(tracked.t, (particles, 9)))
                     self.assertEqual(tracked.diagnostics['accepted_internal_state_dimension'], 2 * particles)
-                    self.assertEqual(tracked.diagnostics['momentum_state_dimension'], particles)
-                    self.assertEqual(tracked.diagnostics['extended_momentum'].shape, (particles, 9))
-                    self.assertEqual(tracked.diagnostics['extended_momentum_normalization'], 'physical_kappa')
-                    balance = tracked.diagnostics['physical_hamiltonian'] + tracked.diagnostics['extended_momentum']
-                    np.testing.assert_array_equal(balance-balance[:, :1], tracked.diagnostics['generalized_energy_error'])
+                    self.assertNotIn('extended_momentum', tracked.diagnostics)
+                    self.assertNotIn('generalized_energy_error', tracked.diagnostics)
+                    energy = tracked.diagnostics['physical_hamiltonian']
+                    np.testing.assert_array_equal(energy-energy[:, :1], tracked.diagnostics['energy_drift'])
+                    np.testing.assert_array_equal(tracked.diagnostics['hamiltonian_time_derivative'],
+                        problem.dynamics.hamiltonian_time_derivative(tracked.t, tracked.states.T))
                     for event in events:
                         self.assertEqual(event.state_before.shape, (2*particles,))
                         if hasattr(event, 'multiplier'):
                             self.assertEqual(event.multiplier.shape, (2*particles,))
-                    if cls not in (DOP853, Radau):
-                        step = run.advance(.3, run.initial_state, .02)
-                        self.assertEqual(step.state.size, 2 * particles)
-                        self.assertFalse(hasattr(step, 'momentum'))
-                        self.assertIsNotNone(step.quadrature)
+                    step = run.advance(.3, problem.initial_state, .02)
+                    self.assertEqual(step.state.size, 2 * particles)
+                    self.assertFalse(hasattr(step, 'momentum'))
 
-    def test_adaptive_auxiliary_does_not_change_grid_jacobian_or_work(self):
-        problem = InitialValueProblem(RotatingHamiltonian(), np.array([1., .2], dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
-        for cls in (DOP853, Radau):
-            options = {'jacobian': lambda t,z: np.array([[0.,-1.],[1.,0.]])} if cls is Radau else {}
-            for count in (2, 29):
-                request = SimulationRequest.uniform(t_span=(.3, 1.),  sample_count=count)
-                plain = simulate(problem.with_request(request), cls(max_step=.13, **options))
-                tracked = simulate(problem.with_request(request), cls(max_step=.13, **options), observers=(EnergyObserver(),))
-                np.testing.assert_array_equal(plain.states, tracked.states)
-                for key in ('step_times','function_evaluations','jacobian_evaluations','lu_decompositions'):
-                    np.testing.assert_array_equal(plain.diagnostics[key], tracked.diagnostics[key])
-                exact = -1e6*(tracked.t**5-.3**5)
-                np.testing.assert_allclose(tracked.diagnostics['extended_momentum'][0], exact, rtol=2e-15, atol=5e-10)
 
     def test_no_projected_time_or_momentum_mode_is_silently_reinterpreted(self):
         for cls in DUPLICATED[:-1]:
@@ -140,21 +124,20 @@ class FourStateFormulationTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'physical'):
                     cls(state_extension='fully_extended')
 
-    def test_full_cyclotron_keeps_four_physical_coordinates_and_separate_momentum(self):
+    def test_full_cyclotron_observes_energy_without_extending_state(self):
         dynamics = FullCyclotronDynamics(_problem().dynamics.potential, rho=.2, eta=.1)
         problem = InitialValueProblem(dynamics, FullCyclotronDynamics.coordinates.pack_components([1., 1.1, 1.2], [1.2, 1.3, 1.4], [.1, .2, .3], [-.1, -.2, -.3]), layout=FullCyclotronDynamics.coordinates)
         request = SimulationRequest.uniform(t_span=(.3, .34),  sample_count=5)
-        run = RK4(step=0.01).new_run(problem.dynamics.vector_field, problem.initial_conditions,
-                        capture_quadrature=True)
-        self.assertEqual(run.initial_state.shape, (12,))
+        run = RK4(step=0.01).new_run(problem.dynamics.vector_field, problem.initial_conditions)
+        self.assertFalse(hasattr(run, 'initial_state'))
         self.assertFalse(hasattr(run, 'initial_momentum'))
         tracked = simulate(problem.with_request(request), RK4(step=0.01), observers=(EnergyObserver(),))
         plain = simulate(problem.with_request(request), RK4(step=0.01))
         np.testing.assert_array_equal(tracked.states, plain.states)
         self.assertEqual(tracked.diagnostics['accepted_internal_state_dimension'], 12)
-        np.testing.assert_array_equal(tracked.diagnostics['extended_time'], np.broadcast_to(tracked.t, (3, 5)))
+        self.assertEqual(tracked.diagnostics['hamiltonian_time_derivative'].shape, (3, 5))
 
-    def test_bm4_tracking_agrees_with_independent_stage_observer(self):
+    def test_bm4_endpoint_observer_coexists_with_specialized_stage_observer(self):
         from diagnostics import GCGeneralizedEnergyObserver
         problem = _problem()
         request = SimulationRequest.uniform(t_span=(.3,.4),sample_count=6)
@@ -165,4 +148,6 @@ class FourStateFormulationTests(unittest.TestCase):
             # The independent diagnostic reconstructs accepted spatial stages.
             obs=GCGeneralizedEnergyObserver(problem.dynamics, initial_state=problem.initial_state, initial_time=.3)
             for event in events: obs(event)
-            np.testing.assert_allclose(result.diagnostics['extended_momentum'][0], [r.kappa for r in obs.records], atol=1e-14, rtol=1e-12)
+            self.assertNotIn('extended_momentum', result.diagnostics)
+            self.assertEqual(len(obs.records), result.t.size)
+            np.testing.assert_allclose(result.diagnostics['physical_hamiltonian'], problem.dynamics.hamiltonian(result.t, result.states.T), atol=1e-14, rtol=1e-12)

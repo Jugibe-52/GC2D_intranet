@@ -14,7 +14,7 @@ from problem import InitialValueProblem
 
 from request import SimulationRequest
 
-from methods.extended.bm4 import BM4Implicit
+from methods.palindromic.bm4_implicit import BM4Implicit
 from potential.load import GC2DH5Metadata
 from potential.grid import Grid
 from potential.potential import Potential

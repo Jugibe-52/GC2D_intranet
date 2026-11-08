@@ -12,7 +12,7 @@ import numpy as np
 
 
 from potential import Potential
-from methods.extended.abba import ABBA2Implicit
+from methods.palindromic.abba2_implicit import ABBA2Implicit
 
 from ._gc_symplecticity import (
 	GCSymplecticityConfig,
@@ -173,7 +173,7 @@ def run_abba_symplecticity_study(
 		config=config,
 		method_factory=lambda: ABBA2Implicit(
 			projection_formulation='reduced_multiplier',
-			progress=config.progress,
+
 			solver=NewtonSolver(absolute_tolerance=config.newton_absolute_tolerance, relative_tolerance=config.newton_relative_tolerance, max_iterations=config.newton_max_iterations, jacobian_method='analytic'),
 		),
 		result_type=ABBASymplecticityResult,

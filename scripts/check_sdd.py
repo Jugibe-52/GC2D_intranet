@@ -36,6 +36,7 @@ LEGACY_CHANGE_FILES = {"spec.md", "plan.md", "tasks.md"}
 # Historical records keep the paths that existed when their work was accepted.
 # Resolve these retired sources only for change history, never current specs.
 HISTORICAL_SOURCE_MOVES = {
+	"src/methods/adaptive/scipy.py": "src/studies/reference_trajectory.py",
 	"src/methods/_jax_dispatch.py": "src/execution/_jax_step.py",
 	"src/formulations/layout.py": "src/dynamics/coordinates.py",
 	"src/contracts/formulations/layout.py": "src/contracts/dynamics/coordinates.py",

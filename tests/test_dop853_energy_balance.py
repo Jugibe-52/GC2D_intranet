@@ -10,7 +10,7 @@ from dynamics import GuidingCenterDynamics
 
 from simulation import BM4Implicit, InitialValueProblem, SimulationRequest, simulate
 from diagnostics import GCGeneralizedEnergyObserver
-from diagnostics.methods.extended.bm4_energy_balance import BM4EnergyBalanceObserver
+from diagnostics.methods.palindromic.bm4_energy_balance import BM4EnergyBalanceObserver
 from diagnostics.studies.dop853_energy_balance_npz import save_energy_balance, load_energy_balance
 from studies.dop853_energy_balance import horizontal_configuration, run_energy_balance, METHODS
 from visualization.dop853_energy_balance import summary_rows, trajectory_player

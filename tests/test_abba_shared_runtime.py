@@ -18,7 +18,7 @@ from dynamics import GuidingCenterDynamics
 from potential import Potential
 from simulation import ABBA2Implicit, ABBA4Implicit, InitialValueProblem, SimulationRequest, simulate
 from solvers.nonlinear import _solve_newton
-from methods.extended.core.records import CompositionTrace, ProjectedMapResult
+from methods.palindromic.core.records import CompositionTrace, ProjectedMapResult
 from contracts.methods.step import StepInfo
 
 
@@ -50,9 +50,9 @@ class SharedABBARuntimeTests(unittest.TestCase):
 			with self.subTest(method=method_type.__name__, formulation=formulation,
 				solver=solver, track_energy=track_energy):
 				method = method_type(projection_formulation=formulation, solver=(NewtonSolver if solver == 'newton' else BroydenSolver)(jacobian_method='analytic', max_iterations=50))
-				prepared = replace(method, step=0.02).new_run(problem.dynamics.vector_field, problem.initial_conditions, jacobian=getattr(problem.dynamics, 'particle_vector_field_jacobians', None), jacobian_structure='particle', observe=True, capture_quadrature=track_energy)
-				state = prepared.initial_state
-				step = prepared.advance(0.0, prepared.initial_state, 0.02)
+				prepared = replace(method, step=0.02).new_run(problem.dynamics.vector_field, problem.initial_conditions, jacobian=getattr(problem.dynamics, 'particle_vector_field_jacobians', None))
+				state = problem.initial_state
+				step = prepared.advance(0.0, problem.initial_state, 0.02)
 				result = step.details
 				self.assertIsInstance(result, ProjectedMapResult)
 				self.assertIsInstance(result.trace, CompositionTrace)
@@ -62,7 +62,7 @@ class SharedABBARuntimeTests(unittest.TestCase):
 				np.testing.assert_array_equal(
 					result.state, step.state)
 				event = prepared.build_observation(
-					StepInfo(0, 0.0, 0.02, 0.02, prepared.initial_state), step)
+					StepInfo(0, 0.0, 0.02, 0.02, problem.initial_state), step)
 				for metric, observed in (
 					("nonlinear_iterations", event.newton_iterations),
 					("residual_evaluations", event.residual_evaluations),
@@ -79,7 +79,7 @@ class SharedABBARuntimeTests(unittest.TestCase):
 				np.testing.assert_allclose(event.map_state(state), result.state, rtol=0.0, atol=0.0)
 				if maps > 1:
 					self.assertEqual(len(event.substeps), maps)
-				self.assertFalse(prepared.initial_state.flags.writeable)
+				self.assertFalse(hasattr(prepared, 'initial_state'))
 				with self.assertRaises(TypeError):
 					prepared.metadata["step_count"] = 3  # type: ignore[index]
 
@@ -103,12 +103,12 @@ class SharedABBARuntimeTests(unittest.TestCase):
 				for a, b in zip(main_events, dense_events, strict=True):
 					np.testing.assert_array_equal(a.state_after, b.state_after)
 				np.testing.assert_array_equal(
-					main.diagnostics["extended_momentum"],
-					np.asarray(dense.diagnostics["extended_momentum"])[..., [0, 2, 4]],
+					main.diagnostics["hamiltonian_time_derivative"],
+					np.asarray(dense.diagnostics["hamiltonian_time_derivative"])[..., [0, 2, 4]],
 				)
 
 	def test_unobserved_compositions_do_not_construct_events(self) -> None:
-		with patch("methods.extended.observations.ABBA2ImplicitIntegrationStep",
+		with patch("methods.palindromic.observations.ABBA2ImplicitIntegrationStep",
 			side_effect=AssertionError("Unexpected observer allocation")):
 			result = simulate(_problem().with_request(_request([0.0, 0.04])), ABBA4Implicit(step=0.02))
 		self.assertEqual(result.diagnostics["nonlinear_solves_per_step"], 1)
@@ -129,7 +129,7 @@ class SharedABBARuntimeTests(unittest.TestCase):
 		actual = simulate(problem.with_request(request), ABBA4Implicit(step=0.02), observers=(EnergyObserver(),) + tuple((o for o in (mutate_snapshot,) if o is not None)))
 		np.testing.assert_array_equal(expected.states, actual.states)
 		np.testing.assert_array_equal(
-			expected.diagnostics["extended_momentum"], actual.diagnostics["extended_momentum"],
+			expected.diagnostics["hamiltonian_time_derivative"], actual.diagnostics["hamiltonian_time_derivative"],
 		)
 
 

@@ -1,8 +1,9 @@
 """Eight-configuration single-projection ABBA4 comparison on separate particle trajectories."""
 
 from __future__ import annotations
+from execution.options import ExecutionOptions
 
-from diagnostics.methods.energy import EnergyObserver
+from studies._generalized_energy import simulate_generalized_energy
 
 from solvers.nonlinear import BroydenSolver, NewtonSolver
 
@@ -35,11 +36,11 @@ from diagnostics.studies.reference_trajectory import StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
 
 from potential import GC2DH5Metadata, Potential
-from methods.extended.abba import ABBA4Implicit
+from methods.palindromic.abba4_implicit import ABBA4Implicit
 from problem import InitialValueProblem
 from solvers.nonlinear import NonlinearSolver
 from contracts.methods.base import NumericalMethod
-from methods.extended.configuration import ProjectionFormulation, StateExtension
+from methods.palindromic.configuration import ProjectionFormulation, StateExtension
 from request import SimulationRequest
 from states.history import States
 from simulation.runner import simulate
@@ -545,7 +546,7 @@ def _method_for_variant(
 		step=config.integration_step,
 		state_extension=variant.state_extension,
 		projection_formulation=variant.projection_formulation,
-		progress=config.progress,
+
 		solver=(NewtonSolver if variant.nonlinear_solver == 'newton' else BroydenSolver)(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic'),
 	)
 
@@ -657,9 +658,9 @@ def _run_abba4_trajectory_task(
 		raise RuntimeError("The ABBA4 worker process was not initialized.")
 	variant = _ABBA4_CONFIGURATION_VARIANTS_BY_KEY[task.variant_key]
 	started: float = perf_counter()
-	solution: States = simulate(
+	solution: States = simulate_generalized_energy(
 		context.problems[task.particle].with_request(context.request),
-		context.methods[task.variant_key], observers=(EnergyObserver(),))
+		context.methods[task.variant_key])
 	runtime_seconds = perf_counter() - started
 	_generalized_energy_history(context.dynamics, variant, solution)
 	return _ABBA4TrajectoryPayload(
@@ -890,9 +891,9 @@ def _run_sequential_trajectories(
 				flush=True,
 			)
 		started: float = perf_counter()
-		solution: States = simulate(
+		solution: States = simulate_generalized_energy(
 			problems[task.particle].with_request(request),
-			methods[task.variant_key], observers=(EnergyObserver(),))
+			methods[task.variant_key],  options=ExecutionOptions(progress=config.progress))
 		runtime_seconds = perf_counter() - started
 		_generalized_energy_history(dynamics, variant, solution)
 		runtime_rows[task.variant_key][task.particle] = runtime_seconds

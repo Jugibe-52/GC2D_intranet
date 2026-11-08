@@ -1,5 +1,6 @@
 """Shared operations for the three-, four-, and five-method comparison families."""
 from __future__ import annotations
+from execution.options import ExecutionOptions
 
 from solvers.nonlinear import NewtonSolver
 
@@ -27,11 +28,11 @@ from problem import InitialValueProblem
 from request import SimulationRequest
 
 from methods.base import FixedStepMethod
-from methods.extended.abba import ABBA4Implicit
-from methods.extended.bm4 import BM4Implicit
-from methods.classical.gauss_legendre import GaussLegendre4
-from methods.classical.sdirk import SDIRK4
-from methods.classical.rk4 import RK4
+from methods.palindromic.abba4_implicit import ABBA4Implicit
+from methods.palindromic.bm4_implicit import BM4Implicit
+from methods.runge_kutta.gauss_legendre import GaussLegendre4
+from methods.runge_kutta.sdirk import SDIRK4
+from methods.runge_kutta.rk4 import RK4
 from potential.potential import Potential
 from states.history import States
 from simulation.runner import simulate
@@ -363,29 +364,29 @@ def comparison_method(
 			projection_placement='around_complete_composition',
 			projection_formulation='reduced_multiplier',
 			state_extension='physical',
-			progress=config.progress,
+
 			solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic'),
 		)
 	if method_name == "GaussLegendre4":
 		return GaussLegendre4(
 			step=config.integration_step,
-			progress=config.progress,
+
 			solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic', jacobian_relative_step=config.jacobian_relative_step),
 		)
 	if method_name == "BM4Implicit":
 		return BM4Implicit(
 			step=config.integration_step,
-			progress=config.progress,
+
 			solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic', jacobian_relative_step=config.jacobian_relative_step),
 		)
 	if method_name == "SDIRK4":
 		return SDIRK4(
 			step=config.integration_step,
-			progress=config.progress,
+
 			solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic', jacobian_relative_step=config.jacobian_relative_step),
 		)
 	if method_name == "RK4":
-		return RK4(step=config.integration_step, progress=config.progress)
+		return RK4(step=config.integration_step)
 	raise ValueError(f"Unknown comparison method {method_name!r}.")
 
 
@@ -553,7 +554,7 @@ def run_alternating_comparison(
 	)
 	for _ in range(config.timing_warmups):
 		for method_name in method_names:
-			simulate(problem.with_request(request), replace(comparison_method(method_name, config), step=config.integration_step))
+			simulate(problem.with_request(request), replace(comparison_method(method_name, config), step=config.integration_step), options=ExecutionOptions(progress=config.progress))
 	solutions: dict[str, States] = {}
 	runtime_values: dict[str, list[float]] = {
 		name: [] for name in method_names
@@ -569,7 +570,7 @@ def run_alternating_comparison(
 			solutions[method_name] = simulate(
 				problem.with_request(request),
 				replace(comparison_method(method_name, config), step=config.integration_step),
-			)
+			 options=ExecutionOptions(progress=config.progress))
 			runtime_values[method_name].append(perf_counter() - started)
 	accuracy_by_method: dict[str, TrajectoryAccuracySeries] = {}
 	energy_accuracy_by_method: dict[str, EnergyAccuracySeries] = {}

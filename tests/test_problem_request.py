@@ -11,7 +11,7 @@ import numpy as np
 from dynamics.coordinates import GCCoordinates
 from execution.execution import Execution
 from execution._modal_worker import decode_job, encode_job, execute_payload
-from methods.classical.rk4 import RK4
+from methods.runge_kutta.rk4 import RK4
 from problem import InitialValueProblem
 from request import SimulationRequest
 from simulation.runner import simulate
@@ -87,7 +87,7 @@ class ProblemRequestTests(unittest.TestCase):
 		method = RK4(step=0.07)
 		payload = encode_job(self.problem, method, None)
 		wire = pickle.loads(payload)
-		self.assertEqual(wire[0], 3)
+		self.assertEqual(wire[0], 4)
 		self.assertEqual(len(wire), 5)
 		problem, restored_method, options, observers = decode_job(payload)
 		self.assertIsInstance(problem.request, SimulationRequest)

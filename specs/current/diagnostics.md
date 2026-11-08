@@ -22,20 +22,12 @@ tests = ["tests/test_energy_observation.py", "tests/test_package_layout.py::Pack
 
 ## DIA-001: Locate implementations by the observed process
 
-`diagnostics` follows `src` responsibilities through `execution`, `methods`,
-`solvers`, `states` and `studies`; shared output and transport belong to
-`io`. Adaptive and extended method diagnostics have their own method-family
-packages. Complete-step iteration summaries belong to methods; future
-individual algebraic-iteration observers belong to solvers. Shared metrics have
-one implementation. Packages are created only when needed by actual diagnostics.
+Specialized historical generalized-energy studies explicitly use stage diagnostics under `diagnostics.methods.stage_energy` and `studies._generalized_energy`. They retain their signed quadrature, physical kappa normalization and archive labels. Generic execution has no momentum accumulator. `States.k` and `States.err` remain readers for historical diagnostics and return `None` when absent. Old numerical archives remain readable; recreate configured-object pickles after the API change.
 
 ## DIA-002: Explicit public facade and canonical imports
 
-Existing top-level public names remain available. Internal consumers import
-their defining modules. Former flat implementation routes are removed without
-aliases, import hooks or duplicate implementations. Supported consumers and
-notebook imports use the process-based paths documented in the diagnostic guide.
+Public exports are explicit. AdaptiveTrajectoryObserver and adaptive method event types are retired with the adaptive method API. Other supported facade names resolve to their single process-owned implementation; internal consumers import defining modules.
 
 ## DIA-003: Independent observation and unchanged artifacts
 
-Numerical processes emit neutral observations through `contracts` without importing diagnostic implementations. Execution registers `observers=()` and prepares each built-in `EnergyObserver` from H and `-partial_t H`, with fresh per-run momentum starting at zero unless explicitly supplied. Accepted weighted stages or an accepted adaptive interpolant update the accumulator once; independent output queries never update it. Adaptive quadrature retains eight Gauss nodes; doubled GC retains physical signed weights and its sum-before-normalization arithmetic. JAX uses a pure device reduction without host callbacks or a retained history of all stages. Existing caller-owned callbacks keep identity, order and lifecycle, receiving the original dynamics identity. `states.energy.energy_diagnostics` combines supplied saved H and kappa, preserving physical conventions, keys, output destinations and archive formats. Existing GC/BM4 energy callbacks reuse this accumulator.
+`EnergyObserver()` records physical H and the positive analytic partial time derivative `hamiltonian_time_derivative` at accepted endpoints and requested physical samples. It does not consume internal stages or integrate momentum. Per-step diagnostics are `energy_start`, `energy_end`, `energy_change`, `energy_time_derivative_start` and `energy_time_derivative_end`, with shape `(steps,N)`. Saved histories `physical_hamiltonian` (alias `hamiltonian`), `energy_drift` and `hamiltonian_time_derivative` have shape `(N,T)`. Energy variation in a time-dependent Hamiltonian is not a numerical conservation error.

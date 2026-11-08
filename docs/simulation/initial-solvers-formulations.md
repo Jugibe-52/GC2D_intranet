@@ -37,11 +37,9 @@ their existing roles. Saved result archive formats are unchanged.
 
 `DoubleFormulation(physical_size)` is the only state formulation. It prepares two temporary physical copies through `lift`, `join_copies` and `split_copies`, preserving NumPy/JAX backends and complete FC velocity blocks. It stores only a positive vector size; it owns no dynamics, layout, time, momentum, solver or projection. Methods using ordinary physical arrays need no formulation; `SingleFormulation` is removed.
 
-Every accepted snapshot is `IntegrationState(time, values)`: scalar time and physical `values` of shape `(d*N,)`. GC remains 2N and FC 4N with or without energy observation. Doubled GC work has 4N entries; generic doubled FC work has 8N. Workspaces are temporary and never become accepted states. Optional quadrature accompanies a sample without storing energy momentum. Generic copy support does not extend GC numerical methods to FC.
+Every accepted `IntegrationState(time, values)` contains only a scalar time and an owned physical vector `(d*N,)`. Sampling snapshots carry no quadrature or momentum. `DoubleFormulation(physical_size)` creates temporary copies only for doubled methods; its size belongs to that representation, not to IntegrationMethod. Shadow samples use independent shortened maps from the accepted left endpoint and do not change the main trajectory.
 
-Execution supplies `f(t, z)`, independent initial data and an optional Jacobian to the numerical method. `advance(t, z, h)` returns physical `StepResult.state`, numerical work and optional quadrature. `EnergyObserver`, supplied through `simulate(..., observers=(EnergyObserver(),))`, owns a fresh passive accumulator for each run. Accepted steps update it once; each shadow sample starts independently from the accepted left endpoint. JAX carries a separate functional accumulator through the compiled loop.
-
-Execution gives the energy observer H and `-partial_t H`. The observer evaluates saved physical H once; `states.energy.energy_diagnostics` combines supplied H and physical kappa without evaluating dynamics. Existing energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. The default initial kappa is zero; `EnergyObserver(initial_momentum=...)` accepts an explicit physical value per particle. Numerical archives require no migration; old pickled configured objects should be recreated.
+`EnergyObserver()` records physical H and the positive analytic partial time derivative `hamiltonian_time_derivative` at accepted endpoints and requested physical samples. It does not consume internal stages or integrate momentum. Per-step diagnostics are `energy_start`, `energy_end`, `energy_change`, `energy_time_derivative_start` and `energy_time_derivative_end`, with shape `(steps,N)`. Saved histories `physical_hamiltonian` (alias `hamiltonian`), `energy_drift` and `hamiltonian_time_derivative` have shape `(N,T)`. Energy variation in a time-dependent Hamiltonian is not a numerical conservation error.
 
 ## Choosing equations and solver independently
 
@@ -59,7 +57,7 @@ gauss = GaussLegendre4(step=0.02, solver=solver)
 
 `ReducedProjection` solves for mu in R^(2N); `SimultaneousProjection` solves for (u, v, mu) in R^(6N). Both implement `contracts.methods.projection.ProjectionFormulation` and own the initial guess, residual, Jacobian assembly and physical reconstruction. The method supplies its doubled composition and derivative; these equations belong to methods and work with NumPy/JAX. ABBA accepts either class or the existing `reduced_multiplier`/`simultaneous_state_multiplier` names; BM4 retains reduced equations. Gauss stage equations remain method-specific. The `methods.ProjectionFormulation` and `simulation.ProjectionFormulation` exports remain the string-name type alias; import the equation protocol from `methods.projection`.
 
-For each step, `methods.extended.core.projection.ProjectionProblem` binds the
+For each step, `methods.palindromic.core.projection.ProjectionProblem` binds the
 physical state, time, step size, composition and derivative strategy. Its
 `residual(x)` computes the temporary copies and returns only R(x);
 `jacobian(x)` returns D_x R(x), including the dependence of the copies on mu.
@@ -78,12 +76,7 @@ path without a mutable cache. Broyden retains its existing initial Jacobian
 approximation and secant updates. Reconstruction and quadrature use the accepted
 residual's trace. Direct callers of the old assembly helper must use the new name.
 
-NewtonSolver supports Gauss, SDIRK, HBVM, ABBA and BM4. BroydenSolver supports the
-existing ABBA/BM4 projection routes. Explicit methods have no algebraic solver;
-SciPy adaptive methods retain their own internal algorithms. The built-in classes
-are immutable configurations with no per-run work arrays. Unsupported solver
-classes, subclass overrides and unsupported method/solver combinations fail before
-backend preparation. Each solve is independent, including repeated simulations.
+DOP853 and Radau are standalone SciPy reference solvers used directly by studies. They are no longer methods in `simulation` or `methods`, and there is no adaptive controller or SciPy/JAX hybrid path in execution. Fixed methods own `step`; requests own the interval and saved times. Host progress is configured with `options=ExecutionOptions(progress=True)`.
 
 `solver=` is the sole owner of `absolute_tolerance`, `relative_tolerance`, `max_iterations`, `jacobian_method`, `jacobian_relative_step`, `backtracking` and `iteration_observer`. The method-level `newton_*`, `nonlinear_solver` and `SolverOptions` routes are removed. Omission selects the family default: Gauss/SDIRK use 1e-14, 1e-13 and 20 iterations; ABBA/BM4/HBVM use 1e-13, 1e-12 and 12 iterations. HBVM defaults to backtracking. An explicit solver owns its complete configuration, including these defaults. Relative thresholds use physical state scales. HBVM retains its matrix infinity norm and evaluates the first residual before its Jacobian. Requested tolerances bound the accepted residual, not the trajectory error.
 
@@ -112,13 +105,6 @@ Independent shadow samples may use shorter durations without moving the main
 trajectory. Host and JAX use the same schedule and record effective durations
 in `step_sizes`. `advance` remains the numerical operation.
 
-DOP853/Radau instead own `max_step` (default 0.1), an upper bound for their
-adaptive controller. Move former request `max_step` arguments to the method:
-`step` for fixed methods, `max_step` for adaptive methods. Requests no longer
-accept a step argument. A non-divisible interval intentionally gives a different
-main grid from the former uniform rescaling policy; old saved results retain
-their recorded grids.
-
 ## Time rows in saved results (2026-10-26)
 
 `States.states` and its alias `values` have shape `(samples, state_size)`.
@@ -143,6 +129,6 @@ at the recording boundary. Physical integration and tolerances are unchanged.
 
 ## Temporal and derivative preparation
 
-`new_run(f, initial_conditions, ...)` and `initialize()` do not receive a temporal request or initial time. Methods retain no `request`. Execution owns interval setup and output scheduling; `advance(t, state, h)` receives the time needed for each numerical step.
+`new_run(f, initial_conditions, *, jacobian=None)` creates a fresh run and calls `initialize(initial_conditions)`. Initial data and layout are temporary preparation inputs: the numerical base retains only functions, numerical metadata, run status and copy count. Execution owns the initial snapshot and passes it explicitly to controllers. Supplied Jacobians have independent particle shape `(N,d,d)`; finite-difference Jacobians remain dense. There is no `jacobian_structure`, `capture_quadrature` or method-level `progress` option.
 
 `auto` selects a supplied Jacobian without evaluating it, or finite differences when no derivative is supplied. For Newton corrections, `analytic` requires a derivative and `finite_difference` explicitly forces approximation. Broyden continues to use the projection-supplied initial matrix and residual updates without evaluating field derivatives. Shapes and finite values are checked at actual evaluations. A supplied derivative failure propagates; auto does not silently fall back. Gauss, SDIRK, HBVM and projected compositions share `solvers.derivatives.resolve_jacobian_method`. HBVM retains its validation boundary after the first residual. Numerical stage and projection equations are unchanged.

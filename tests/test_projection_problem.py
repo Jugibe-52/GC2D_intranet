@@ -10,9 +10,9 @@ import numpy as np
 from contracts.arrays import array_namespace
 from dynamics.coordinates import GCCoordinates
 from methods import ABBA2Implicit, ABBA4Implicit, BM4Implicit
-from methods.extended.maps import GCDoubledMaps
-from methods.extended.core.composition import compose
-from methods.extended.core.projection import ProjectionProblem, solve_projection
+from methods.palindromic.maps import GCDoubledMaps
+from methods.palindromic.core.composition import compose
+from methods.palindromic.core.projection import ProjectionProblem, solve_projection
 from methods.projection import ReducedProjection, SimultaneousProjection
 from solvers import NewtonSolver, BroydenSolver
 from solvers.derivatives import packed_particle_jacobian
@@ -40,8 +40,8 @@ def make_problem(form, *, structure='particle', coupling=0., derivative='analyti
 			xp.concatenate((lower, zero), axis=1)), axis=0)
 	state = np.array([.2, .6, .4, .8])
 	maps = GCDoubledMaps(field, state.size, coordinates=GCCoordinates(), coupling_frequency=None,
-		jacobian=derivative_field, jacobian_structure=structure)
-	return ProjectionProblem(maps, recipe, form, .3, state, .15, derivative, 1e-6)
+		jacobian=derivative_field if structure == 'particle' else None)
+	return ProjectionProblem(maps, recipe, form, .3, state, .15, derivative if structure == 'particle' else 'finite_difference', 1e-6)
 
 
 def candidate(problem):
@@ -109,7 +109,7 @@ class ProjectionProblemTests(unittest.TestCase):
 		for form in (ReducedProjection(), SimultaneousProjection()):
 			for solver in (NewtonSolver(1e-14, 1e-13, 30), BroydenSolver(1e-14, 1e-13, 30)):
 				problem = make_problem(form)
-				with patch('methods.extended.core.projection.compose', wraps=compose) as calls:
+				with patch('methods.palindromic.core.projection.compose', wraps=compose) as calls:
 					result = solve_projection(problem.maps, problem.recipe, solver, form,
 						problem.time, problem.state, problem.duration)
 				self.assertTrue(result.stats.converged)

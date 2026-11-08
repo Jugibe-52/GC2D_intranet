@@ -24,7 +24,7 @@ def main() -> None:
     potential,_,_=load_snapshot()
     from dynamics import GuidingCenterDynamics
     import numpy as np
-    from methods.classical.rk4 import RK4
+    from methods.runge_kutta.rk4 import RK4
     from problem import InitialValueProblem
     from request import SimulationRequest
     from simulation.runner import simulate

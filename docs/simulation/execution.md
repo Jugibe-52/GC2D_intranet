@@ -6,7 +6,7 @@ implementation is `execution.execution.Execution`, publicly exported as
 
 ```python
 from execution import Execution
-from methods.classical.rk4 import RK4
+from methods.runge_kutta.rk4 import RK4
 from simulation.runner import simulate
 
 executor = Execution()
@@ -49,23 +49,9 @@ a local fallback, and consumed runs become finished.
 
 Preparation is split into three private functions in the same module:
 
-- `_prepare_backend` resolves the execution mode and device once, prepares dynamics and binds the hybrid adapter when needed, importing JAX only when selected.
-- `_prepare_observers` binds a fresh energy accumulator and preserves callback identity and order.
-- `_prepare_numerical_run` supplies the Jacobian and quadrature requirements, validates a fresh run and returns its observation metadata.
+`EnergyObserver()` records physical H and the positive analytic partial time derivative `hamiltonian_time_derivative` at accepted endpoints and requested physical samples. It does not consume internal stages or integrate momentum. Per-step diagnostics are `energy_start`, `energy_end`, `energy_change`, `energy_time_derivative_start` and `energy_time_derivative_end`, with shape `(steps,N)`. Saved histories `physical_hamiltonian` (alias `hamiltonian`), `energy_drift` and `hamiltonian_time_derivative` have shape `(N,T)`. Energy variation in a time-dependent Hamiltonian is not a numerical conservation error.
 
-`_prepare_observers` reads the request from the supplied problem.
-`_prepare_numerical_run` receives `InitialConditions` explicitly, alongside the
-method and prepared dynamics. It obtains the particle
-count from the initial conditions and does not receive the complete problem.
-`Execution.run` calls `execution._jax_step.prepare_step` directly for fixed JAX
-execution. That function checks supported run types and rejects Python callbacks,
-progress and iteration observers before copying resources. The local device
-reference becomes `PreparedStep.device`. Next, `Execution.run` calls
-`execution._jax_fixed.prepare_integration` with the shared temporal plan to
-place fresh inputs and complete compilation before allocating the recorder. The returned `PreparedIntegration` holds the executable, inputs and
-recording information. The JAX `run_steps(prepared, saved)` only executes,
-synchronizes, validates and records. Hybrid evaluation retains the device in
-its cached adapter; no global device setting is needed.
+DOP853 and Radau are standalone SciPy reference solvers used directly by studies. They are no longer methods in `simulation` or `methods`, and there is no adaptive controller or SciPy/JAX hybrid path in execution. Fixed methods own `step`; requests own the interval and saved times. Host progress is configured with `options=ExecutionOptions(progress=True)`.
 
 `Execution.run` keeps argument validation, status transitions, allocation,
 worker selection and finalization visible together. Step preparation and compilation
@@ -95,7 +81,7 @@ trajectories; the host route now prepares these sampling arrays in advance.
 The builder preserves the last-step adjustment, round-off tolerance and priority
 of the right endpoint. Host and JAX consume the same decisions, including empty
 sample groups for unsaved steps. Shadow maps start from the accepted left state
-and never feed back into the main trajectory or energy accumulator. Host step
+and never feed back into the main trajectory. Host step
 observers still run once per main step before its samples.
 
 The host fixed controller receives the plan and the JAX preparation function
@@ -119,13 +105,6 @@ solution = simulate(
 )
 ```
 
-The caller opts into JAX and prepares global precision. Execution resolves the
-device once and prepares shared physical dynamics without refitting splines or
-mutating the source. Fixed JAX methods use a device-resident map; DOP853/Radau
-receive prepared field/energy callbacks while SciPy retains adaptive control.
-JAX is never imported by the default path. See the [JAX guide](jax-execution.md)
-for supported devices, callbacks and failure contracts.
-
 `Potential.evaluate` uses NumPy/SciPy and `JaxPotential.evaluate` uses JAX.
 Inherited electric fields follow the instance; `evaluate_grid` stays NumPy-only.
 Neither potential class accepts execution options. Existing study helpers keep
@@ -134,11 +113,7 @@ Neither potential class accepts execution options. Existing study helpers keep
 
 ## Method preparation contract
 
-`NumericalMethod.new_run(f, initial_conditions, *, jacobian=None, jacobian_structure="dense", observe=False, capture_quadrature=False)` receives a physical vector field and independent initial data. Execution resolves dynamics capabilities and supplies any physical Jacobian explicitly. The prepared run retains no `InitialValueProblem`, `DynamicalSystem` or temporal request. `jacobian_structure` distinguishes dense matrices from independent particle blocks; it does not identify a physical model.
-
-`new_run` returns a fresh ready `IntegrationMethod`, copying constructor configuration and initializing owned physical snapshots. `initialize`, `advance`, `build_observation` and `controller` define its numerical behavior. Methods have no energy accumulator or history diagnosis. Fixed methods share one `advance` implementation across array types. Execution owns JAX compatibility checks and compilation; `NumericalMethod` has no backend declaration. The adaptive implementation retains its local hybrid declaration. CPU extensions can inherit `FixedStepMethod` or supply their own controller.
-
-Execution registers `observers=()` separately from the method. `EnergyObserver()` is immutable configuration for a fresh per-run accumulator; ordinary callbacks keep their supplied identity and caller-owned lifecycle. Execution attaches the original dynamics identity to accepted events and calls each callback once per main step, in registration order. Shadow samples do not emit accepted events. A callback declaring `requires_quadrature=True` requests current-step quadrature without enabling saved energy histories.
+`new_run(f, initial_conditions, *, jacobian=None)` creates a fresh run and calls `initialize(initial_conditions)`. Initial data and layout are temporary preparation inputs: the numerical base retains only functions, numerical metadata, run status and copy count. Execution owns the initial snapshot and passes it explicitly to controllers. Supplied Jacobians have independent particle shape `(N,d,d)`; finite-difference Jacobians remain dense. There is no `jacobian_structure`, `capture_quadrature` or method-level `progress` option.
 
 ## Extending execution
 
@@ -175,17 +150,6 @@ device loop and numerical export. `execution.state` defines accepted physical
 snapshots. Workers receive an open recorder and never own run status or finalize
 results. These are internal implementation functions, not additional executors.
 
-`methods.base.IntegrationMethod` defines isolated numerical preparation and operations,
-while `contracts.methods.base` owns the structural `NumericalMethod` protocol.
-`contracts.execution.controllers` owns `StepController`. Import the base with
-`from methods import IntegrationMethod`. Controller extensions use
-`from execution import FixedStepController, StepController, IntegrationState`.
-The SciPy controller lives in `execution._scipy`; it prepares each live solver
-for the requested interval and decides which accepted steps need output
-interpolation. The numerical adapter retains its live solver and numerical state.
-Complete simulations use `simulate` or `Execution.run`; the private host driver
-is not exported as a second public execution entry point.
-
 The `integration` package has been removed. Migrate `integration.core.IntegrationMethod`
 to `methods.base.IntegrationMethod`, controller imports to `execution`, and
 `integration.state.IntegrationState` to `execution.state.IntegrationState`.
@@ -194,14 +158,6 @@ also removed; complete callers use `simulate` or `Execution.run`. The former
 `execution._jax_run`, `execution._fixed` and `dynamics._jax_host` modules are
 retired without compatibility aliases. Saved physical-result formats remain
 unchanged; serialized live snapshots using removed paths are not supported archives.
-
-Simulation preparation in `execution._jax` binds the requested device and shared
-GC/FC equations to `JaxPotential` automatically. A simulation caller can keep a
-base `Potential`; no manual backend-specific potential construction is required.
-Standalone `JaxPotential` retains its own evaluation guards, device coefficient
-cache and input placement rules. Numerical JIT kernels remain beside their
-algorithms. Physics modules do not import execution; the hybrid SciPy/JAX bridge
-belongs to `execution._jax`.
 
 ## Explicit initial, solver and projection objects
 
@@ -231,15 +187,6 @@ Independent shadow samples may use shorter durations without moving the main
 trajectory. Host and JAX use the same schedule and record effective durations
 in `step_sizes`. `advance` remains the numerical operation.
 
-DOP853/Radau instead own `max_step` (default 0.1), an upper bound for their
-adaptive controller. Move former request `max_step` arguments to the method:
-`step` for fixed methods, `max_step` for adaptive methods. Requests no longer
-accept a step argument. A non-divisible interval intentionally gives a different
-main grid from the former uniform rescaling policy; old saved results retain
-their recorded grids.
-
 ## Temporal and derivative preparation
-
-`new_run(f, initial_conditions, ...)` and `initialize()` do not receive a temporal request or initial time. Methods retain no `request`. Execution owns interval setup and output scheduling; `advance(t, state, h)` receives the time needed for each numerical step.
 
 `auto` selects a supplied Jacobian without evaluating it, or finite differences when no derivative is supplied. For Newton corrections, `analytic` requires a derivative and `finite_difference` explicitly forces approximation. Broyden continues to use the projection-supplied initial matrix and residual updates without evaluating field derivatives. Shapes and finite values are checked at actual evaluations. A supplied derivative failure propagates; auto does not silently fall back. Gauss, SDIRK, HBVM and projected compositions share `solvers.derivatives.resolve_jacobian_method`. HBVM retains its validation boundary after the first residual. Numerical stage and projection equations are unchanged.

@@ -13,15 +13,15 @@ from time import perf_counter
 import numpy as np
 from threadpoolctl import threadpool_limits
 
-from diagnostics.methods.extended.energy.observer import GCGeneralizedEnergyObserver
-from diagnostics.methods.energy import EnergyObserver
+from diagnostics.methods.palindromic.energy.observer import GCGeneralizedEnergyObserver
+from studies._generalized_energy import simulate_generalized_energy
 from solvers.nonlinear import NewtonSolver
 from diagnostics.studies.reference_trajectory import StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
 
 from potential import Potential
-from methods.extended.bm4 import BM4Implicit
-from methods.classical.rk4 import RK4
+from methods.palindromic.bm4_implicit import BM4Implicit
+from methods.runge_kutta.rk4 import RK4
 from problem import InitialValueProblem
 from methods.base import FixedStepMethod
 from request import SimulationRequest
@@ -208,7 +208,7 @@ def run_gc_energy_bound_study(
                 dynamics, initial_time=config.t_span[0], initial_state=problem.initial_state)
             log("  Collecting energy at every accepted step in untimed replays.")
             observed_bm4: States = simulate(problem.with_request(request), replace(bm4, step=step), observers=(observer,))
-            observed_rk4: States = simulate(problem.with_request(request), RK4(step=step), observers=(EnergyObserver(),))
+            observed_rk4: States = simulate_generalized_energy(problem.with_request(request), RK4(step=step))
             np.testing.assert_array_equal(observed_bm4.states, solutions["BM4Implicit"].states)
             np.testing.assert_allclose(observed_rk4.states, solutions["RK4"].states, rtol=1e-13, atol=1e-13)
             assert len(observer.records) == count+1
@@ -357,7 +357,7 @@ def audit_initial_step_geometry(
     from diagnostics.methods.jacobians import central_difference_jacobian
     from diagnostics.methods.symplecticity.observer import gc_physical_symplectic_form
     from contracts.methods.observation import IntegrationStep
-    from contracts.methods.extended.bm4 import ImplicitBM4IntegrationStep
+    from contracts.methods.palindromic.bm4 import ImplicitBM4IntegrationStep
 
     dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
     problem: InitialValueProblem = InitialValueProblem(dynamics, configuration, layout=GuidingCenterDynamics.coordinates)

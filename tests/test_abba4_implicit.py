@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 
-from methods.extended.abba import _ABBA4_COEFFICIENTS
+from methods.palindromic.abba4_implicit import _ABBA4_COEFFICIENTS
 from dynamics import GuidingCenterDynamics
 from solvers import BroydenSolver, NewtonSolver
 from dataclasses import replace

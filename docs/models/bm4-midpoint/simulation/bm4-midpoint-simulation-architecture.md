@@ -1,11 +1,10 @@
-# BM4Midpoint: shared extended-space execution
+# BM4Midpoint: shared palindromic execution
 
 All presets now inherit PalindromicMethod and execute explicit A/B/T operations.
-See [palindromic methods and time placement](../../extended/simulation/palindromic-operations.md) for the common classes, generic recipes and independent C.
+See [palindromic methods and time placement](../../palindromic/simulation/palindromic-operations.md) for the common classes, generic recipes and independent C.
 
 Both BM4 variants use uncoupled maps and have no coupling-frequency option.
-See [uncoupled BM4 and independent C](../../extended/simulation/uncoupled-bm4.md) for migration and historical-data handling.
-
+See [uncoupled BM4 and independent C](../../palindromic/simulation/uncoupled-bm4.md) for migration and historical-data handling.
 
 The compact diagrams describe the current shared numerical execution and executor-owned lifecycle. Older detailed diagrams explicitly marked as historical retain their original ownership conventions.
 
@@ -13,13 +12,13 @@ Twelve alternating signed stages; No harmonic coupling. Arithmetic mean after th
 
 ![BM4Midpoint architecture](bm4-midpoint-simulation-architecture.svg)
 
-The numerical implementation now lives in `src/methods/extended/`.
+The numerical implementation now lives in `src/methods/palindromic/`.
 ABBA2Implicit, ABBA4Implicit and BM4Implicit directly share
 ProjectedPalindromicMethod. ABBA6 is removed from the current API. The former `methods/abba/` and
 `methods/bm4/` import adapters have been removed. Internal imports point directly
-to the defining modules in `methods.extended`.
+to the defining modules in `methods.palindromic`.
 
-See the [shared architecture](../../extended/simulation/extended-simulation-architecture.md)
+See the [shared architecture](../../palindromic/simulation/palindromic-simulation-architecture.md)
 for the module responsibilities, state layouts, solver equations, energy
 normalization and validation contracts. The model's mathematical entry point
 remains [theory.tex](../tex/theory.tex), with its compiled
@@ -28,7 +27,7 @@ remains [theory.tex](../tex/theory.tex), with its compiled
 ## Numerical path
 
 BM4Midpoint has no coupling-frequency option. State-extension validation stays in
-`methods.extended.configuration`; stage-state checks stay with the composed map.
+`methods.palindromic.configuration`; stage-state checks stay with the composed map.
 
 Initialization binds this model's recipe and options. The ordinary implicit
 path is `advance -> solve_projection -> compose -> A/B/T/C operations`.
@@ -45,9 +44,9 @@ its end. ABBA uses no harmonic coupling. Both BM4 variants also use no harmonic 
 
 ## Accepted states and diagnostics
 
-For N planar particles the accepted state has 2N physical components. Time is scalar; an optional energy observer owns N separate physical momentum entries. The composition prepares two temporary spatial copies with 4N components, then returns a single physical state. Time and momentum never enter a nonlinear root.
+`EnergyObserver()` records physical H and the positive analytic partial time derivative `hamiltonian_time_derivative` at accepted endpoints and requested physical samples. It does not consume internal stages or integrate momentum. Per-step diagnostics are `energy_start`, `energy_end`, `energy_change`, `energy_time_derivative_start` and `energy_time_derivative_end`, with shape `(steps,N)`. Saved histories `physical_hamiltonian` (alias `hamiltonian`), `energy_drift` and `hamiltonian_time_derivative` have shape `(N,T)`. Energy variation in a time-dependent Hamiltonian is not a numerical conservation error.
 
-The accepted shear trace feeds common normalized momentum quadrature after the
+In specialized historical energy studies, the accepted shear trace feeds normalized momentum quadrature after the
 spatial computation. The diagnostic `H + kappa - H_initial` measures energy
 balance for the time-dependent Hamiltonian. Tracking does not alter the spatial
 map or its nonlinear stopping scale. Analytic tangents and BM4 stage events reuse
@@ -57,12 +56,12 @@ The integration coordinator still owns accepted intervals, off-grid output
 sampling, history collection and observer dispatch. Energy arrays follow saved
 times and nonlinear-work arrays follow accepted main steps. Existing method
 and observer tests remain applicable, supplemented by
-`tests/test_extended_family.py`.
+`tests/test_palindromic_family.py`.
 
 ## Diagram maintenance
 
 Regenerate this diagram and the shared family view with
-`python scripts/render_extended_architecture.py`. The script writes the
+`python scripts/render_palindromic_architecture.py`. The script writes the
 PlantUML/Graphviz source and corresponding SVG/PNG views from the same graph
 specification. Historical files marked `old` or `proposed` are archival diagrams;
 the figure above describes the current implementation.
@@ -430,7 +429,6 @@ clock `T0=2*pi/f_ref`. Their radial Hamiltonian equals the corrected physical-cy
 Hamiltonian as a function of cycle index, but stored legacy seconds are not
 relabeled. New study provenance marks `time_convention="legacy_cycles"`.
 
-
 ## Potential evaluation boundary
 
 `Potential.evaluate` uses NumPy/SciPy; `JaxPotential` inherits its representation
@@ -453,13 +451,11 @@ for ownership, array shapes and unchanged request/result boundaries.
 
 ## State representation and step preparation
 
-`DoubleFormulation(physical_size)` is the only state formulation. It prepares temporary copies through `lift`, `join_copies` and `split_copies`, preserving NumPy/JAX arrays and complete component blocks. Classical, HBVM and adaptive methods use the physical vector directly and instantiate no formulation. The doubled representation stores only a positive physical size; it contains no dynamics, solver or diagnostic state.
+`DoubleFormulation(physical_size)` is the only state formulation. It prepares temporary copies through `lift`, `join_copies` and `split_copies`, preserving NumPy/JAX arrays and complete component blocks. Runge--Kutta and HBVM methods use the physical vector directly and instantiate no formulation. The doubled representation stores only a positive physical size; it contains no dynamics, solver or diagnostic state.
 
 Every accepted snapshot is `IntegrationState(time, values)`: scalar time and a physical vector of shape `(d*N,)`. GC remains 2N and FC 4N with or without energy observation. Temporary doubled GC work has 4N entries; generic doubled FC work has 8N. These workspaces never become accepted states. This generic copy support does not extend GC numerical methods to FC.
 
-Execution binds the physical functions and calls `new_run(f, initial_conditions, jacobian=..., jacobian_structure=...)`. The method receives no `DynamicalSystem`, problem or temporal request. `advance(t, Z, h)` returns physical state, statistics, optional details and optional quadrature data. `EnergyObserver` owns its independent momentum and accumulates only accepted quadrature; shadow samples derive from the accepted observer state without committing it. Step callbacks are passed through `simulate(..., observers=(...,))`.
-
-Enable passive energy with `simulate(..., observers=(EnergyObserver(),))`, importing `EnergyObserver` from `diagnostics.methods.energy`. Execution supplies the observer with H and `-partial_t H`. It evaluates saved physical H once and constructs the existing diagnostics. Energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. Old configured Python objects must be recreated; saved numerical archives remain readable through versioned history conversion.
+`new_run(f, initial_conditions, *, jacobian=None)` creates a fresh run and calls `initialize(initial_conditions)`. Initial data and layout are temporary preparation inputs: the numerical base retains only functions, numerical metadata, run status and copy count. Execution owns the initial snapshot and passes it explicitly to controllers. Supplied Jacobians have independent particle shape `(N,d,d)`; finite-difference Jacobians remain dense. There is no `jacobian_structure`, `capture_quadrature` or method-level `progress` option.
 
 ## Integration step
 

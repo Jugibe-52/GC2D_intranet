@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 
-from methods.extended.bm4 import BM4Midpoint
-from diagnostics.methods.energy import EnergyObserver
+from methods.palindromic.bm4_midpoint import BM4Midpoint
+from diagnostics.methods.stage_energy import StageEnergyObserver
 from solvers import BroydenSolver, NewtonSolver
 from pathlib import Path
 import tempfile
@@ -66,14 +66,14 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 						for tracking in (False, True):
 							with patch.object(type(problem.dynamics), 'vector_field', autospec=True, side_effect=type(problem.dynamics).vector_field) as vector_field,\
 							     patch.object(type(problem.dynamics), 'extended_momentum_derivative', autospec=True, side_effect=type(problem.dynamics).extended_momentum_derivative) as energy_rate:
-								run = BM4Implicit(step=0.2, solver=(NewtonSolver if solver == 'newton' else BroydenSolver)(jacobian_method=jacobian, absolute_tolerance=1e-14, relative_tolerance=1e-14)).new_run(problem.dynamics.vector_field, problem.initial_conditions, jacobian=problem.dynamics.particle_vector_field_jacobians, jacobian_structure='particle', observe=True, capture_quadrature=tracking)
-								result = run.advance(0.3, run.initial_state, step)
+								run = BM4Implicit(step=0.2, solver=(NewtonSolver if solver == 'newton' else BroydenSolver)(jacobian_method=jacobian, absolute_tolerance=1e-14, relative_tolerance=1e-14)).new_run(problem.dynamics.vector_field, problem.initial_conditions, jacobian=problem.dynamics.particle_vector_field_jacobians)
+								result = run.advance(0.3, problem.initial_state, step)
 								field_counts.append(vector_field.call_count)
 								if tracking:
-									energy = EnergyObserver().new_run(problem.dynamics.hamiltonian, problem.dynamics.extended_momentum_derivative, particle_count=particles, initial_time=.3)
+									energy = StageEnergyObserver().new_run(problem.dynamics.hamiltonian, problem.dynamics.extended_momentum_derivative, particle_count=particles, initial_time=.3)
 									momenta.append(energy.accept(0, .3, .3 + step, result.quadrature))
 								self.assertEqual(energy_rate.call_count, 24 if tracking else 0)
-							self.assertEqual(0 if result.quadrature is None else len(result.quadrature.states), 24 if tracking else 0)
+							self.assertEqual(0 if result.quadrature is None else len(result.quadrature.states), 24)
 							results.append(result)
 						plain, tracked = results
 						self.assertGreater(field_counts[0], 0)

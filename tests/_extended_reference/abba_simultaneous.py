@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from methods.extended.abba import ABBA2Implicit
+from methods.palindromic.abba2_implicit import ABBA2Implicit
 import numpy as np
-from methods.extended.observations import abba_pairs
-from methods.extended.core.projection import solve_projection
+from methods.palindromic.observations import abba_pairs
+from methods.palindromic.core.projection import solve_projection
 
 from tests._extended_reference.abba_maps import uncoupled_maps
 from solvers import NewtonSolver, BroydenSolver

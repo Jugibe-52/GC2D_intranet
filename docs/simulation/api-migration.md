@@ -96,9 +96,28 @@ figure, axes = plot_gc_symplecticity_diagnostics(result)
 This changes presentation ownership only. Study configurations, integration,
 saved results and scientific diagnostics retain their existing contracts.
 
-## Extended-family module organization and ABBA6
+## Palindromic family and individual method modules
 
-Import public configurations from `methods.extended`, `methods` or `simulation`. ABBA variants are defined in `methods.extended.abba`, BM4 in `methods.extended.bm4`, and compositions in `methods.extended.core.composition`. Projection, midpoint, Jacobians and numerical records remain in the matching `core` modules; passive energy belongs to `diagnostics.methods.energy`. Event adapters live in `methods.extended.observations`. Retired per-order modules and energy implementations have no forwarding imports.
+Import public configurations from `methods.palindromic`, `methods` or `simulation`.
+Each concrete method now has its own defining module: `abba2_implicit`,
+`abba4_implicit`, `abba2_midpoint`, `bm4_implicit`, `bm4_midpoint`, `implicit`,
+and `midpoint`. The shared bases live in `base`, `projected_base`, and
+`midpoint_base`. For example:
+
+```python
+from methods.palindromic.abba4_implicit import ABBA4Implicit
+from methods.palindromic.implicit import PalindromicImplicit
+```
+
+`methods.extended`, `contracts.methods.extended`, and
+`diagnostics.methods.extended` are removed; the latter two use the same
+`palindromic` family name. Contracts and diagnostics keep their existing
+submodules. The former combined method modules `abba.py`, `bm4.py`, and
+`palindromic.py` have no forwarding imports. Core composition/projection
+algorithms, observation adapters, and passive energy retain their responsibilities.
+Recreate pickles containing removed module paths, including configured methods
+and diagnostic objects; completed numerical archives retain their schemas. See the
+[family module map](../models/palindromic/simulation/palindromic-simulation-architecture.md).
 
 `ABBA2Implicit`, `ABBA4Implicit` and `BM4Implicit` directly inherit
 `ProjectedPalindromicMethod`, which owns preparation, solver validation and
@@ -116,7 +135,7 @@ Initial configurations are now packed NumPy arrays. Use `from dynamics import Gu
 
 Remove imports of `states.State`, `solution.Solution`, `contracts.result.IntegrationData`, `integration.IntegrationCollector`, `states.layout` and `contracts.request`. There are no compatibility modules. `InitialValueProblem.initial_configuration`, result `.source`, `.y` and `.trajectory` are removed. Compare initial snapshots by value rather than object identity. An executor must return complete `States`; `simulate` validates and returns it without creating another container. For changes to diagnostic metadata, use `.with_diagnostics(...)`.
 
-`save_solution` and `load_solution` keep their names; new archives use schema 2 time rows and schema 1 columns are converted on reading. Legacy files remain readable, including those without an initial snapshot. `calculate_area(values, layout=..., period=...)` stays in `diagnostics.states.geometry`. Geometry labels remain study metadata. Fixed shadow samples never replace the main state; adaptive dense output and the numerical algorithms are unchanged. JAX constructs the same `States` at its host boundary.
+`save_solution` and `load_solution` keep their names; new archives use schema 2 time rows and schema 1 columns are converted on reading. Legacy files remain readable, including those without an initial snapshot. `calculate_area(values, layout=..., period=...)` stays in `diagnostics.states.geometry`. Geometry labels remain study metadata. Fixed shadow samples never replace the main state; the numerical algorithms are unchanged. JAX constructs the same `States` at its host boundary.
 
 ## Explicit initial, solver and projection objects
 
@@ -165,7 +184,7 @@ Import pure interfaces and shared records from the matching `contracts` domain;
 see the complete [contract map](contracts.md). For example, use
 `contracts.methods.base.NumericalMethod`, `contracts.dynamics.coordinates.StateLayout`,
 and `contracts.dynamics.protocols.DynamicalSystem`. Common events live in
-`contracts.methods.observation`; adaptive, Gauss, ABBA, and BM4 events live beside
+`contracts.methods.observation`; Gauss, ABBA, and BM4 events live beside
 their matching method paths. Public `simulation`, `methods`, `formulations`,
 `execution`, `dynamics`, and `visualization` exports keep their existing identities.
 
@@ -181,11 +200,9 @@ with the current source before process or remote execution.
 
 `DoubleFormulation(physical_size)` is the only state formulation. It prepares two temporary physical copies through `lift`, `join_copies` and `split_copies`, preserving NumPy/JAX backends and complete FC velocity blocks. It stores only a positive vector size; it owns no dynamics, layout, time, momentum, solver or projection. Methods using ordinary physical arrays need no formulation; `SingleFormulation` is removed.
 
-Every accepted snapshot is `IntegrationState(time, values)`: scalar time and physical `values` of shape `(d*N,)`. GC remains 2N and FC 4N with or without energy observation. Doubled GC work has 4N entries; generic doubled FC work has 8N. Workspaces are temporary and never become accepted states. Optional quadrature accompanies a sample without storing energy momentum. Generic copy support does not extend GC numerical methods to FC.
+Every accepted `IntegrationState(time, values)` contains only a scalar time and an owned physical vector `(d*N,)`. Sampling snapshots carry no quadrature or momentum. `DoubleFormulation(physical_size)` creates temporary copies only for doubled methods; its size belongs to that representation, not to IntegrationMethod. Shadow samples use independent shortened maps from the accepted left endpoint and do not change the main trajectory.
 
-Execution supplies `f(t, z)`, independent initial data and an optional Jacobian to the numerical method. `advance(t, z, h)` returns physical `StepResult.state`, numerical work and optional quadrature. `EnergyObserver`, supplied through `simulate(..., observers=(EnergyObserver(),))`, owns a fresh passive accumulator for each run. Accepted steps update it once; each shadow sample starts independently from the accepted left endpoint. JAX carries a separate functional accumulator through the compiled loop.
-
-Execution gives the energy observer H and `-partial_t H`. The observer evaluates saved physical H once; `states.energy.energy_diagnostics` combines supplied H and physical kappa without evaluating dynamics. Existing energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. The default initial kappa is zero; `EnergyObserver(initial_momentum=...)` accepts an explicit physical value per particle. Numerical archives require no migration; old pickled configured objects should be recreated.
+`EnergyObserver()` records physical H and the positive analytic partial time derivative `hamiltonian_time_derivative` at accepted endpoints and requested physical samples. It does not consume internal stages or integrate momentum. Per-step diagnostics are `energy_start`, `energy_end`, `energy_change`, `energy_time_derivative_start` and `energy_time_derivative_end`, with shape `(steps,N)`. Saved histories `physical_hamiltonian` (alias `hamiltonian`), `energy_drift` and `hamiltonian_time_derivative` have shape `(N,T)`. Energy variation in a time-dependent Hamiltonian is not a numerical conservation error.
 
 ## Method-owned integration step
 
@@ -197,12 +214,7 @@ Independent shadow samples may use shorter durations without moving the main
 trajectory. Host and JAX use the same schedule and record effective durations
 in `step_sizes`. `advance` remains the numerical operation.
 
-DOP853/Radau instead own `max_step` (default 0.1), an upper bound for their
-adaptive controller. Move former request `max_step` arguments to the method:
-`step` for fixed methods, `max_step` for adaptive methods. Requests no longer
-accept a step argument. A non-divisible interval intentionally gives a different
-main grid from the former uniform rescaling policy; old saved results retain
-their recorded grids.
+DOP853 and Radau are standalone SciPy reference solvers used directly by studies. They are no longer methods in `simulation` or `methods`, and there is no adaptive controller or SciPy/JAX hybrid path in execution. Fixed methods own `step`; requests own the interval and saved times. Host progress is configured with `options=ExecutionOptions(progress=True)`.
 
 ## Physical coordinates and retired paths (2026-10-24)
 
@@ -212,20 +224,11 @@ Dynamics declare `GCCoordinates()` for fixed `(x, y)` blocks or `FCCoordinates()
 
 Built-in dynamics keep physical parameters immutable. A new problem is required for revised initial values. States stores time rows `(T,d*N)`, with `states[i]` at `t[i]`; component accessors retain `(N,T)`. New solution archives use schema 2; the reader converts schema 1 columns explicitly. Archives can be interpreted without constructing dynamics or loading a field.
 
-The former GC/FC wrappers and internal state containers are removed without aliases. Maps belong to `methods.extended.maps.GCDoubledMaps` and `methods.splitting.FCSplitMaps`; equations to `methods.projection`; projected observation to `diagnostics.methods.projection`.
+The former GC/FC wrappers and internal state containers are removed without aliases. Maps belong to `methods.palindromic.maps.GCDoubledMaps` and `methods.splitting.FCSplitMaps`; equations to `methods.projection`; projected observation to `diagnostics.methods.projection`.
 
 ## Callable methods, solver controls and observers (2026-10-24)
 
-| Retired configured interface | Current owner |
-|---|---|
-| `method.new_run(problem, request, evaluated_dynamics=...)` | `method.new_run(f, initial_conditions, jacobian=..., jacobian_structure=...)` |
-| Method `track_energy=True` | `simulate(..., observers=(EnergyObserver(),))`, imported from `diagnostics` |
-| Method `step_observer=callback` | `simulate(..., observers=(callback,))` |
-| Method `newton_observer=callback` | `solver=NewtonSolver(iteration_observer=callback)` |
-| Method `newton_absolute_tolerance`, `newton_relative_tolerance`, `newton_max_iterations` | Solver `absolute_tolerance`, `relative_tolerance`, `max_iterations` |
-| Method `newton_jacobian_method`, `newton_jacobian_relative_step` | Solver `jacobian_method`, `jacobian_relative_step` |
-| Method `nonlinear_solver="broyden"` | `solver=BroydenSolver(...)` |
-| `SolverOptions`, `SingleFormulation`, method momentum and `diagnose_history` | Removed; use one configured solver, physical arrays and independent energy observation |
+`new_run(f, initial_conditions, *, jacobian=None)` creates a fresh run and calls `initialize(initial_conditions)`. Initial data and layout are temporary preparation inputs: the numerical base retains only functions, numerical metadata, run status and copy count. Execution owns the initial snapshot and passes it explicitly to controllers. Supplied Jacobians have independent particle shape `(N,d,d)`; finite-difference Jacobians remain dense. There is no `jacobian_structure`, `capture_quadrature` or method-level `progress` option.
 
 Explicit solvers supply every algebraic control. Preserve the effective family defaults when migrating only one old keyword: Gauss/SDIRK use tolerances 1e-14/1e-13 and 20 iterations; ABBA/BM4/HBVM use 1e-13/1e-12 and 12 iterations. HBVM defaults to `backtracking=True`. Set `jacobian_method` explicitly when preserving a prior analytic or finite-difference choice. Physical initial values, numerical coefficients, requested sampling and saved archive schemas are unchanged.
 
@@ -247,7 +250,6 @@ are no longer the compiled interface. Normal `simulate` calls need no changes:
 without refitting splines or modifying the original objects. The old internal
 `dynamics._jax.JaxDynamics` route remains removed. Saved numerical archives and
 physical equations do not change. See the [examples](../dynamics/protocols.md).
-
 
 ## Fixed GC/FC coordinate classes (2026-10-25)
 
@@ -289,7 +291,6 @@ Existing GC/FC numerical archives retain their labels and schemas. Recreate old
 configured-object pickles; current coordinate, initial-condition, problem and
 result objects still support serialization. No saved arrays or units change.
 
-
 ## Complete problems with separate modules (2026-10-26)
 
 `SimulationRequest` retains its definition in `request.py`, including its
@@ -311,9 +312,9 @@ their existing modules.
 `simulate` and `Execution.run` no longer accept a separate request. Execution
 subclasses override `run(self, problem, method, *, options=None, observers=())`
 and obtain times from `problem.request`. `method.new_run` receives functions
-and initial conditions without a temporal request; `initialize()` takes no arguments.
+and initial conditions without a temporal request; `initialize(initial_conditions)` receives temporary preparation data.
 
-Modal payload version 3 carries the request only inside the problem and rejects
+Modal payload version 4 carries the request only inside the problem and rejects
 older versions. Recreate older configured problems and receipts; redeploy workers
 from the same revision as clients. Numerical result archives keep their schemas.
 The preceding module-move record is preserved as history and superseded by this API.
@@ -352,8 +353,4 @@ available for electrostatic field evaluation.
 
 ## Request-free method preparation
 
-`new_run(f, initial_conditions, ...)` and `initialize()` do not receive a temporal request or initial time. Methods retain no `request`. Execution owns interval setup and output scheduling; `advance(t, state, h)` receives the time needed for each numerical step.
-
 `auto` selects a supplied Jacobian without evaluating it, or finite differences when no derivative is supplied. For Newton corrections, `analytic` requires a derivative and `finite_difference` explicitly forces approximation. Broyden continues to use the projection-supplied initial matrix and residual updates without evaluating field derivatives. Shapes and finite values are checked at actual evaluations. A supplied derivative failure propagates; auto does not silently fall back. Gauss, SDIRK, HBVM and projected compositions share `solvers.derivatives.resolve_jacobian_method`. HBVM retains its validation boundary after the first residual. Numerical stage and projection equations are unchanged.
-
-Remove the request argument from direct `new_run` calls and custom provider signatures. Keep it with the problem or pass it to execution controllers. Direct SciPy step tests prepare the interval with `run.controller().prepare(run, request)` before calling `advance`; complete applications use `simulate`. Recreate serialized prepared runs. The public simulation facade, configured differentiation modes and result archive schemas remain available.

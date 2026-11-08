@@ -20,7 +20,7 @@ from execution._modal_benchmark import benchmark_payload
 from execution._modal_worker import encode_job, execute_payload
 from execution.execution import Execution
 from states.generators import radial_star
-from methods.extended.bm4 import BM4Midpoint
+from methods.palindromic.bm4_midpoint import BM4Midpoint
 from potential.potential import Potential
 from studies.modal_cpu_comparison import (
     ModalCPUStarConfig, build_star_problem, run_cpu_star_comparison,

@@ -30,7 +30,7 @@ from execution import Execution, Execution_Modal
 from execution._modal_worker import encode_job, execute_payload
 from diagnostics.methods.energy import EnergyObserver
 
-from methods import BM4Implicit, DOP853, RK4, Radau
+from methods import BM4Implicit, RK4
 from potential.potential import Potential
 from simulation.runner import simulate
 
@@ -74,11 +74,11 @@ class ModalExecutionTests(unittest.TestCase):
         return Execution_Modal(record_directory=self.records, **kwargs)
 
     def test_complete_integrations_match_local_and_can_be_saved_locally(self):
-        for method in (RK4(), BM4Implicit(), DOP853(), Radau()):
+        for method in (RK4(), BM4Implicit()):
             with self.subTest(method=type(method).__name__):
-                reference = simulate(self.problem.with_request(self.request), replace(method, **({"max_step": 0.01} if isinstance(method, (DOP853, Radau)) else {"step": 0.01})))
+                reference = simulate(self.problem.with_request(self.request), replace(method, step=0.01))
                 executor = self.executor()
-                result = simulate(self.problem.with_request(self.request), replace(method, **({"max_step": 0.01} if isinstance(method, (DOP853, Radau)) else {"step": 0.01})), execution=executor)
+                result = simulate(self.problem.with_request(self.request), replace(method, step=0.01), execution=executor)
                 np.testing.assert_allclose(result.states, reference.states, rtol=1e-13, atol=1e-14)
                 np.testing.assert_array_equal(result.t, reference.t)
                 self.assertFalse(result.states.flags.writeable)
@@ -86,7 +86,7 @@ class ModalExecutionTests(unittest.TestCase):
                 destination = Path(self.temporary.name) / type(method).__name__
                 save_solution(result, destination, metadata={"test": "modal_roundtrip"})
                 np.testing.assert_array_equal(load_solution(destination).solution.states, result.states)
-        self.assertEqual(self.function.spawn.call_count, 4)
+        self.assertEqual(self.function.spawn.call_count, 2)
 
     def test_receipt_is_durable_before_waiting_for_result(self):
         original_spawn = self.spawn
@@ -208,10 +208,10 @@ class ModalExecutionTests(unittest.TestCase):
 
     def test_unsupported_jobs_fail_before_sdk_or_submission(self):
         for method, options, observers in ((RK4(), ExecutionOptions(backend="jax", device="gpu"), ()),
-                                (RK4(progress=True), None, ()),
+                                (RK4(), ExecutionOptions(progress=True), ()),
                                 (RK4(), None, (lambda event: None,))):
             with self.subTest(method=method), self.assertRaises(NotImplementedError):
-                self.executor().run(self.problem.with_request(self.request), replace(method, **({"max_step": 0.01} if isinstance(method, (DOP853, Radau)) else {"step": 0.01})), options=options, observers=observers)
+                self.executor().run(self.problem.with_request(self.request), replace(method, step=0.01), options=options, observers=observers)
         with self.assertRaises(TypeError):
             self.executor().run(self.problem.with_request(self.request), self.method, options="jax")
         self.loader.assert_not_called()
@@ -220,8 +220,7 @@ class ModalExecutionTests(unittest.TestCase):
     def test_unserializable_job_fails_before_sdk(self):
         class LocalMethod:
 
-            def new_run(self, f, initial_conditions, *, jacobian=None,
-                        jacobian_structure="dense", observe=False, capture_quadrature=False):
+            def new_run(self, f, initial_conditions, *, jacobian=None):
                 raise AssertionError("Not called")
 
         with self.assertRaises((AttributeError, pickle.PicklingError)):
@@ -287,15 +286,15 @@ class ModalWorkerTests(unittest.TestCase):
         reference = Execution().run(problem.with_request(request), BM4Implicit(step=0.01))
         np.testing.assert_allclose(data.states, reference.states, rtol=1e-13, atol=1e-14)
 
-    def test_worker_energy_configuration_starts_fresh_with_supplied_momentum(self):
+    def test_worker_energy_configuration_starts_fresh(self):
         problem = make_problem()
         request = SimulationRequest.uniform(t_span=(0., .02), sample_count=3)
-        observer = EnergyObserver(np.full(problem.particle_count, .7))
+        observer = EnergyObserver()
         payload = encode_job(problem.with_request(request), RK4(), None, (observer,))
         first = execute_payload(payload)[2]
         second = execute_payload(payload)[2]
-        np.testing.assert_array_equal(first.diagnostics['extended_momentum'], second.diagnostics['extended_momentum'])
-        np.testing.assert_array_equal(first.diagnostics['extended_momentum'][:, 0], .7)
+        np.testing.assert_array_equal(first.diagnostics['hamiltonian_time_derivative'], second.diagnostics['hamiltonian_time_derivative'])
+        self.assertNotIn('extended_momentum', first.diagnostics)
         np.testing.assert_array_equal(first.states, second.states)
 
     def test_worker_rejects_incompatible_payload_version(self):

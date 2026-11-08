@@ -4,25 +4,19 @@ from __future__ import annotations
 
 from dynamics.gc import GuidingCenterDynamics
 
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass
 from time import perf_counter
-from typing import Any, TYPE_CHECKING
+from typing import Any
 
 import numpy as np
 from scipy.optimize import brentq
 
-from diagnostics.methods.adaptive.trajectory import AdaptiveTrajectoryObserver
 
-from methods.adaptive.scipy import DOP853, Radau
-from problem import InitialValueProblem
-from simulation.runner import simulate
-from request import SimulationRequest
+from scipy.integrate import solve_ivp
 from dynamics import GuidingCenterDynamics
 from potential import Potential
 
 
-if TYPE_CHECKING:
-	from states.history import States
 
 
 @dataclass(frozen=True)
@@ -178,17 +172,16 @@ def run_single_particle_recurrence(
                    for key in ("rtol", "atol", "max_step")}
         print(f"Starting {label}: t=[0, {config.final_time:g}], {options}", flush=True)
         started: float = perf_counter()
-        observer: AdaptiveTrajectoryObserver = AdaptiveTrajectoryObserver()
-        controls: dict[str, Any] = dict(relative_tolerance=options['rtol'], absolute_tolerance=options['atol'],
-                        dense_output=True)
-        configured: Radau | DOP853 = (Radau(**controls, jacobian=lambda t, z: dynamics.particle_vector_field_jacobians(t, z)[0])
-                      if method == 'Radau' else DOP853(**controls))
-        problem: InitialValueProblem = InitialValueProblem(dynamics, np.array(initial, dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
-        data: States = simulate(problem.with_request(SimulationRequest(
-            t_span=(0.0, config.final_time),  output_times=times)), replace(configured, max_step=options['max_step']), observers=(observer,))
-        dense = observer.evaluate
+        controls: dict[str, Any] = dict(options)
+        if method == 'Radau':
+            controls['jac'] = lambda t, z: dynamics.particle_vector_field_jacobians(t, z)[0]
+        data: Any = solve_ivp(dynamics.vector_field, (0., config.final_time), initial,
+                             method=method, dense_output=True, **controls)
+        if not data.success:
+            raise RuntimeError(f"{label} reference failed: {data.message}")
+        dense = data.sol
         solutions[label] = dense
-        arrays[label + ".states"] = data.states.T.copy()
+        arrays[label + ".states"] = dense(times)
         arrays[label + ".states"][:, 0] = initial
         arrays[label + ".cycle_states"] = dense(arrays["cycle_times"])
         roots: np.ndarray = locate_returns(dense, dynamics, initial, period, search_times,
@@ -201,10 +194,10 @@ def run_single_particle_recurrence(
         arrays[label + ".return_states"] = dense(finer_roots) if finer_roots.size else np.empty((2, 0))
         metadata["solvers"][label] = dict(
             method=method, **options, runtime_seconds=perf_counter() - started,
-            nfev=int(np.sum(data.diagnostics["function_evaluations"])),
-            njev=int(np.sum(data.diagnostics["jacobian_evaluations"])),
-            nlu=int(np.sum(data.diagnostics["lu_decompositions"])),
-            accepted_steps=int(data.diagnostics["step_count"]), search_count=int(roots.size),
+            nfev=int(data.nfev),
+            njev=int(data.njev),
+            nlu=int(data.nlu),
+            accepted_steps=int(data.t.size - 1), search_count=int(roots.size),
             refined_search_count=int(finer_roots.size), search_counts_agree=mesh_agrees,
             search_maximum_time_shift=mesh_shift,
         )

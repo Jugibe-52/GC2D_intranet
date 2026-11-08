@@ -1,18 +1,18 @@
 """Shared endpoint-time A-B-B-A stages and exact particle-block tangents."""
 from __future__ import annotations
 
-from methods.extended.abba import ABBA2Implicit
+from methods.palindromic.abba2_implicit import ABBA2Implicit
 from dynamics.gc import GuidingCenterDynamics
 from dataclasses import dataclass
 import numpy as np
-from methods.extended.observations import abba_pairs
+from methods.palindromic.observations import abba_pairs
 from contracts.dynamics.protocols import DynamicalSystem, GuidingCenterJacobianSystem
-from methods.extended.maps import spatial_shear, GCDoubledMaps
+from methods.palindromic.maps import spatial_shear, GCDoubledMaps
 from problem import InitialValueProblem
 
-from methods.extended.core.composition import compose
+from methods.palindromic.core.composition import compose
 
-from methods.extended.observations import _ABBAStages
+from methods.palindromic.observations import _ABBAStages
 
 
 def _checked_vector_field(

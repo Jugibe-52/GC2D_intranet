@@ -6,7 +6,7 @@ from collections.abc import Callable, Mapping, Sequence
 from types import MappingProxyType
 from typing import Any, TYPE_CHECKING
 
-from contracts.methods.functions import VectorField, JacobianStructure
+from contracts.methods.functions import VectorField
 
 from contracts.dynamics.protocols import DynamicalSystem, HamiltonianSystem, GuidingCenterJacobianSystem
 
@@ -22,7 +22,6 @@ from request import SimulationRequest
 from states.history import States
 from states.initial import InitialConditions
 from methods.base import IntegrationMethod, FixedStepMethod
-from methods.adaptive.scipy import _AdaptiveMethod
 from contracts.methods.base import NumericalMethod
 
 
@@ -45,7 +44,7 @@ class Execution:
 	"""Own one run lifecycle and result while numerical workers advance states.
 
 	Subclasses override run to perform the complete job elsewhere. Numerical
-	methods retain their algorithms and adaptive solvers. The executor keeps no
+	methods retain their numerical algorithms. The executor keeps no
 	per-run state and does not modify global JAX settings or worker configuration.
 	"""
 
@@ -76,7 +75,7 @@ class Execution:
 		observation_metadata: dict[str, DiagnosticValue]
 		numerical_run, observation_metadata = _prepare_numerical_run(
 			problem.initial_conditions, method, prepared_dynamics,
-			track_energy=energy is not None, callbacks=callbacks)
+			track_energy=energy is not None)
 		metadata.update(observation_metadata)
 
 		try:
@@ -96,13 +95,14 @@ class Execution:
 				from execution._jax_step import prepare_step
 				from execution._jax_fixed import prepare_integration
 				assert device is not None and plan is not None
-				kernel: CompiledStep = prepare_step(numerical_run, device, callbacks=callbacks)
-				prepared = prepare_integration(numerical_run, kernel, plan, energy=energy)
+				kernel: CompiledStep = prepare_step(numerical_run, device, initial_conditions=problem.initial_conditions, callbacks=callbacks, progress=execution_options.progress)
+				prepared = prepare_integration(numerical_run, kernel, plan, initial_state=problem.initial_state, energy=energy)
 			saved: States = States.prepare(request.output_times, problem.initial_state, layout=problem.layout)
 			if prepared is None:
 				assert controller is not None
 				step_diagnostics: dict[str, DiagnosticValue] = run_steps(numerical_run, saved, request,
-					source=problem.dynamics, controller=controller, observers=callbacks, energy=energy)
+					source=problem.dynamics, controller=controller, observers=callbacks, energy=energy,
+					initial_state=problem.initial_state, progress=execution_options.progress)
 			else:
 				from execution._jax_fixed import run_steps as run_compiled_steps
 				step_diagnostics = run_compiled_steps(prepared, saved)
@@ -124,15 +124,13 @@ def _prepare_backend(
 	device: Device | None = None
 	mode = "unsupported"
 	if options.backend == "jax":
-		from execution._jax import bind_host_dynamics, prepare_dynamics, resolve_device
+		from execution._jax import prepare_dynamics, resolve_device
 		from execution._jax_step import execution_mode
 		mode = execution_mode(method)
 		device = resolve_device(options)
 		prepared_dynamics = prepare_dynamics(dynamics)
 		metadata.update(execution_mode=mode, execution_device_kind=str(device.device_kind))
-		if mode == "hybrid_scipy_controller":
-			prepared_dynamics = bind_host_dynamics(prepared_dynamics, device)
-			metadata["adaptive_controller"] = "scipy"
+
 	return prepared_dynamics, device, mode, metadata
 
 
@@ -140,7 +138,7 @@ def _prepare_observers(
 	observers: Sequence[EnergyObserver | Callable[[Any], None]], dynamics: DynamicalSystem,
 	*, problem: InitialValueProblem,
 ) -> tuple[PreparedEnergyObserver | None, list[Callable[[Any], None]]]:
-	"""Bind a fresh energy accumulator and keep caller-owned callbacks in order."""
+	"""Bind endpoint energy observation and keep caller-owned callbacks in order."""
 	energy: PreparedEnergyObserver | None = None
 	callbacks: list[Callable[[Any], None]] = []
 	if observers:
@@ -151,8 +149,8 @@ def _prepare_observers(
 				raise ValueError("Register at most one EnergyObserver per run.")
 			if not isinstance(dynamics, HamiltonianSystem):
 				raise TypeError("Energy observation requires HamiltonianSystem.")
-			energy = observer.new_run(dynamics.hamiltonian, dynamics.extended_momentum_derivative,
-				particle_count=problem.particle_count, initial_time=problem.request.t_span[0])
+			energy = observer.new_run(dynamics.hamiltonian, dynamics.hamiltonian_time_derivative,
+				particle_count=problem.particle_count)
 		elif callable(observer):
 			callbacks.append(observer)
 		else:
@@ -163,28 +161,16 @@ def _prepare_observers(
 def _prepare_numerical_run(
 	initial_conditions: InitialConditions,
 	method: NumericalMethod, prepared_dynamics: DynamicalSystem, *, track_energy: bool,
-	callbacks: Sequence[Callable[[Any], None]],
 ) -> tuple[IntegrationMethod[Any], dict[str, DiagnosticValue]]:
 	"""Bind explicit initial inputs and validate a fresh numerical run."""
 	jacobian: VectorField | None = None
-	structure: JacobianStructure = "dense"
-	# Adaptive defaults retain SciPy's own derivative approximation; fixed
-	# algorithms receive the available independent-particle derivative once.
-	if not isinstance(method, _AdaptiveMethod) and isinstance(prepared_dynamics, GuidingCenterJacobianSystem):
-		jacobian, structure = prepared_dynamics.particle_vector_field_jacobians, "particle"
+	if isinstance(prepared_dynamics, GuidingCenterJacobianSystem):
+		jacobian = prepared_dynamics.particle_vector_field_jacobians
 	numerical_run: IntegrationMethod[Any] = method.new_run(
-		prepared_dynamics.vector_field, initial_conditions,
-		jacobian=jacobian, jacobian_structure=structure, observe=bool(callbacks),
-		capture_quadrature=track_energy or any(getattr(callback, "requires_quadrature", False) for callback in callbacks),
-	)
-	metadata: dict[str, DiagnosticValue] = {
-		"track_energy": track_energy,
-		"momentum_state_dimension": initial_conditions.particle_count if track_energy else 0,
-	}
+		prepared_dynamics.vector_field, initial_conditions, jacobian=jacobian)
+	metadata: dict[str, DiagnosticValue] = {"track_energy": track_energy}
 	if track_energy:
-		metadata.update(energy_observer="EnergyObserver", energy_accumulator_owner="observer")
-	if isinstance(method, _AdaptiveMethod):
-		metadata["energy_quadrature_nodes"] = 8 if track_energy else 0
+		metadata.update(energy_observer="EnergyObserver", energy_derivative="analytic_partial_t_H")
 	if not isinstance(numerical_run, IntegrationMethod) or numerical_run._status != "ready":
 		raise TypeError("Method preparation must return a fresh ready IntegrationMethod.")
 	return numerical_run, metadata

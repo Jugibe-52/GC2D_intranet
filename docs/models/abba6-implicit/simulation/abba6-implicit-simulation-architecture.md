@@ -3,7 +3,7 @@
 **Historical model.** ABBA6Implicit, its exports and dedicated study were removed on 2026-10-25. The remaining text and diagrams document the archived implementation, not a supported method. Saved results retain their original labels.
 
 All presets now inherit PalindromicMethod and execute explicit A/B/T operations.
-See [palindromic methods and time placement](../../extended/simulation/palindromic-operations.md) for the common classes, generic recipes and independent C.
+See [palindromic methods and time placement](../../palindromic/simulation/palindromic-operations.md) for the common classes, generic recipes and independent C.
 
 The compact diagrams describe the current shared numerical execution and executor-owned lifecycle. Older detailed diagrams explicitly marked as historical retain their original ownership conventions.
 
@@ -20,7 +20,7 @@ its nonlinear-work arrays have one column per accepted step. The former `methods
 `methods/bm4/` import adapters have been removed. Internal imports point directly
 to the defining modules in `methods.extended`.
 
-See the [shared architecture](../../extended/simulation/extended-simulation-architecture.md)
+See the [shared architecture](../../palindromic/simulation/palindromic-simulation-architecture.md)
 for the module responsibilities, state layouts, solver equations, energy
 normalization and validation contracts. The model's mathematical entry point
 remains [theory.tex](../tex/theory.tex), with its compiled
@@ -115,7 +115,7 @@ projection multiplier. It observes already computed residuals and supports
 independent or nested runs without global instrumentation. Direct advances and
 off-grid output solves emit iterates; diagnostic `map_state` replay does not.
 Broyden, compiled JAX, and remote Modal execution reject this optional Python
-callback. See the [shared callback and particle-solve contract](../../extended/simulation/extended-simulation-architecture.md#explicit-newton-iteration-observation).
+callback. See the [shared callback and particle-solve contract](../../palindromic/simulation/palindromic-simulation-architecture.md#explicit-newton-iteration-observation).
 
 ## Compiled fixed-step contract
 

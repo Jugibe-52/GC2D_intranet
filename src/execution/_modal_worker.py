@@ -19,7 +19,7 @@ from states.history import States
 from execution.execution import Execution
 from contracts.methods.base import NumericalMethod
 
-PAYLOAD_VERSION = 3
+PAYLOAD_VERSION = 4
 
 
 def validate_job(
@@ -41,7 +41,7 @@ def validate_job(
         raise NotImplementedError("Modal execution currently supports CPU devices only.")
     if observers:
         from diagnostics.methods.energy import EnergyObserver
-    if (any(not isinstance(observer, EnergyObserver) for observer in observers) or getattr(method, "progress", False)
+    if (any(not isinstance(observer, EnergyObserver) for observer in observers) or choice.progress
         or getattr(getattr(method, "solver", None), "iteration_observer", None) is not None):
         raise NotImplementedError("Modal execution supports EnergyObserver configurations but no step or iteration callbacks or progress.")
     if getattr(method, "_status", "configuration") != "configuration":

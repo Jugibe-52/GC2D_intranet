@@ -1,6 +1,7 @@
 """Generalized-energy refinement studies for projected implicit GC methods."""
 
 from __future__ import annotations
+from execution.options import ExecutionOptions
 
 from studies._validation import require_uncoupled_bm4
 
@@ -16,7 +17,7 @@ from ._validation import single_gc_state, unpacked_time_span, refinement_steps a
 from contracts.studies._validation import nonnegative_finite, positive_finite, positive_integer
 
 
-from diagnostics.methods.extended.energy.observer import (
+from diagnostics.methods.palindromic.energy.observer import (
 	GCGeneralizedEnergyObserver,
 	GCGeneralizedEnergyRecord,
 )
@@ -29,9 +30,9 @@ from diagnostics.methods.symplecticity.time_extended import (
 from dynamics import GuidingCenterDynamics
 
 from potential import Potential
-from methods.extended.abba import ABBA4Implicit
-from methods.extended.bm4 import BM4Implicit
-from methods.extended.abba import ABBA2Implicit
+from methods.palindromic.abba4_implicit import ABBA4Implicit
+from methods.palindromic.bm4_implicit import BM4Implicit
+from methods.palindromic.abba2_implicit import ABBA2Implicit
 from problem import InitialValueProblem
 from methods.base import FixedStepMethod
 from request import SimulationRequest
@@ -446,11 +447,10 @@ def _method_for_run(
 		max_iterations=config.newton_max_iterations, jacobian_method="analytic")
 	if method == "abba2_implicit_reduced_multiplier":
 		return ABBA2Implicit(projection_formulation="reduced_multiplier",
-			solver=solver, progress=config.progress)
+			solver=solver)
 	if method == "abba4_implicit":
-		return ABBA4Implicit(solver=solver, progress=config.progress)
-	return BM4Implicit(solver=replace(solver, jacobian_relative_step=config.newton_jacobian_relative_step),
-		progress=config.progress)
+		return ABBA4Implicit(solver=solver)
+	return BM4Implicit(solver=replace(solver, jacobian_relative_step=config.newton_jacobian_relative_step))
 
 
 def run_implicit_generalized_energy_study(
@@ -532,7 +532,7 @@ def run_implicit_generalized_energy_study(
 			problem.with_request(request),
 			replace(_method_for_run(method_name, config), step=step),
 			observers=(energy_observer, symplecticity_observer, reduced_symplecticity_observer),
-		)
+		 options=ExecutionOptions(progress=config.progress))
 		records = energy_observer.records
 		if len(records) != solution.n_steps + 1:
 			raise RuntimeError("Energy records do not match the accepted step count.")

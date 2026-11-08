@@ -1,150 +1,125 @@
-"""Accepted energy streams, independent sampling and backend-neutral quadrature."""
+"""Endpoint-only H and analytic partial_t H, independent of numerical stages."""
 
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 
-from contracts.methods.quadrature import InterpolantQuadrature, StageQuadrature
-from diagnostics.methods.energy import EnergyObserver, momentum_increment
+from contracts.methods.step import StepInfo
+from diagnostics.methods.energy import EnergyObserver
+from dynamics.coordinates import GCCoordinates
+from methods import RK4, ABBA4Implicit
+from problem import InitialValueProblem
+from request import SimulationRequest
+from simulation.runner import simulate
+from tests.test_method_integration import _problem
+
+
+class CubicTimeEnergy:
+	"""A stationary physical state with exactly known nonautonomous energy."""
+	state_dimension = 2
+	coordinates = GCCoordinates()
+
+	def __init__(self):
+		self.calls = []
+
+	def vector_field(self, t, state):
+		return np.zeros_like(state)
+
+	def particle_vector_field_jacobians(self, t, state):
+		return np.zeros((state.size // 2, 2, 2))
+
+	def hamiltonian(self, t, state):
+		self.calls.append(('H', np.asarray(t).copy()))
+		return np.ones_like(state[:state.shape[0] // 2]) * np.asarray(t)**3
+
+	def hamiltonian_time_derivative(self, t, state):
+		self.calls.append(('rate', np.asarray(t).copy()))
+		return np.ones_like(state[:state.shape[0] // 2]) * 3*np.asarray(t)**2
 
 
 class EnergyObservationTests(unittest.TestCase):
-	"""The observer changes passive momentum only after accepted complete steps."""
+	def test_only_accepted_endpoints_and_requested_samples_are_evaluated(self):
+		for cls in (RK4, ABBA4Implicit):
+			dynamics = CubicTimeEnergy()
+			problem = InitialValueProblem(dynamics, np.array([.2, .4, .3, .5]),
+				request=SimulationRequest((.2, .5), np.array([.2, .23, .5])))
+			# Signed composition stages extend outside the interval; energy must not visit them.
+			result = simulate(problem, cls(step=.1), observers=(EnergyObserver(),))
+			for name in ('H', 'rate'):
+				scalar_times = [float(t) for kind, t in dynamics.calls if kind == name and t.ndim == 0]
+				np.testing.assert_allclose(scalar_times, [.2, .3, .4, .5], rtol=0., atol=1e-15)
+				arrays = [t for kind, t in dynamics.calls if kind == name and t.ndim == 1]
+				self.assertEqual(len(arrays), 1)
+				np.testing.assert_array_equal(arrays[0], result.t)
+			d = result.diagnostics
+			np.testing.assert_allclose(d['hamiltonian_time_derivative'], np.broadcast_to(3*result.t**2, (2, 3)))
+			np.testing.assert_allclose(d['energy_time_derivative_start'], np.broadcast_to(3*np.array([.2,.3,.4])[:,None]**2,(3,2)))
+			np.testing.assert_allclose(d['energy_change'], np.broadcast_to(np.diff(np.array([.2,.3,.4,.5])**3)[:,None], (3,2)))
+			self.assertNotIn('extended_momentum', d)
+			self.assertNotIn('energy_error', d)
+			self.assertNotIn('generalized_energy', d)
+			# A secant of H would not equal either endpoint derivative for cubic time dependence.
+			self.assertFalse(np.allclose(d['energy_change'][0] / .1, d['energy_time_derivative_end'][0]))
 
-	def test_signed_doubled_weights_keep_physical_normalization(self) -> None:
-		quadrature = StageQuadrature(
-			(0., 1., 2.),
-			(np.array([2., 4.]), np.array([8., 10.]), np.array([6., 12.])),
-			(.5 * .25, .5 * -.5, .5 * .75),
-			reduction_scale=2.,
-		)
-		actual = momentum_increment(lambda t, z: z + t, quadrature, 2)
-		np.testing.assert_array_equal(actual, np.array([1., 3.]))
+	def test_configuration_has_no_momentum_and_preparation_has_no_physical_work(self):
+		configuration = EnergyObserver()
+		dynamics = CubicTimeEnergy()
+		first = configuration.new_run(dynamics.hamiltonian, dynamics.hamiltonian_time_derivative, particle_count=1)
+		second = configuration.new_run(dynamics.hamiltonian, dynamics.hamiltonian_time_derivative, particle_count=1)
+		self.assertEqual(dynamics.calls, [])
+		info = StepInfo(0, .2, .1, .3, np.array([1., 2.]))
+		first.accept(info, info.state_before)
+		self.assertIsNone(second._last)
+		self.assertFalse(hasattr(first, 'momentum'))
+		with self.assertRaises(TypeError):
+			EnergyObserver(initial_momentum=np.ones(1))
 
-	def test_doubled_reduction_retains_overflow_before_physical_normalization(self) -> None:
-		run = EnergyObserver().new_run(lambda t, z: z,
-			lambda t, z: np.array([np.finfo(float).max]), particle_count=1, initial_time=0.)
-		quadrature = StageQuadrature((0., 1.), (np.ones(1), np.ones(1)), (.5, .5),
-			reduction_scale=2.)
-		with self.assertRaisesRegex(ValueError, "increment became non-finite"):
-			run.accept(0, 0., 1., quadrature)
-		np.testing.assert_array_equal(run.momentum, [0.])
+	def test_bad_energy_shape_or_nonfinite_derivative_is_rejected(self):
+		for value in (np.array([np.nan]), np.ones(2), np.array([[1.]])):
+			for bad_h in (False, True):
+				h = (lambda t, z: value) if bad_h else (lambda t, z: np.ones(1))
+				rate = (lambda t, z: np.ones(1)) if bad_h else (lambda t, z: value)
+				run = EnergyObserver().new_run(h, rate, particle_count=1)
+				with self.assertRaises(ValueError):
+					run.accept(StepInfo(0, 0., .1, .1, np.zeros(2)), np.zeros(2))
+				self.assertIsNone(run._last)
 
-	def test_configuration_and_repeated_runs_own_initial_momentum(self) -> None:
-		initial = np.array([2., 3.])
-		configuration = EnergyObserver(initial)
-		initial[:] = 20
-		first = configuration.new_run(lambda t, z: z, lambda t, z: z,
-			particle_count=2, initial_time=0.)
-		second = configuration.new_run(lambda t, z: z, lambda t, z: z,
-			particle_count=2, initial_time=0.)
-		first.accept(0, 0., 1., StageQuadrature((0.,), (np.ones(2),), (1.,)))
-		np.testing.assert_array_equal(first.momentum, [3., 4.])
-		np.testing.assert_array_equal(second.momentum, [2., 3.])
-		first.momentum[:] = 99
-		np.testing.assert_array_equal(first.momentum, [3., 4.])
-		self.assertFalse(configuration.initial_momentum.flags.writeable)
+	def test_sparse_outputs_do_not_change_accepted_energy_observations(self):
+		problem = _problem()
+		dense_request = SimulationRequest((.3,.4),np.array([.3,.301,.32,.35,.4]))
+		sparse_request = SimulationRequest((.3,.4),np.array([.3,.4]))
+		observer = EnergyObserver()
+		dense = simulate(problem.with_request(dense_request), RK4(step=.04), observers=(observer,))
+		sparse = simulate(problem.with_request(sparse_request), RK4(step=.04), observers=(observer,))
+		for name in ('energy_start','energy_end','energy_change','energy_time_derivative_start','energy_time_derivative_end'):
+			np.testing.assert_array_equal(dense.diagnostics[name], sparse.diagnostics[name])
+		np.testing.assert_array_equal(dense.states[[0,-1]], sparse.states)
 
-	def test_fixed_shadow_samples_start_from_left_and_never_accumulate(self) -> None:
-		calls = []
-		def rate(time: float, state: np.ndarray) -> np.ndarray:
-			calls.append(time)
-			return state
-		run = EnergyObserver(np.array([4.])).new_run(lambda t, z: z, rate,
-			particle_count=1, initial_time=0.)
-		self.assertEqual(calls, [])
-		run.accept(0, 0., 1., StageQuadrature((0.,), (np.array([2.]),), (1.,)))
-		shadow = StageQuadrature((0.,), (np.array([2.]),), (.25,))
-		np.testing.assert_array_equal(run.sample(.25, shadow), [4.5])
-		np.testing.assert_array_equal(run.sample(.25, shadow), [4.5])
-		np.testing.assert_array_equal(run.momentum, [6.])
-		before = len(calls)
-		np.testing.assert_array_equal(run.sample(np.array([0., 1., 1.])), [[4., 6., 6.]])
-		self.assertEqual(len(calls), before)
-		with self.assertRaisesRegex(ValueError, "shortened quadrature"):
-			run.sample(.25)
-		with self.assertRaisesRegex(ValueError, "inside"):
-			run.sample(1.1, shadow)
+	def test_endpoint_snapshots_survive_reused_physical_buffers(self):
+		buffer = np.zeros(1)
+		def energy(time, state):
+			buffer[:] = time**3
+			return buffer
+		def rate(time, state):
+			buffer[:] = 3*time**2
+			return buffer
+		run = EnergyObserver().new_run(energy, rate, particle_count=1)
+		state = np.zeros(2)
+		first = run.accept(StepInfo(0, 1., 1., 2., state), state)
+		run.accept(StepInfo(1, 2., 1., 3., state), state)
+		for name, expected in (("energy_start", 1.), ("energy_end", 8.),
+			("energy_change", 7.), ("energy_time_derivative_start", 3.),
+			("energy_time_derivative_end", 12.)):
+			np.testing.assert_array_equal(first[name], [expected])
 
-	def test_adaptive_samples_use_eight_nodes_of_the_accepted_interpolant(self) -> None:
-		calls = []
-		def rate(time: float, state: np.ndarray) -> np.ndarray:
-			calls.append(time)
-			return -state ** np.array([6, 14])
-		run = EnergyObserver().new_run(lambda t, z: z, rate,
-			particle_count=2, initial_time=0.)
-		quadrature = InterpolantQuadrature(0., 1., lambda time: np.array([time, time]))
-		run.accept(0, 0., 1., quadrature)
-		np.testing.assert_allclose(run.momentum, [-1 / 7, -1 / 15], rtol=3e-14, atol=1e-16)
-		self.assertEqual(len(calls), 8)
-		np.testing.assert_array_equal(run.sample(np.array([0., 1.])),
-			np.column_stack((np.zeros(2), run.momentum)))
-		self.assertEqual(len(calls), 8)
-		expected = -np.array([.25 ** 7 / 7, .25 ** 15 / 15])
-		np.testing.assert_allclose(run.sample(.25), expected, rtol=3e-14, atol=1e-20)
-		np.testing.assert_allclose(run.sample(.25), expected, rtol=3e-14, atol=1e-20)
-		self.assertEqual(len(calls), 24)
-		np.testing.assert_allclose(run.momentum, [-1 / 7, -1 / 15], rtol=3e-14, atol=1e-16)
-		self.assertEqual(run.sample(np.empty((0,))).shape, (2, 0))
-		self.assertEqual(len(calls), 24)
-
-	def test_duplicate_acceptance_and_failed_evaluation_do_not_change_state(self) -> None:
-		run = EnergyObserver().new_run(lambda t, z: z, lambda t, z: z,
-			particle_count=1, initial_time=0.)
-		valid = StageQuadrature((0.,), (np.ones(1),), (1.,))
-		run.accept(0, 0., 1., valid)
-		with self.assertRaisesRegex(ValueError, "once"):
-			run.accept(0, 0., 1., valid)
-		invalid = StageQuadrature((1.,), (np.array([np.nan]),), (1.,))
-		with self.assertRaisesRegex(ValueError, "derivative"):
-			run.accept(1, 1., 2., invalid)
-		np.testing.assert_array_equal(run.momentum, [1.])
-		run.accept(1, 1., 2., valid)
-		np.testing.assert_array_equal(run.momentum, [2.])
-
-	def test_energy_output_preserves_schema_and_evaluates_h_once(self) -> None:
-		calls = []
-		def hamiltonian(times: np.ndarray, physical: np.ndarray) -> np.ndarray:
-			calls.append(times)
-			return physical[:1]
-		run = EnergyObserver(np.array([2.])).new_run(hamiltonian, lambda t, z: z,
-			particle_count=1, initial_time=0.)
-		times, physical = np.array([0., 1.]), np.array([[3., 4.], [0., 0.]])
-		auxiliary = {"extended_momentum": np.array([[2., 1.]])}
-		result = run.diagnose_history(times, physical, auxiliary)
-		self.assertEqual(len(calls), 1)
-		self.assertEqual(result["extended_momentum_normalization"], "physical_kappa")
-		np.testing.assert_array_equal(result["generalized_energy"], [[5., 5.]])
-		np.testing.assert_array_equal(result["energy_drift"], [[0., 1.]])
-		self.assertEqual(result["energy_error"], 0.)
-		run.diagnose_history(times, physical, auxiliary, energy=physical[:1])
-		self.assertEqual(len(calls), 1)
-
-	def test_invalid_momentum_and_quadrature_are_rejected(self) -> None:
-		for invalid in (np.array([[1.]]), np.array([np.inf])):
-			with self.assertRaisesRegex(ValueError, "finite one-dimensional"):
-				EnergyObserver(invalid)
-		with self.assertRaisesRegex(ValueError, "one value per particle"):
-			EnergyObserver(np.ones(2)).new_run(lambda t, z: z, lambda t, z: z,
-				particle_count=1, initial_time=0.)
-		with self.assertRaises(ValueError):
-			momentum_increment(lambda t, z: z, StageQuadrature((0.,), (), (1.,)), 1)
-
-	def test_weighted_quadrature_is_a_compilable_jax_pytree(self) -> None:
-		try:
-			import jax
-			import jax.numpy as jnp
-		except ImportError:
-			self.skipTest("Optional JAX runtime is unavailable.")
-		with jax.experimental.enable_x64():
-			quadrature = StageQuadrature((jnp.array(.1), jnp.array(.4)),
-				(jnp.array([1., 2.]), jnp.array([3., 4.])), (jnp.array(.3), jnp.array(-.2)),
-				reduction_scale=2.)
-			compiled = jax.jit(lambda data: momentum_increment(lambda t, z: t + z, data, 2))
-			result = compiled(quadrature)
-			np.testing.assert_allclose(result, [-.35, -.25], rtol=2e-15, atol=2e-16)
-			self.assertIsInstance(result, jax.Array)
-
-
-if __name__ == "__main__":
-	unittest.main()
+	def test_gc_partial_derivative_uses_normalized_potential_time_differentiation(self):
+		problem = _problem()
+		dynamics = problem.dynamics
+		potential = dynamics.hamiltonian_potential
+		t = .31; z = problem.initial_state; x,y = np.split(z,2)
+		expected = potential.evaluate(t,x,y,dt=1)
+		with patch.object(type(potential), 'evaluate', autospec=True, side_effect=type(potential).evaluate) as evaluate:
+			np.testing.assert_array_equal(dynamics.hamiltonian_time_derivative(t,z),expected)
+			self.assertEqual(evaluate.call_count,1)
+			self.assertEqual(evaluate.call_args.kwargs['dt'],1)

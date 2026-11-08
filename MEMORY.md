@@ -181,20 +181,11 @@ Potential and dynamics own cached `_as_jax()` preparation, sharing samples, spli
 and GC `hamiltonian_potential` (H=Phi_rho/B) without refitting, repeating gyroaveraging or mutating sources. GC drift evaluates Hamiltonian spline derivatives directly as (-H_y,H_x); keep `hamiltonian(t,state)` for values and `Potential.electric_field` for electrostatic fields. See docs/dynamics/protocols.md.
 Initial conditions and results keep structural NumPy coordinate snapshots.
 
-Execution preparation selects devices and caches compiled runs; DOP853/Radau
-retain an explicit NumPy/JAX boundary. Reuse spline coefficients without
-refitting. Persistent potential device caches must contain concrete arrays only:
-zero-argument JIT closures over JAX arrays can trace conversions even when the
-original arguments are not tracers. See `docs/dynamics/jax-potential-evaluation.md`.
+Execution prepares fixed CPU/JAX runs and bounded compilation caches. DOP853/Radau are standalone SciPy reference solvers used directly by studies, with no adaptive IntegrationMethod or hybrid execution adapter. Potential caches hold concrete device arrays only; zero-argument JIT closures can trace conversions. Reuse spline coefficients without refitting. See docs/dynamics/jax-potential-evaluation.md.
 
 ## SDD documents
 
-See `specs/README.md` for the readable change workflow. The checker accepts new
-plain Markdown changes alongside older three-part records and current contracts;
-it never executes recorded procedures. Keep historical records in their existing
-format, preserving acceptance and results rather than converting them merely to
-report status. Spanish reading copies are excluded from document checks. File
-presence and structural validation do not establish that work was completed.
+See `specs/README.md` for the readable workflow. The checker accepts new plain Markdown changes alongside historical three-part records and current contracts, excludes Spanish reading copies and never executes recorded procedures. Preserve historical formats, acceptance and results. File presence and structural validation do not prove completion.
 
 ## Fixed 48-particle Poincare automation
 
@@ -215,9 +206,9 @@ cases remain explicit. See `docs/studies/poincare-automation.md`.
 
 `PhysicalCoordinates` is a stateless abstract base; `GCCoordinates()` and `FCCoordinates()` fix dimensions and accessors without constructor fields, names or role indices. `split()` returns a plain tuple; CoordinateValues and JaxPhysicalCoordinates are removed. StateLayout.snapshot() explicitly supplies an immutable NumPy coordinate implementation. InitialConditions and States own arrays and snapshots; InitialValueProblem compares snapshot classes/equality, never inferring models from dimension. Custom conventions derive from the base; GC/FC subclasses keep the same physical convention. Methods may import shared coordinate types for guards, never physical equations or dynamics objects.
 `DoubleFormulation(physical_size)` alone builds temporary copies with lift/join_copies/split_copies, preserving NumPy/JAX and shifted projection candidates. It retains only size; SingleFormulation is removed.
-Accepted IntegrationState stores one physical Z (d*N) and scalar time. StepResult carries optional numerical StageQuadrature or an accepted interpolant, never momentum. Only sampling snapshots may carry transient quadrature. Never persist equal duplicate copies between steps.
-EnergyObserver from diagnostics owns separate physical kappa (N), initially zero or explicitly supplied. Execution binds H and -partial_t H, accepts each main step once and records saved auxiliaries; states.energy combines supplied H and kappa. GC weights include one half with reduction_scale=2 to preserve the original summed-map arithmetic and overflow guard. Adaptive quadrature uses eight Gauss nodes; saved-time sparsity never changes accepted accumulation.
-Fixed methods own positive step (default 0.1); CPU/JAX clip only the last main step. Adaptive methods own max_step. Requests own interval/output times, never step controls. Shadow samples start independently from an accepted interval's left Z and kappa, and never replace the main state. JAX carries separate functional arrays.
+Accepted IntegrationState stores only physical Z (d*N) and scalar time; sampling snapshots carry no quadrature. StepResult retains optional numerical stage data for specialized historical diagnostics, never momentum. Do not persist equal duplicate copies between steps.
+EnergyObserver observes H and positive analytic partial_t H at accepted endpoints and requested samples, with no stage access, kappa integration or generalized-energy error. Own endpoint energy/rate copies because physical functions may reuse output buffers. GC uses normalized hamiltonian_potential.evaluate(dt=1): spatial splines, analytic Fourier time differentiation. Generic energy drift is not conservation error for time-dependent H. Historical generalized-energy studies explicitly use StageEnergyObserver and studies._generalized_energy; preserve their signed weights, normalization and archive labels.
+Fixed methods own positive step (default 0.1); CPU/JAX clip only the last main step. Requests own interval/output times. ExecutionOptions owns progress. Shadow samples start independently from the accepted left physical state and never replace it.
 States stores time rows (T,d*N): states[i] and values[i] are the physical vector at t[i]. Constructors and record_history require this orientation; never infer it from shape. Component accessors, coordinate operations, energy diagnostics and specialized study reference/archive arrays retain their component-first contracts; transpose explicitly at States boundaries. save_solution writes schema 2; load_solution converts schema 1 columns, including square arrays. Completed States pickles carry a history version; old restoration payloads decode as columns. Separate step statistics and optional initial data remain independent. Recreate old configured-object pickles after incompatible API changes.
 Generic packing does not extend GC-only methods to FC. GC maps receive f and derivatives; FC maps compose supplied exact flows whose equations live in FullCyclotronDynamics. Projection observation belongs to diagnostics.methods.projection. Retired layout/state/wrapper classes and modules have no aliases.
 See docs/simulation/initial-solvers-formulations.md, docs/simulation/api-migration.md and specs/current/states.md.
@@ -230,7 +221,7 @@ Gauss, SDIRK and HBVM accept Newton; ABBA/BM4 also accept Broyden. Preserve HBVM
 matrix infinity norm, damping and initial-residual-before-Jacobian validation.
 `methods.projection` owns ReducedProjection (2N) and SimultaneousProjection (6N)
 guesses, assemble_residual, Jacobian assembly and reconstruction. ProjectionProblem in
-methods.extended.core.projection binds each step: residual(x)/jacobian(x) take only
+methods.palindromic.core.projection binds each step: residual(x)/jacobian(x) take only
 its candidate unknown. Adapters reuse an immutable local trace context; preserve
 particle blocks and avoid mutable caches across candidates or JAX traces. ABBA accepts
 both classes or legacy strings; BM4 stays reduced; Gauss keeps its stage equations.
@@ -238,18 +229,11 @@ Use canonical solvers.nonlinear/linear/jax_nonlinear imports; built-in solver/fo
 
 ## Executor-owned integration
 
-`Execution.run` owns environment preparation, fresh-run validation, running/finished transitions and one States.prepare/finalize boundary; simulate validates
-the job and completed result. Host and JAX run_steps workers fill that open recorder and return numerical diagnostics without finalizing or changing run status.
-Use States.record_history for complete bulk physical arrays from JAX; it requires an empty recorder and validates before writing. Preserve independent shadow
-samples. Execution builds one read-only FixedStepPlan with execution._plan.build_fixed_step_plan before fixed backend preparation; host and JAX consume the same endpoint/shadow decisions. Custom controllers retain their policies. Backend preparation resolves mode/device once; run calls _jax_step.prepare_step then _jax_fixed.prepare_integration inside try/finally, before result allocation. prepare_integration receives the plan, places fresh inputs and completes whole-loop lower/compile; run_steps receives PreparedIntegration and only executes/records. Cache at most 16 executables by kernel, energy functions and shapes/dtypes/weak types/sharding, never per-run initial values. Keep observation restrictions and exact-type checks there, explicit types at every preparation boundary, and read requests from the existing problem at the public boundary. Pass InitialConditions explicitly to _prepare_numerical_run; keep requests in execution scheduling and recording; derive particle counts from the initial conditions to keep this helper independent of the complete problem. SciPy interval setup and requested interpolation belong to execution._scipy; live solver advancement stays in methods. See docs/simulation/execution.md.
+`Execution.run` owns preparation, fresh-run validation, running/finished transitions and one States.prepare/finalize boundary. Host/JAX workers fill the open recorder without finalizing. Execution builds one immutable FixedStepPlan; host and JAX share endpoints and shadow decisions, while custom controllers keep their policies. JAX prepares an isolated step with explicit InitialConditions, then compiles the complete loop with an explicit initial_state before result allocation. Cache at most 16 executables by kernel, energy functions and input shapes/types/sharding, never initial values. Compilation failures finish the consumed run. See docs/simulation/execution.md.
 
-contracts.methods.base.NumericalMethod exposes new_run(f, initial_conditions, *, jacobian=None, jacobian_structure="dense", observe=False, capture_quadrature=False) without a backend declaration. initialize() receives no time/request. Methods retain no request, problem/dynamics or energy functions and never inspect callable owners. Execution binds physical/backend capabilities and attaches original source identity to events. methods.base.IntegrationMethod retains numerical preparation,
-advancement, observations and controller access. Fixed methods share advance across arrays and contain no JAX dispatch, options or alternate steps. execution._jax_step owns exact-type compatibility checks, isolated solver preparation and generic binding; unknown overrides fail explicitly. Configured methods are reusable; consumed runs finish on success and failure. Register EnergyObserver and caller-owned step callbacks via observers= on simulate/execution; each energy run is fresh. Newton iteration callbacks retain shadow-solve events; diagnostic replay is silent. Modal payload version 3 includes the request inside the problem and observer configurations, rejects arbitrary callbacks, and supports local worker validation.
+NumericalMethod exposes new_run(f, initial_conditions, *, jacobian=None). initialize(initial_conditions) receives temporary preparation data with no time/request. IntegrationMethod retains only f, jacobian, metadata, _status and copies; execution owns initial state and progress. Supplied Jacobians always have independent particle blocks (N,d,d); finite differences remain dense. No jacobian_structure, capture_quadrature or instance observe flag remains. Per-advance observe=False still silences diagnostic replay callbacks. Keep family-specific preparation helpers and isolated JAX solver binding. Numerical methods import no physics or diagnostics. Register EnergyObserver and accepted-step callbacks via observers=; callbacks retain identity and order. Modal payload version 4 transports the composed problem and stateless observer configuration; reject old job payloads.
 
-execution._jax owns device preparation and the cached SciPy/JAX host adapter; components own `_as_jax()`. Dynamics has no dependency on execution. JaxPotential stays
-independently usable, with its own precision guards and tracing-safe concrete caches; executor preparation shares physical samples/splines without refitting or
-mutation. execution._plan owns fixed scheduling and sampling decisions; execution._host owns host control, sample evaluation and progress; execution._jax_fixed owns the compiled loop; execution.state owns
-IntegrationState.
+execution._jax prepares devices; components own _as_jax(). Dynamics has no execution dependency. JaxPotential remains independently usable with precision guards and tracing-safe concrete caches; preparation shares samples/splines without refitting. execution._plan owns scheduling; execution._host owns host control, sampling and progress; execution._jax_fixed owns the compiled physical loop; execution.state owns IntegrationState.
 
 The integration package, execution._fixed, execution._jax_run, dynamics._jax_host, CompiledFixedMethod and complete integrate_method/integrate_fixed functions
 are retired without aliases. Use simulate/Execution.run for complete jobs. Import numerical bases from methods and controller/state extensions from execution.
@@ -269,13 +253,13 @@ NumPy/JAX compatibility without device or execution policy.
 
 BM4Implicit and BM4Midpoint have no coupling_frequency constructor option and
 bind uncoupled maps on CPU/JAX. Keep their signed weights, endpoint clock and
-projections. HarmonicCoupling in methods.extended.maps
+projections. HarmonicCoupling in methods.palindromic.maps
 provides the independent spatial C flow for future compositions. Retained study
 schema rates must be zero for new calculations; never relabel or resume coupled
 historical trajectories through the current methods. Observer rates stay zero.
 
 ## Explicit palindromic methods
-
+The family is `methods.palindromic`, mirrored by contracts and diagnostics; each concrete method and shared base has its own defining module. Keep `base`, `projected_base`, and `midpoint_base` shared; named methods only declare recipes and special controls/observations. Retired `extended` routes have no aliases.
 ABBA2Implicit, ABBA4Implicit and BM4Implicit directly inherit
 ProjectedPalindromicMethod for preparation and advancement; ABBA6 and intermediate
 ABBA bases are removed. ABBA4 has one outer projection around its complete tuple.
@@ -290,7 +274,7 @@ traces retain elementary operations only; observers reconstruct public groups
 without replay. Coefficients remain scalar JSON metadata, not history arrays.
 Moving T changes the method; merging adjacent T preserves its mathematical map
 but may change rounding. Palindromy alone proves no higher order, and arithmetic
-projection need not preserve reversal or symplecticity. See docs/models/extended/simulation/palindromic-operations.md.
+projection need not preserve reversal or symplecticity. See docs/models/palindromic/simulation/palindromic-operations.md.
 
 ## Visible result types
 
@@ -298,3 +282,7 @@ In src/, annotate one receiving name inline and declare new unpacked names befor
 assignment. Declare each name once per scope, including earlier optional values;
 keep return annotations and optional imports lazy. Use existing result types and
 NumPy/JAX distinctions. See docs/development/typing.md for scope and examples.
+
+## Runge--Kutta tableaux
+
+`methods.runge_kutta` replaces `methods.classical`, with mirrored contracts and no aliases. Immutable, hashable `ButcherTableau(A,B,C)` owns finite, consistent coefficients. `ExplicitEuler`/`RK4`, `SDIRK4` and `GaussLegendre4` inherit explicit, diagonal and coupled stage algorithms; recipes declare coefficients/metadata, with Gauss retaining its specialized observation. Generic family instances accept tableaux and support NumPy/JAX, including zero-diagonal DIRK stages and arbitrary stage counts. Newton controls remain in solvers; generic compiled cache keys include coefficients. Preserve named facade exports and recorded tableau metadata; recreate old configured-object pickles. See `docs/simulation/runge-kutta.md`.

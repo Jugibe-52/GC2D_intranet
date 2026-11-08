@@ -16,7 +16,7 @@ import numpy as np
 from diagnostics._validation import optional_relative_step, positive_integer
 
 
-from contracts.methods.extended.abba import ABBA2ImplicitIntegrationStep
+from contracts.methods.palindromic.abba import ABBA2ImplicitIntegrationStep
 from contracts.methods.observation import IntegrationStep
 from diagnostics.io.buffering import DiagnosticBuffer
 

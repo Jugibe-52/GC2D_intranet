@@ -16,39 +16,22 @@ supersedes earlier diagrams showing a duplicated clock or full time/momentum pro
 | Formulation | Optional doubled spatial copies |
 | Method | Physical stages, projection equations and optional quadrature data |
 | Solver | Nonlinear tolerances, iteration limits, derivatives and callbacks |
-| EnergyObserver | Independent momentum and energy histories |
+| EnergyObserver | Endpoint H and analytic positive partial_t H |
 | Execution | Function injection, accepted intervals, sampling, observation and output collection |
 
 ## State contract
 
-`DoubleFormulation(physical_size)` is the only state formulation. It prepares temporary copies through `lift`, `join_copies` and `split_copies`, preserving NumPy/JAX arrays and complete component blocks. Classical, HBVM and adaptive methods use the physical vector directly and instantiate no formulation. The doubled representation stores only a positive physical size; it contains no dynamics, solver or diagnostic state.
+`DoubleFormulation(physical_size)` is the only state formulation. It prepares temporary copies through `lift`, `join_copies` and `split_copies`, preserving NumPy/JAX arrays and complete component blocks. Runge--Kutta and HBVM methods use the physical vector directly and instantiate no formulation. The doubled representation stores only a positive physical size; it contains no dynamics, solver or diagnostic state.
 
 Every accepted snapshot is `IntegrationState(time, values)`: scalar time and a physical vector of shape `(d*N,)`. GC remains 2N and FC 4N with or without energy observation. Temporary doubled GC work has 4N entries; generic doubled FC work has 8N. These workspaces never become accepted states. This generic copy support does not extend GC numerical methods to FC.
 
-Execution binds the physical functions and calls `new_run(f, initial_conditions, jacobian=..., jacobian_structure=...)`. The method receives no `DynamicalSystem`, problem or temporal request. `advance(t, Z, h)` returns physical state, statistics, optional details and optional quadrature data. `EnergyObserver` owns its independent momentum and accumulates only accepted quadrature; shadow samples derive from the accepted observer state without committing it. Step callbacks are passed through `simulate(..., observers=(...,))`.
+`new_run(f, initial_conditions, *, jacobian=None)` creates a fresh run and calls `initialize(initial_conditions)`. Initial data and layout are temporary preparation inputs: the numerical base retains only functions, numerical metadata, run status and copy count. Execution owns the initial snapshot and passes it explicitly to controllers. Supplied Jacobians have independent particle shape `(N,d,d)`; finite-difference Jacobians remain dense. There is no `jacobian_structure`, `capture_quadrature` or method-level `progress` option.
 
-Enable passive energy with `simulate(..., observers=(EnergyObserver(),))`, importing `EnergyObserver` from `diagnostics.methods.energy`. Execution supplies the observer with H and `-partial_t H`. It evaluates saved physical H once and constructs the existing diagnostics. Energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. Old configured Python objects must be recreated; saved numerical archives remain readable through versioned history conversion.
+`EnergyObserver()` records physical H and the positive analytic partial time derivative `hamiltonian_time_derivative` at accepted endpoints and requested physical samples. It does not consume internal stages or integrate momentum. Per-step diagnostics are `energy_start`, `energy_end`, `energy_change`, `energy_time_derivative_start` and `energy_time_derivative_end`, with shape `(steps,N)`. Saved histories `physical_hamiltonian` (alias `hamiltonian`), `energy_drift` and `hamiltonian_time_derivative` have shape `(N,T)`. Energy variation in a time-dependent Hamiltonian is not a numerical conservation error.
 
 ## Energy and nonlinear work
 
 The two converged Gauss stage states supply the passive momentum quadrature.
-
-The stored momentum is physical `kappa`, initialized at zero. Its derivative is
-`-partial_t H`; splitting sums are normalized by one half. The diagnostic is
-`H(t, z) + kappa - H(t0, z0)`. It measures a balance, not conservation of the
-time-dependent physical Hamiltonian. Dynamics must implement
-[`HamiltonianSystem`](../../../dynamics/protocols.md) when tracking is enabled.
-It extends `DynamicalSystem` with `hamiltonian` and
-`extended_momentum_derivative`, including an explicit zero derivative for an
-autonomous Hamiltonian. With tracking disabled, only `DynamicalSystem` is
-required for this energy choice; method-specific capabilities still apply.
-
-Only spatial coordinates enter a Hairer constraint. The reduced multiplier has
-2N components; the ABBA simultaneous spatial solve has 6N unknowns. Clock and
-momentum never enlarge these roots or affect their stopping scale. Tracking also
-leaves classical physical solves and adaptive acceptance decisions unchanged.
-Passive energy quadrature and optional observer reconstruction are extra work
-outside the physical solver counters; reported wall time still includes them.
 
 ## Lifecycle and output
 
@@ -57,35 +40,13 @@ Scalar constructor controls use the typed private helpers in
 and accepted scalar inputs. Checks for invalid intermediate states, singular
 systems and convergence remain next to the numerical operations.
 
-The field and Jacobian helpers in `src/methods/classical/_jacobians.py` are
+The field and Jacobian helpers in `src/methods/runge_kutta/_jacobians.py` are
 shared with SDIRK: field validation, centered finite differences, analytic
 particle-block validation. Strategy selection without evaluation belongs to
 `solvers.derivatives.resolve_jacobian_method`. The coupled Gauss
 stage equations and corrections remain in `gauss_legendre.py`.
 
-By default, `simulate(problem, method)` delegates to `Execution.run`,
-which prepares a fresh run via `new_run` and allocates one physical recorder.
-The host worker advances and samples through the method's controller. Each
-`advance` returns a physical state, work counters, accepted details and optional quadrature data.
-The controller owns `IntegrationState(time, values)`. Requested samples are
-extracted into physical coordinates and copied into `States`; step counters keep
-their separate axis. The energy observer evaluates the saved physical Hamiltonian and combines it with its own momentum history.
-Execution finalizes the same recorder once and closes the run on success or
-failure. Configured methods remain reusable with isolated run resources.
-
-Fixed methods use independent shortened maps for off-grid samples. Adaptive
-methods retain one live SciPy solver whose state is always physical. Their
-energy quadrature follows accepted dense output and cannot affect the error norm.
-Radau Jacobians are physical-sized even when energy tracking is enabled.
-
-Observers receive the physical map and independent snapshots. Their shapes do
-not change with tracking. All energy histories have shape `(N, saved_times)`,
-including `extended_time` even for a single particle. Diagnostic arrays
-`extended_time`, `extended_momentum`,
-`physical_hamiltonian`, `generalized_energy` and `generalized_energy_error` follow
-`States.t`; nonlinear and runtime work arrays follow `step_times`.
-`extended_momentum_normalization` is `physical_kappa` and `energy_error` is the
-maximum absolute sampled balance error over all particles.
+Specialized historical generalized-energy studies explicitly use stage diagnostics under `diagnostics.methods.stage_energy` and `studies._generalized_energy`. They retain their signed quadrature, physical kappa normalization and archive labels. Generic execution has no momentum accumulator. `States.k` and `States.err` remain readers for historical diagnostics and return `None` when absent. Old numerical archives remain readable; recreate configured-object pickles after the API change.
 
 ## Migration and verification
 
@@ -94,11 +55,7 @@ It raises explicit migration guidance. Use `observers=(EnergyObserver(),)` with 
 projection. The historical full-state symplecticity study is retired because it
 measured a different map; existing saved artifacts can still be read.
 
-Tests in `tests/test_state_formulations.py` cover all 12 methods, both tracking
-settings, particle batches, physical-only observers, adaptive control, per-particle
-time alignment and energy normalization. Model tests retain order, projection,
-Jacobian and nonlinear-solver checks. The pre-change physical trajectories are
-also compared with the migrated implementations on short nonautonomous runs.
+Tests cover physical-only accepted states, isolated preparation, independent shadow samples, particle-block Jacobians, endpoint-only energy evaluation, analytic time differentiation, and CPU/JAX agreement. Model tests retain convergence, projection and nonlinear-work checks. Independent SciPy reference tests cover the retired adaptive API boundary.
 
 ## Optional JAX execution
 
@@ -186,7 +143,6 @@ Analytic particle corrections use `solvers.linear._solve_particle_systems`
 with matrices `(N,d,d)` and vectors `(N,d)`. Its explicit singleton
 right-hand-side axis preserves batch semantics under NumPy 1.x and 2.x.
 
-
 ### Shared comparison records
 
 The three-, four-, and five-method comparison campaigns share method construction,
@@ -246,3 +202,12 @@ Complete steps retain that size; only the final accepted step is shortened.
 `advance` receives the effective duration without modifying the configured value.
 See the [shared scheduling contract](../../../simulation/execution.md#method-owned-integration-step)
 for independent output sampling and the common CPU/JAX grid.
+
+## Tableau-driven implementation
+
+`GaussLegendre4` now inherits its numerical stage calculations from `ImplicitRungeKutta`
+in `methods.runge_kutta`. The concrete recipe declares its immutable
+`ButcherTableau(A, B, C)` and metadata. The shared `RungeKutta` base owns
+physical step results and passive stage quadrature; solver and execution
+responsibilities remain separate. See the [Runge–Kutta family contract](../../../simulation/runge-kutta.md)
+for coefficient validation, generic construction and import migration.

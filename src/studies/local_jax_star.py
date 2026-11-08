@@ -20,7 +20,7 @@ from diagnostics.execution.run_progress import RunProgress, progress_log
 from execution.execution import Execution
 
 from states.generators import radial_star
-from methods.extended.bm4 import BM4Midpoint
+from methods.palindromic.bm4_midpoint import BM4Midpoint
 from potential.load import DEFAULT_FIELD_INDICES
 from potential.potential import Potential
 from simulation.runner import simulate
@@ -105,7 +105,7 @@ def integrate_local_star(
     block_seconds: list[float]
     block_ends: list[int]
     block_seconds, block_ends = [], []
-    method: BM4Midpoint = BM4Midpoint(progress=False)
+    method: BM4Midpoint = BM4Midpoint()
     executor: Execution
     options: ExecutionOptions
     executor, options = Execution(), ExecutionOptions(backend='jax', device='cpu')

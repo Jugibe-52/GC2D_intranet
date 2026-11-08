@@ -10,8 +10,8 @@ class ExecutionOptions:
     """Select the library and device for field evaluation and integration.
 
     JAX supports every built-in method with its existing GC/FC compatibility.
-    Fixed methods run on the device; DOP853/Radau retain SciPy adaptive control and
-    transfer their batched field evaluations to the selected JAX device.
+    Methods run complete fixed-step loops on the selected device.
+    Progress reporting belongs to host execution.
     This contract does not create CPU worker processes. A SciPy CPU
     is the host as a whole; JAX device indices address its detected devices.
     """
@@ -19,6 +19,7 @@ class ExecutionOptions:
     backend: Literal["scipy", "jax"] = "scipy"
     device: Literal["cpu", "gpu"] = "cpu"
     device_index: int = 0
+    progress: bool = False
 
     def __post_init__(self) -> None:
         """Reject unsupported combinations without probing optional hardware."""

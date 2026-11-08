@@ -2,20 +2,20 @@
 
 from __future__ import annotations
 
-from methods.extended.abba import _ABBA4_COEFFICIENTS
+from methods.palindromic.abba4_implicit import _ABBA4_COEFFICIENTS
 import numpy as np
 
-from diagnostics.methods.extended.abba_jacobian.analysis import particle_jacobian_blocks
+from diagnostics.methods.palindromic.abba_jacobian.analysis import particle_jacobian_blocks
 from diagnostics.methods.jacobians import implicit_function_step_jacobian
 from contracts.dynamics.protocols import GuidingCenterJacobianSystem
-from methods.extended.configuration import ABBA_PROJECTION_FORMULATIONS
-from contracts.methods.extended.abba import (
+from methods.palindromic.configuration import ABBA_PROJECTION_FORMULATIONS
+from contracts.methods.palindromic.abba import (
 	ABBA4ImplicitIntegrationStep, ABBAImplicitCompositionIntegrationStep,
 	ABBA2ImplicitIntegrationStep, UnprojectedABBAIntegrationStep,
 )
-from contracts.methods.extended.bm4 import ImplicitBM4IntegrationStep
+from contracts.methods.palindromic.bm4 import ImplicitBM4IntegrationStep
 from contracts.methods.observation import IntegrationStage, IntegrationStep
-from methods.extended.maps import gc_coupling_matrix
+from methods.palindromic.maps import gc_coupling_matrix
 
 from typing import TYPE_CHECKING
 

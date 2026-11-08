@@ -1,4 +1,4 @@
-"""Function-only classical preparation and generic derivative structures."""
+"""Function-only Runge--Kutta preparation and generic derivative structures."""
 from dataclasses import replace
 import unittest
 import numpy as np
@@ -6,10 +6,10 @@ from scipy.linalg import expm
 
 from contracts.methods.step import StepInfo
 from tests.coordinate_fixtures import ThreeCoordinates
-from methods.classical.euler import ExplicitEuler
-from methods.classical.rk4 import RK4
-from methods.classical.gauss_legendre import GaussLegendre4
-from methods.classical.sdirk import SDIRK4
+from methods.runge_kutta.euler import ExplicitEuler
+from methods.runge_kutta.rk4 import RK4
+from methods.runge_kutta.gauss_legendre import GaussLegendre4
+from methods.runge_kutta.sdirk import SDIRK4
 from methods.hbvm.order4 import HBVM42
 from request import SimulationRequest
 from solvers.derivatives import packed_particle_jacobian
@@ -23,10 +23,10 @@ class FunctionMethodTests(unittest.TestCase):
 		self.request = SimulationRequest((.15, .17), np.array([.15, .17]))
 		self.matrix = np.array([[-.4, .2, .1], [.3, -.5, .2], [-.1, .2, -.3]])
 
-	def test_dense_coupled_analytic_functions_on_nonstandard_coordinates(self):
+	def test_particle_analytic_functions_on_three_component_coordinates(self):
 		for cls in (GaussLegendre4, SDIRK4, HBVM42):
 			with self.subTest(method=cls.__name__):
-				run = cls(step=.02).new_run(lambda t, z: self.matrix @ z, self.initial, jacobian=lambda t, z: self.matrix)
+				run = cls(step=.02).new_run(lambda t, z: self.matrix @ z, self.initial, jacobian=lambda t, z: self.matrix[None, :, :])
 				actual = run.advance(.15, self.initial.values, .02)
 				np.testing.assert_allclose(actual.state, expm(.02 * self.matrix) @ self.initial.values,
 					rtol=0, atol=2e-12)
@@ -40,11 +40,10 @@ class FunctionMethodTests(unittest.TestCase):
 		for cls in (GaussLegendre4, SDIRK4, HBVM42):
 			method = cls(step=.02)
 			particle = method.new_run(lambda t, z: dense @ z, initial,
-				jacobian=lambda t, z: blocks, jacobian_structure='particle')
-			coupled = method.new_run(lambda t, z: dense @ z, initial,
-				jacobian=lambda t, z: dense)
+				jacobian=lambda t, z: blocks)
+			coupled = method.new_run(lambda t, z: dense @ z, initial)
 			np.testing.assert_allclose(particle.advance(.15, initial.values, .02).state,
-				coupled.advance(.15, initial.values, .02).state, rtol=0, atol=2e-15)
+				coupled.advance(.15, initial.values, .02).state, rtol=0, atol=2e-12)
 
 	def test_initial_convergence_does_not_evaluate_analytic_derivatives(self):
 		def forbidden(t, z):
@@ -69,31 +68,13 @@ class FunctionMethodTests(unittest.TestCase):
 			run.advance(.15, self.initial.values, .02)
 		self.assertEqual(len(calls), 9)
 
-	def test_optional_quadrature_adds_no_physical_evaluations(self):
-		for cls in (ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42):
-			results, counts = [], []
-			for enabled in (False, True):
-				calls = []
-				def field(t, z):
-					calls.append(t)
-					return -z
-				run = cls().new_run(field, self.initial,
-					jacobian=lambda t, z: -np.eye(z.size), capture_quadrature=enabled)
-				result = run.advance(.15, self.initial.values, -.02)
-				results.append(result); counts.append(len(calls))
-				if enabled:
-					self.assertAlmostEqual(sum(result.quadrature.weights), -.02)
-				else:
-					self.assertIsNone(result.quadrature)
-			np.testing.assert_array_equal(results[0].state, results[1].state)
-			self.assertEqual(counts[0], counts[1])
 
 	def test_solver_observation_is_silent_during_diagnostic_replay(self):
 		for cls in (GaussLegendre4, SDIRK4, HBVM42):
 			events = []
 			method = cls(solver=NewtonSolver(iteration_observer=events.append, backtracking=cls is HBVM42))
 			run = method.new_run(lambda t, z: -z, self.initial,
-				jacobian=lambda t, z: -np.eye(z.size))
+				jacobian=lambda t, z: -np.eye(z.size)[None, :, :])
 			result = run.advance(.15, self.initial.values, .02)
 			self.assertGreater(len(events), 0)
 			count = len(events)
@@ -107,11 +88,11 @@ class FunctionMethodTests(unittest.TestCase):
 		method = RK4()
 		first = method.new_run(lambda t, z: -z, self.initial)
 		second = method.new_run(lambda t, z: -2*z, self.initial)
-		self.assertFalse(np.shares_memory(first.initial_state, second.initial_state))
-		self.assertFalse(first.initial_state.flags.writeable)
+		self.assertFalse(hasattr(first, 'initial_state'))
+		self.assertFalse(hasattr(second, 'initial_state'))
 		self.assertFalse(hasattr(method, 'f'))
-		self.assertFalse(np.array_equal(first.advance(.15, first.initial_state, .02).state,
-			second.advance(.15, second.initial_state, .02).state))
+		self.assertFalse(np.array_equal(first.advance(.15, self.initial.values, .02).state,
+			second.advance(.15, self.initial.values, .02).state))
 
 
 if __name__ == '__main__':

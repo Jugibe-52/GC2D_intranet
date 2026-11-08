@@ -60,10 +60,10 @@ for name in sys.argv[1:]:
 			("dynamics", "contracts.dynamics.protocols", ("DynamicalSystem", "HamiltonianSystem")),
 			("methods", "contracts.methods.base", ("NumericalMethod",)),
 			("execution", "contracts.execution.controllers", ("StepController",)),
-			("methods.extended.observations", "contracts.methods.maps", ("DirectAdjointMaps",)),
+			("methods.palindromic.observations", "contracts.methods.maps", ("DirectAdjointMaps",)),
 			("methods.projection", "contracts.methods.projection", ("ProjectionFormulation",)),
 			("simulation", "contracts.methods.observation", ("IntegrationStep", "IntegrationStage")),
-			("simulation", "contracts.methods.extended.abba", ("ABBA4ImplicitIntegrationStep",)),
+			("simulation", "contracts.methods.palindromic.abba", ("ABBA4ImplicitIntegrationStep",)),
 			("visualization", "contracts.visualization.trajectory_accuracy", ("AccuracySeriesView",)),
 		):
 			for name in names:

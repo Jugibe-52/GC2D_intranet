@@ -1,6 +1,7 @@
 """Aligned trajectory comparison for one midpoint and six implicit variants."""
 
 from __future__ import annotations
+from execution.options import ExecutionOptions
 
 from solvers.nonlinear import BroydenSolver, NewtonSolver
 
@@ -26,12 +27,12 @@ from studies._trajectory_distances import minimum_image_displacement
 
 from dynamics import GuidingCenterDynamics
 from potential import Potential
-from methods.extended.configuration import ABBA_PROJECTION_FORMULATIONS, ProjectionFormulation
-from methods.extended.bm4 import BM4Implicit
-from methods.extended.abba import ABBA2Implicit
+from methods.palindromic.configuration import ABBA_PROJECTION_FORMULATIONS, ProjectionFormulation
+from methods.palindromic.bm4_implicit import BM4Implicit
+from methods.palindromic.abba2_implicit import ABBA2Implicit
 
 from problem import InitialValueProblem
-from methods.extended.abba import ABBA2Midpoint
+from methods.palindromic.abba2_midpoint import ABBA2Midpoint
 from solvers.nonlinear import NonlinearSolver
 from methods.base import FixedStepMethod
 from typing import Any
@@ -222,7 +223,7 @@ def _method_for_variant(
 ) -> FixedStepMethod[Any]:
 	"""Build one configured method while keeping labels separate from class names."""
 	if variant.method_name == "ABBA2Midpoint":
-		return ABBA2Midpoint(progress=config.progress)
+		return ABBA2Midpoint()
 	if variant.nonlinear_solver is None:
 		raise ValueError("Implicit variants require a nonlinear solver.")
 	if variant.method_name == "ABBA2Implicit":
@@ -230,12 +231,12 @@ def _method_for_variant(
 			raise ValueError("ABBA2 variants require a projection formulation.")
 		return ABBA2Implicit(
 			projection_formulation=variant.projection_formulation,
-			progress=config.progress,
+
 			solver=(NewtonSolver if variant.nonlinear_solver == 'newton' else BroydenSolver)(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic'),
 		)
 	if variant.method_name == "BM4Implicit":
 		return BM4Implicit(
-			progress=config.progress,
+
 			solver=(NewtonSolver if variant.nonlinear_solver == 'newton' else BroydenSolver)(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_relative_step=config.newton_jacobian_relative_step, jacobian_method='analytic'),
 		)
 	raise ValueError(f"Unknown trajectory method variant {variant.label!r}.")
@@ -401,7 +402,7 @@ def run_ten_method_trajectory_comparison(
 	for variant in TEN_METHOD_VARIANTS:
 		method: FixedStepMethod[Any] = _method_for_variant(variant, config)
 		started: float = perf_counter()
-		solutions[variant.label] = simulate(problem.with_request(request), replace(method, step=config.integration_step))
+		solutions[variant.label] = simulate(problem.with_request(request), replace(method, step=config.integration_step), options=ExecutionOptions(progress=config.progress))
 		runtimes[variant.label] = perf_counter() - started
 
 	return TenMethodTrajectoryComparisonResult(

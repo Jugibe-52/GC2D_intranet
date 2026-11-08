@@ -1,236 +1,49 @@
-"""Adaptive methods share collection while preserving SciPy numerical sessions."""
-
-from dynamics.gc import GuidingCenterDynamics
-
-from dataclasses import replace
+"""Adaptive solvers belong to independent study references, not the method API."""
+import importlib.util
 import unittest
 from unittest.mock import patch
 
 import numpy as np
 from scipy.integrate import solve_ivp
 
-from diagnostics import AdaptiveTrajectoryObserver
-from diagnostics.methods.energy import EnergyObserver
-
-from simulation import (
-	DOP853, Radau, ABBA2Implicit, ABBA2Midpoint, ABBA4Implicit, BM4Implicit, BM4Midpoint,
-	ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42, InitialValueProblem, SimulationRequest,
-	simulate,
-)
-from methods.base import IntegrationMethod
-from execution import Execution
+from studies.reference_trajectory import _solve_adaptive
 from tests.test_method_integration import _problem
 
 
-class TimeDependentRotation:
-    """Rotation with exact angle (t squared minus t0 squared) / 2."""
+class ReferenceSolverBoundaryTests(unittest.TestCase):
+	def test_adaptive_method_api_is_retired(self):
+		import methods
+		import simulation
+		for module in (methods, simulation):
+			for name in ('DOP853','Radau'):
+				self.assertFalse(hasattr(module,name))
+		self.assertIsNone(importlib.util.find_spec('methods.adaptive'))
+		self.assertIsNone(importlib.util.find_spec('execution._scipy'))
 
-    state_dimension = 2
+	def test_direct_reference_matches_scipy_on_irregular_samples_and_reports_progress(self):
+		problem = _problem()
+		times = np.array([.3,.301,.33,.34,.4])
+		for method in ('DOP853','Radau'):
+			events=[]
+			with patch('execution.Execution.run',side_effect=AssertionError('Reference used simulation runtime')):
+				states, summary = _solve_adaptive(problem.dynamics,problem.initial_state,times,
+					relative_tolerance=1e-11,absolute_tolerance=1e-13,maximum_step=.02,
+					method=method,progress_callback=lambda *args:events.append(args))
+			reference = solve_ivp(problem.dynamics.vector_field,(times[0],times[-1]),problem.initial_state,
+				method=method,t_eval=times,rtol=1e-11,atol=1e-13,max_step=.02)
+			np.testing.assert_array_equal(states,reference.y)
+			self.assertEqual(summary.function_evaluations,reference.nfev)
+			self.assertEqual(summary.jacobian_evaluations,reference.njev)
+			self.assertEqual(summary.lu_decompositions,reference.nlu)
+			self.assertEqual(events[0][-1],'started')
+			self.assertEqual(events[-1][-1],'finished')
+			self.assertEqual(events[-1][1],times[-1])
 
-    def vector_field(self, time, state):
-        x, y = np.split(state, 2)
-        return time * np.concatenate((-y, x))
-
-
-class AdaptiveIntegrationTests(unittest.TestCase):
-    def setUp(self):
-        self.problem = InitialValueProblem(TimeDependentRotation(), GuidingCenterDynamics.coordinates.pack_components([1., .4, -.2], [0., .2, .5]), layout=GuidingCenterDynamics.coordinates)
-        self.request = SimulationRequest.uniform(t_span=(.3, .8),  sample_count=31)
-
-    def test_energy_endpoint_queries_reuse_quadrature_and_return_independent_arrays(self):
-        """Repeated scalar/batched endpoints cost no energy evaluations or new solves."""
-        for cls in (DOP853, Radau):
-            with self.subTest(method=cls.__name__):
-                source = _problem()
-                problem = InitialValueProblem(source.dynamics, GuidingCenterDynamics.coordinates.pack_components([1., 1.1, 1.2], [1.2, 1.3, 1.4]), layout=GuidingCenterDynamics.coordinates)
-                request = SimulationRequest.uniform(t_span=(.3, .34),  sample_count=3)
-                run = replace(cls(first_step=.02), max_step=0.02).new_run(problem.dynamics.vector_field, problem.initial_conditions, capture_quadrature=True)
-                run.controller().prepare(run, request)
-                with patch.object(type(problem.dynamics), 'extended_momentum_derivative', autospec=True,
-                                  side_effect=type(problem.dynamics).extended_momentum_derivative) as rate:
-                    energy = EnergyObserver().new_run(problem.dynamics.hamiltonian,
-                        problem.dynamics.extended_momentum_derivative, particle_count=problem.particle_count, initial_time=.3)
-                    result = run.advance(.3, run.initial_state, .02)
-                    energy.accept(0, .3, float(run.solver.t), result.quadrature)
-                    end = float(run.solver.t)
-                    self.assertEqual(rate.call_count, 8)
-                    dense = result.details.dense_state
-                    dense_momentum = energy.sample
-                    queries = np.array([.3, end, end, .3])
-                    history = dense(queries)
-                    momenta = dense_momentum(queries)
-                    initial = np.zeros(problem.particle_count)
-                    final = energy.momentum
-                    expected = np.stack((initial, final, final, initial), axis=-1)
-                    np.testing.assert_array_equal(momenta, expected)
-                    self.assertEqual(rate.call_count, 8)
-                    dense_momentum(end)[:] = 999.
-                    np.testing.assert_array_equal(dense_momentum(end), final)
-                    self.assertEqual(dense(np.empty(0)).shape, (run.initial_state.size, 0))
-                    midpoint = (.3 + end) / 2.
-                    interior = dense_momentum(midpoint)
-                    self.assertEqual(rate.call_count, 16)
-                    self.assertTrue(np.all(np.isfinite(interior)))
-                    # Advancing the physical solver alone cannot mutate the energy accumulator.
-                    run.advance(end, result.state, .02)
-                    count = rate.call_count
-                    np.testing.assert_array_equal(dense_momentum(end), final)
-                    self.assertEqual(rate.call_count, count)
-
-    def test_saving_adaptive_endpoints_does_not_repeat_energy_quadrature(self):
-        for cls in (DOP853, Radau):
-            with self.subTest(method=cls.__name__):
-                problem = _problem()
-                step = .32 - .3
-                request = SimulationRequest.uniform(t_span=(.3, .32),  sample_count=2)
-                with patch.object(type(problem.dynamics), 'extended_momentum_derivative', autospec=True,
-                                  side_effect=type(problem.dynamics).extended_momentum_derivative) as rate:
-                    result = simulate(problem.with_request(request), replace(cls(first_step=step), max_step=step), observers=(EnergyObserver(),))
-                self.assertEqual(result.n_steps, 1)
-                self.assertEqual(rate.call_count, 8)
-
-    def test_every_method_exposes_preparation_without_integrating(self):
-        for cls in (DOP853, Radau, ABBA2Implicit, ABBA2Midpoint, ABBA4Implicit,
-                     BM4Implicit, BM4Midpoint, ExplicitEuler, RK4,
-                    GaussLegendre4, SDIRK4, HBVM42):
-            self.assertIs(cls.new_run, IntegrationMethod.new_run)
-            self.assertFalse(hasattr(cls, "integrate"))
-
-    def test_states_work_and_accepted_intervals_match_scipy(self):
-        for cls in (DOP853, Radau):
-            for count in (2, 31):
-                with self.subTest(method=cls.__name__, outputs=count):
-                    request = replace(self.request, output_times=np.linspace(.3, .8, count))
-                    reference = solve_ivp(self.problem.dynamics.vector_field, request.t_span,
-                        self.problem.initial_state, method=cls.__name__, t_eval=request.output_times,
-                        max_step=.08, rtol=1e-10, atol=1e-12)
-                    events = []
-                    plain = simulate(self.problem.with_request(request), cls(max_step=.08))
-                    observed = simulate(self.problem.with_request(request), cls(max_step=.08), observers=(events.append,))
-                    np.testing.assert_array_equal(plain.states.T, reference.y)
-                    np.testing.assert_array_equal(observed.states, plain.states)
-                    for key, total in zip(('function_evaluations', 'jacobian_evaluations', 'lu_decompositions'),
-                                          (reference.nfev, reference.njev, reference.nlu)):
-                        self.assertEqual(int(np.sum(plain.diagnostics[key])), total)
-                        np.testing.assert_array_equal(plain.diagnostics[key], observed.diagnostics[key])
-                    self.assertEqual(len(events), plain.n_steps)
-                    self.assertTrue(np.all(np.asarray(plain.diagnostics['step_sizes']) > 0))
-                    self.assertTrue(np.all(np.asarray(plain.diagnostics['step_sizes']) <= .08 + 1e-16))
-                    self.assertEqual(events[-1].time, .8)
-                    self.assertFalse(hasattr(events[0], 'map_state'))
-                    angle = (request.output_times**2 - .3**2) / 2
-                    x, y = np.split(self.problem.initial_state, 2)
-                    exact = np.vstack((x[:, None] * np.cos(angle) - y[:, None] * np.sin(angle),
-                                       y[:, None] * np.cos(angle) + x[:, None] * np.sin(angle)))
-                    np.testing.assert_allclose(plain.states.T, exact, rtol=0, atol=2e-11)
-
-    def test_run_runs_are_fresh_and_snapshots_are_independent(self):
-        for cls in (DOP853, Radau):
-            events = []
-            def mutate(event):
-                time = (event.start_time + event.time) / 2
-                expected = event.dense_state(time)
-                event.state_before[:] = 999
-                event.state_after[:] = -999
-                event.dense_state(time)[:] = 999
-                np.testing.assert_array_equal(event.dense_state(time), expected)
-                events.append(event)
-            run = replace(cls(), max_step=0.08).new_run(self.problem.dynamics.vector_field, self.problem.initial_conditions, observe=True)
-            self.assertEqual(events, [])
-            plain = simulate(self.problem.with_request(self.request), replace(cls(), max_step=0.08))
-            with patch.object(cls, "new_run", return_value=run):
-                first = Execution().run(self.problem.with_request(self.request), replace(run, max_step=0.08), observers=(mutate,))
-            count = len(events)
-            second = simulate(self.problem.with_request(self.request), replace(cls(), max_step=0.08), observers=(mutate,))
-            self.assertEqual(len(events), 2 * count)
-            np.testing.assert_array_equal(first.states, plain.states)
-            np.testing.assert_array_equal(second.states, first.states)
-
-    def test_dense_retention_matches_scipy_at_unscheduled_times(self):
-        for cls in (DOP853, Radau):
-            observer = AdaptiveTrajectoryObserver()
-            configured = cls(dense_output=True)
-            actual = simulate(self.problem.with_request(self.request), replace(configured, max_step=0.08), observers=(observer,))
-            reference = solve_ivp(self.problem.dynamics.vector_field, self.request.t_span,
-                self.problem.initial_state, method=cls.__name__, max_step=.08,
-                rtol=1e-10, atol=1e-12, dense_output=True)
-            times = np.r_[.8, .3, .321, .644, .566, .799]
-            np.testing.assert_array_equal(observer.evaluate(times), reference.sol(times))
-            np.testing.assert_array_equal(observer.evaluate(.515), reference.sol(.515))
-            self.assertEqual(np.sum(actual.diagnostics['function_evaluations']), reference.nfev)
-            self.assertEqual(observer.evaluate(np.array([])).shape, (6, 0))
-            with self.assertRaisesRegex(ValueError, 'within'):
-                observer.evaluate(.9)
-
-    def test_energy_is_passive_and_matches_an_independent_augmented_reference(self):
-        problem = _problem()
-        for cls in (DOP853, Radau):
-            def derivative(t, z):
-                return np.r_[problem.dynamics.vector_field(t, z[:2]),
-                             problem.dynamics.extended_momentum_derivative(t, z[:2])]
-            request = SimulationRequest.uniform(t_span=(.3, .34),  sample_count=5)
-            reference = solve_ivp(derivative, request.t_span, np.r_[problem.initial_state, 0.],
-                method='DOP853', rtol=1e-13, atol=1e-15, max_step=.001, t_eval=request.output_times)
-            actual = simulate(problem.with_request(request), replace(cls(), max_step=0.02), observers=(EnergyObserver(),))
-            plain = simulate(problem.with_request(request), replace(cls(), max_step=0.02))
-            np.testing.assert_array_equal(actual.states, plain.states)
-            for key in ('step_times', 'function_evaluations', 'jacobian_evaluations', 'lu_decompositions'):
-                np.testing.assert_array_equal(actual.diagnostics[key], plain.diagnostics[key])
-            np.testing.assert_allclose(actual.diagnostics['extended_momentum'], reference.y[2:], rtol=1e-9, atol=1e-13)
-            np.testing.assert_array_equal(actual.diagnostics['extended_time'], actual.t[None, :])
-
-    def test_advance_keeps_one_live_solver_and_independent_runs(self):
-        for cls in (DOP853, Radau):
-            first = replace(cls(dense_output=True), max_step=0.08).new_run(self.problem.dynamics.vector_field, self.problem.initial_conditions, observe=True)
-            first.controller().prepare(first, self.request)
-            second = replace(cls(dense_output=True), max_step=0.08).new_run(self.problem.dynamics.vector_field, self.problem.initial_conditions, observe=True)
-            second.controller().prepare(second, self.request)
-            self.assertIsNot(first.solver, second.solver)
-            solver = first.solver
-            reference = cls.solver_type(self.problem.dynamics.vector_field, .3,
-                self.problem.initial_state, .8, max_step=.08, rtol=1e-10, atol=1e-12)
-            for _ in range(2):
-                start = float(solver.t)
-                before = solver.y.copy()
-                actual = first.advance(start, before, .08)
-                reference.step()
-                expected_dense = reference.dense_output()
-                self.assertIs(first.solver, solver)
-                self.assertEqual(solver.t, reference.t)
-                np.testing.assert_array_equal(actual.state, reference.y)
-                queries = np.linspace(start, reference.t, 7)
-                np.testing.assert_array_equal(actual.details.dense_state(queries), expected_dense(queries))
-            self.assertEqual(second.solver.t, .3)
-            self.assertEqual(second.accepted_steps, 0)
-            with self.assertRaisesRegex(ValueError, 'live solver state'):
-                first.advance(.3, self.problem.initial_state, .08)
-            with self.assertRaisesRegex(ValueError, 'finite and positive'):
-                first.advance(float(solver.t), solver.y.copy(), -1.)
-
-    def test_invalid_controls_and_failed_steps_are_reported(self):
-        for cls in (DOP853, Radau):
-            for options in ({'relative_tolerance': 0}, {'absolute_tolerance': np.nan}, {'first_step': -1}):
-                with self.assertRaises(ValueError):
-                    cls(**options)
-            with self.assertRaises(TypeError):
-                simulate(self.problem.with_request(self.request), cls(max_step=.08), observers=(EnergyObserver(),))
-            def fail(solver):
-                solver.status = 'failed'
-                return 'injected failure'
-            with patch.object(cls.solver_type, 'step', fail):
-                with self.assertRaisesRegex(RuntimeError, 'injected failure'):
-                    simulate(self.problem.with_request(self.request), replace(cls(), max_step=0.08))
-
-    def test_first_step_and_optional_radau_jacobian(self):
-        problem = InitialValueProblem(TimeDependentRotation(), np.array(np.array([1., 0.]), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
-        method = Radau(first_step=.01, jacobian=lambda t, z: t * np.array([[0., -1.], [1., 0.]]))
-        actual = simulate(problem.with_request(self.request), replace(method, max_step=0.08))
-        reference = solve_ivp(problem.dynamics.vector_field, self.request.t_span, problem.initial_state,
-            method='Radau', rtol=1e-10, atol=1e-12, max_step=.08, first_step=.01,
-            jac=method.jacobian, t_eval=self.request.output_times)
-        np.testing.assert_array_equal(actual.states.T, reference.y)
-        self.assertEqual(actual.diagnostics['first_step'], .01)
-
-
-if __name__ == '__main__':
-    unittest.main()
+	def test_reference_callback_failure_propagates(self):
+		problem=_problem()
+		def fail(*args):
+			raise RuntimeError('Reference cancelled')
+		with self.assertRaisesRegex(RuntimeError,'cancelled'):
+			_solve_adaptive(problem.dynamics,problem.initial_state,np.array([.3,.4]),
+				relative_tolerance=1e-11,absolute_tolerance=1e-13,maximum_step=.02,
+				method='DOP853',progress_callback=fail)

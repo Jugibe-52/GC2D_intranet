@@ -14,7 +14,7 @@ from execution.options import ExecutionOptions
 from problem import InitialValueProblem
 from request import SimulationRequest
 
-from methods.classical.rk4 import RK4
+from methods.runge_kutta.rk4 import RK4
 from potential.grid import Grid
 from potential.potential import Potential
 from simulation.runner import simulate
@@ -49,7 +49,7 @@ class Block:
 sys.meta_path.insert(0, Block())
 from execution.options import ExecutionOptions
 from request import SimulationRequest
-from methods.classical.rk4 import RK4
+from methods.runge_kutta.rk4 import RK4
 from simulation.runner import simulate
 from diagnostics.methods.energy import EnergyObserver
 p, r = problem(), SimulationRequest.uniform(t_span=(0., .01))
@@ -122,23 +122,22 @@ class JaxRK4Tests(unittest.TestCase):
                 with self.subTest(fc=fc, tracking=tracking):
                     self.assert_equivalent(problem(fc), request, tracking, step=.06)
 
-    def test_nonzero_observer_momentum_stays_separate_and_starts_fresh(self):
+    def test_endpoint_observer_starts_fresh_on_host_and_device(self):
         p = problem()
         request = SimulationRequest((.3, .43), np.array([.3, .301, .35, .41, .43]))
         method = RK4(step=.05)
-        initial = np.array([.7, -.2, 1.1])
-        observer = EnergyObserver(initial)
+        observer = EnergyObserver()
         reference = simulate(p.with_request(request), method, observers=(observer,))
         zero = simulate(p.with_request(request), method, options=self.execution, observers=(EnergyObserver(),))
         tracked = simulate(p.with_request(request), method, options=self.execution, observers=(observer,))
         again = simulate(p.with_request(request), method, options=self.execution, observers=(observer,))
         np.testing.assert_array_equal(tracked.states, zero.states)
-        np.testing.assert_allclose(tracked.diagnostics['extended_momentum'],
-            zero.diagnostics['extended_momentum'] + initial[:, None], rtol=0., atol=3e-16)
-        np.testing.assert_allclose(tracked.diagnostics['extended_momentum'],
-            reference.diagnostics['extended_momentum'], rtol=0., atol=3e-16)
-        np.testing.assert_array_equal(tracked.diagnostics['extended_momentum'], again.diagnostics['extended_momentum'])
-        np.testing.assert_array_equal(observer.initial_momentum, initial)
+        np.testing.assert_allclose(tracked.diagnostics['hamiltonian_time_derivative'],
+            zero.diagnostics['hamiltonian_time_derivative'], rtol=0., atol=3e-16)
+        np.testing.assert_allclose(tracked.diagnostics['hamiltonian_time_derivative'],
+            reference.diagnostics['hamiltonian_time_derivative'], rtol=0., atol=3e-16)
+        np.testing.assert_array_equal(tracked.diagnostics['hamiltonian_time_derivative'], again.diagnostics['hamiltonian_time_derivative'])
+        self.assertFalse(hasattr(observer, 'initial_momentum'))
 
     def test_sparse_sampling_shadow_independence_and_particle_independence(self):
         p = problem()
@@ -177,9 +176,9 @@ class JaxRK4Tests(unittest.TestCase):
                 simulate(p.with_request(r), RK4(), options=self.execution)
         finally:
             self.jax.config.update("jax_enable_x64", True)
-        for method, observers in ((RK4(progress=True), ()), (RK4(), (lambda event: None,))):
+        for progress, observers in ((True, ()), (False, (lambda event: None,))):
             with self.assertRaisesRegex(NotImplementedError, "callbacks"):
-                simulate(p.with_request(r), method, options=self.execution, observers=observers)
+                simulate(p.with_request(r), RK4(), options=ExecutionOptions(backend="jax", progress=progress), observers=observers)
         class CustomDynamics(GuidingCenterDynamics):
             def vector_field(self, time, state):
                 return np.zeros_like(state)

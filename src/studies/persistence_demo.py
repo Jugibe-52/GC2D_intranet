@@ -17,7 +17,7 @@ from problem import InitialValueProblem
 from request import SimulationRequest
 from diagnostics.io.persistence import save_solution
 
-from methods.classical.rk4 import RK4
+from methods.runge_kutta.rk4 import RK4
 from potential.potential import Potential
 from simulation.runner import simulate
 from states.history import States

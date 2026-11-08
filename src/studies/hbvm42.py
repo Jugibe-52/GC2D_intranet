@@ -1,6 +1,7 @@
 """Reproducible HBVM(4,2) evaluation and BM4 comparison studies."""
 
 from __future__ import annotations
+from execution.options import ExecutionOptions
 
 from diagnostics.methods.energy import EnergyObserver
 
@@ -16,12 +17,12 @@ from types import MappingProxyType
 from typing import Callable, Mapping, TYPE_CHECKING
 
 import numpy as np
-from methods.adaptive.scipy import DOP853
+from studies.reference_trajectory import _solve_adaptive
 
 from contracts.dynamics.protocols import DynamicalSystem, HamiltonianSystem
 from dynamics import GuidingCenterDynamics
 
-from methods.extended.bm4 import BM4Implicit
+from methods.palindromic.bm4_implicit import BM4Implicit
 from methods.hbvm.order4 import HBVM42, HBVMJacobianMethod
 from problem import InitialValueProblem
 from methods.base import FixedStepMethod
@@ -109,9 +110,9 @@ class QuarticOscillatorDynamics:
 			+ 0.25 * self.quartic_strength * position**4
 		)
 
-	def extended_momentum_derivative(self, t: float, state: np.ndarray) -> np.ndarray:
+	def hamiltonian_time_derivative(self, t: float, state: np.ndarray) -> np.ndarray:
 		"""Return zero for each autonomous oscillator's passive energy balance."""
-		return np.zeros(self._split(state)[0].shape[0])
+		return np.zeros_like(self._split(state)[0])
 
 
 def quartic_oscillator_configuration(
@@ -367,8 +368,8 @@ def _reference_solution(
 ) -> np.ndarray:
 	"""Compute an independent high-accuracy DOP853 reference on fixed times."""
 	request: SimulationRequest = SimulationRequest((float(times[0]), float(times[-1])),  times)
-	return simulate(problem.with_request(request), DOP853(max_step=maximum_step, relative_tolerance=relative_tolerance,
-		absolute_tolerance=absolute_tolerance)).states.T
+	return _solve_adaptive(problem.dynamics, problem.initial_state, times, method="DOP853",
+		maximum_step=maximum_step, relative_tolerance=relative_tolerance, absolute_tolerance=absolute_tolerance)[0]
 
 
 def _hbvm_method(
@@ -376,7 +377,7 @@ def _hbvm_method(
 ) -> HBVM42:
 	"""Construct one identically configured HBVM instance."""
 	return HBVM42(
-		progress=config.progress,
+
 		solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method=config.jacobian_method, jacobian_relative_step=config.jacobian_relative_step, backtracking=True),
 	)
 
@@ -489,7 +490,7 @@ def run_hbvm42_evaluation(
 			t_span=config.t_span,
 			output_times=times,
 		)
-		solution: States = simulate(problem.with_request(request), replace(_hbvm_method(config), step=step), observers=(EnergyObserver(),))
+		solution: States = simulate(problem.with_request(request), replace(_hbvm_method(config), step=step), observers=(EnergyObserver(),), options=ExecutionOptions(progress=config.progress))
 		solutions[step] = solution
 		differences = solution.states.T - reference_states
 		distances: np.ndarray = np.linalg.norm(differences, axis=0)
@@ -550,7 +551,7 @@ def run_hbvm42_evaluation(
 				final_error=final_error,
 				median_runtime_seconds=median_runtime,
 				minimum_runtime_seconds=minimum_runtime,
-				maximum_absolute_energy_error=float(solution.diagnostics["energy_error"]),
+				maximum_absolute_energy_error=float(np.max(np.abs(energies - energies[:, :1]))),
 				maximum_relative_energy_error=float(
 					np.max(np.abs(energies - energies[:, :1])) / energy_scale
 				),
@@ -631,7 +632,7 @@ def run_hbvm42_bm4_comparison(
 		(
 			BM4_LABEL,
 			lambda: BM4Implicit(
-				progress=config.progress,
+
 				solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method=bm4_jacobian_method, jacobian_relative_step=config.jacobian_relative_step),
 			),
 		),

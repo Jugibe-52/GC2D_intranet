@@ -20,9 +20,8 @@ src/contracts/
 │   ├── quadrature.py
 │   ├── observation.py
 │   ├── step.py
-│   ├── adaptive/scipy.py
-│   ├── classical/gauss_legendre.py
-│   └── extended/
+│   ├── runge_kutta/gauss_legendre.py
+│   └── palindromic/
 │       ├── abba.py
 │       ├── bm4.py
 │       └── core/records.py
@@ -70,12 +69,7 @@ RMS, energy, and recurrence calculations remain in `diagnostics.studies`.
 Implementations such as `IntegrationMethod`, `InitialValueProblem`, `States`,
 and projection equations remain in their own domains.
 
-Common observation records live in `methods/observation.py`; adaptive observations
-live in `methods/adaptive/scipy.py`, Gauss observations in
-`methods/classical/gauss_legendre.py`, and ABBA/BM4 observations in their
-`methods/extended/` modules. The old flat `observation.py` and `study_results.py`
-modules are removed. See [API migration](api-migration.md#contracts-organized-by-source-domain)
-for removed paths and archive compatibility.
+Common observation records live in `methods/observation.py`; Gauss records live in `methods/runge_kutta/gauss_legendre.py`, and ABBA/BM4 records in `methods/palindromic/`. Adaptive method observations are retired. The old flat `observation.py` and `study_results.py` modules are removed. See [API migration](api-migration.md#contracts-organized-by-source-domain) for removed paths and archive compatibility.
 
 Standalone cloud bundles include the complete contracts package to avoid
 shadowing scientific modules with a partial package. The transfer environment
@@ -87,15 +81,6 @@ Map and projection contracts belong to `contracts.methods`; `StateLayout` belong
 
 ## Shared numerical arrays
 
-`NumericalMethod` requires numerical preparation, without a backend declaration.
-`StepResult` carries native physical arrays, work, quadrature and convergence.
-`AdaptiveStepDetails` in `methods/adaptive/scipy.py` shares a frozen interpolant
-and its evaluation counts between the numerical adapter and the execution
-scheduler, without retaining the output request.
-`contracts.arrays` selects compatible array operations and preserves finite-value
-guards while tracing; it does not choose a device or physical algorithm.
-Execution registers numerical payload records at its optional JAX boundary and
-compiles the same fixed `advance` function. Host observation adapters and saved
-results retain NumPy arrays. See [JAX execution](jax-execution.md).
+`NumericalMethod` requires function binding and temporary InitialConditions, without a backend declaration. `StepResult` carries native physical arrays, work, optional quadrature and convergence. `CompiledStep` returns physical state, statistics and convergence. `contracts.arrays` selects compatible array operations and preserves finite-value guards while tracing; it does not choose a device or physical algorithm. Execution registers numerical payloads at its optional JAX boundary and owns device preparation.
 
 Native mapping, ordered folds and branch selection also share numerical functions without unrolling long compositions during compilation.

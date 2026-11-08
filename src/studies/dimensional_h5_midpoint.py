@@ -18,7 +18,7 @@ from problem import InitialValueProblem
 from request import SimulationRequest
 from dynamics import GuidingCenterDynamics
 
-from methods.extended.bm4 import BM4Midpoint
+from methods.palindromic.bm4_midpoint import BM4Midpoint
 from potential.load import DEFAULT_FIELD_INDICES
 from potential import GC2DH5Metadata, Grid, Potential
 from simulation.runner import simulate

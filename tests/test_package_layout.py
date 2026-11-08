@@ -24,7 +24,7 @@ from simulation import (
 	ABBA2Midpoint, ABBA2Implicit, ABBA4Implicit, ABBA4_PROJECTION_PLACEMENTS,
 	ABBA_PROJECTION_FORMULATIONS, ABBA_STATE_EXTENSIONS, BM4Implicit, BM4Midpoint, ExplicitEuler, RK4,
 )
-from methods import extended, classical
+from methods import palindromic, runge_kutta
 
 
 class PackageLayoutTests(unittest.TestCase):
@@ -75,23 +75,23 @@ class PackageLayoutTests(unittest.TestCase):
 		)
 		self.assertIsNotNone(RK4)
 		self.assertIsNotNone(ExplicitEuler)
-		for name in extended.__all__:
-			self.assertIs(getattr(extended, name), getattr(simulation, name))
-			self.assertIs(getattr(extended, name), getattr(methods, name))
-		self.assertIs(classical.RK4, RK4)
+		for name in palindromic.__all__:
+			self.assertIs(getattr(palindromic, name), getattr(simulation, name))
+			self.assertIs(getattr(palindromic, name), getattr(methods, name))
+		self.assertIs(runge_kutta.RK4, RK4)
 		for module in (
 			"contracts.dynamics.coordinates", "problem", "request", "execution.options",
 			"contracts.methods.observation", "contracts.states.history", "contracts.methods.step",
-			"methods.extended.maps", "methods.splitting", "formulations.state",
-			"execution._host", "methods.base", "methods.extended", "methods.classical",
-			"methods.adaptive", "methods.hbvm", "execution.execution", "simulation.runner", "states.history", "execution.state", "dynamics.coordinates",
+			"methods.palindromic.maps", "methods.splitting", "formulations.state",
+			"execution._host", "methods.base", "methods.palindromic", "methods.runge_kutta",
+			"methods.hbvm", "execution.execution", "simulation.runner", "states.history", "execution.state", "dynamics.coordinates",
 		):
 			with self.subTest(module=module):
 				self.assertIsNotNone(importlib.util.find_spec(module))
 
 	def test_removed_abba6_interfaces_are_absent(self) -> None:
 		import studies
-		from contracts.methods.extended import abba as records
+		from contracts.methods.palindromic import abba as records
 		for namespace, names in (
 			(simulation, ('ABBA6Implicit', 'ABBA6ImplicitIntegrationStep')),
 			(records, ('ABBA6ImplicitIntegrationStep',)),
@@ -103,7 +103,7 @@ class PackageLayoutTests(unittest.TestCase):
 		self.assertIsNone(importlib.util.find_spec('studies.abba6_accuracy'))
 
 	def test_public_exports_are_explicit_and_resolve(self) -> None:
-		for namespace in (simulation, methods, extended, classical, formulations, execution, diagnostics, problem):
+		for namespace in (simulation, methods, palindromic, runge_kutta, formulations, execution, diagnostics, problem):
 			with self.subTest(namespace=namespace.__name__):
 				self.assertEqual(len(namespace.__all__), len(set(namespace.__all__)))
 				for name in namespace.__all__:
@@ -117,11 +117,10 @@ class PackageLayoutTests(unittest.TestCase):
 	def test_diagnostic_public_names_resolve_to_process_implementations(self) -> None:
 		"""Public observers and persistence keep one implementation after relocation."""
 		for name, module in {
-			"AdaptiveTrajectoryObserver": "methods.adaptive.trajectory",
 			"ImplicitABBAIterationObserver": "methods.implicit_iterations",
-			"ImplicitABBAJacobianObserver": "methods.extended.abba_jacobian.observer",
-			"ImplicitABBAReversibilityObserver": "methods.extended.abba_reversibility",
-			"GCGeneralizedEnergyObserver": "methods.extended.energy.observer",
+			"ImplicitABBAJacobianObserver": "methods.palindromic.abba_jacobian.observer",
+			"ImplicitABBAReversibilityObserver": "methods.palindromic.abba_reversibility",
+			"GCGeneralizedEnergyObserver": "methods.palindromic.energy.observer",
 			"GCTrajectorySymplecticityObserver": "methods.trajectory_symplecticity.observer",
 			"load_solution": "io.persistence",
 			"save_solution": "io.persistence",
@@ -195,7 +194,7 @@ builtins.__import__ = without_optional_backends
 importlib.import_module(sys.argv[1])
 from execution import Execution, FixedStepController, IntegrationState
 from execution.options import ExecutionOptions
-from methods import DOP853, IntegrationMethod, RK4
+from methods import IntegrationMethod, RK4
 from potential import Potential
 from dynamics import GuidingCenterDynamics
 from problem import InitialValueProblem
@@ -208,10 +207,10 @@ request = SimulationRequest((0., .02), np.array([0., .005, .02]))
 assert pickle.loads(pickle.dumps(ExecutionOptions())) == ExecutionOptions()
 restored_problem = pickle.loads(pickle.dumps(problem))
 np.testing.assert_array_equal(restored_problem.initial_state, problem.initial_state)
-for method in (RK4(step=.01), DOP853(max_step=.01)):
+for method in (RK4(step=.01),):
     restored = pickle.loads(pickle.dumps(method))
     run = restored.new_run(problem.dynamics.vector_field, problem.initial_conditions,
-        jacobian=problem.dynamics.particle_vector_field_jacobians, jacobian_structure='particle')
+        jacobian=problem.dynamics.particle_vector_field_jacobians)
     assert isinstance(run, IntegrationMethod)
     result = Execution().run(problem.with_request(request), restored)
     np.testing.assert_array_equal(result.times, request.output_times)
@@ -245,6 +244,8 @@ assert not any(name.split(".")[0] in ("jax", "modal", "integration")
 			self.assertIsNone(importlib.util.find_spec(package), package)
 		for module in (
 			"contracts.problem", "contracts.execution_options",
+			"methods.extended", "contracts.methods.extended", "diagnostics.methods.extended",
+			"methods.palindromic.abba", "methods.palindromic.bm4", "methods.palindromic.palindromic",
 			"execution._fixed", "execution._jax_run", "dynamics._jax_host",
 			"integration.core", "integration.state", "integration.jax_fixed",
 			"simulation.methods", "simulation.formulations", "simulation.integration",
@@ -267,7 +268,7 @@ assert not any(name.split(".")[0] in ("jax", "modal", "integration")
 		for namespace in (
 			simulation,
 			methods,
-			extended,
+			palindromic,
 		):
 			for name in (
 				"SymmetricProjectedABBA",

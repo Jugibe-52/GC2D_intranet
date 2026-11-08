@@ -56,12 +56,12 @@ class _RotationHamiltonian:
 		y = state[particle_count:]
 		return 0.5 * (x**2 + y**2)
 
-	def extended_momentum_derivative(
+	def hamiltonian_time_derivative(
 		self,
 		_time: float,
 		state: np.ndarray,
 	) -> np.ndarray:
-		return np.zeros(state.shape[0] // 2)
+		return np.zeros_like(state[:state.shape[0] // 2])
 
 
 class _CubicTimeField:
@@ -182,8 +182,8 @@ class SDIRK4Tests(unittest.TestCase):
 		plain = simulate(problem.with_request(request), SDIRK4(step=0.1))
 		tracked = simulate(problem.with_request(request), SDIRK4(step=0.1), observers=(EnergyObserver(),))
 		np.testing.assert_array_equal(plain.states, tracked.states)
-		assert tracked.k is not None
-		np.testing.assert_array_equal(tracked.k, 0.0)
+		self.assertIsNone(tracked.k)
+		np.testing.assert_array_equal(tracked.diagnostics['hamiltonian_time_derivative'], 0.0)
 
 
 if __name__ == "__main__":

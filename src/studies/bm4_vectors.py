@@ -2,8 +2,8 @@
 
 from dataclasses import dataclass, replace
 import numpy as np
-from diagnostics.methods.extended.bm4_vectors import BM4VectorObserver
-from methods.extended.bm4 import BM4Implicit
+from diagnostics.methods.palindromic.bm4_vectors import BM4VectorObserver
+from methods.palindromic.bm4_implicit import BM4Implicit
 from problem import InitialValueProblem
 from request import SimulationRequest
 from states.history import States

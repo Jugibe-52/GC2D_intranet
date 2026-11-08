@@ -19,8 +19,8 @@ from study_io import assert_checkpoint_file, ROOT, atomic_json, digest, load_sna
 
 
 if TYPE_CHECKING:
-	from methods.extended.core.midpoint import MidpointResult
-	from methods.extended.core.records import ProjectedMapResult
+	from methods.palindromic.core.midpoint import MidpointResult
+	from methods.palindromic.core.records import ProjectedMapResult
 	from potential.potential import Potential
 
 
@@ -46,10 +46,10 @@ def calculate_checkpointed_group(
     from dynamics import GuidingCenterDynamics
     import numpy as np
     from problem import InitialValueProblem
-    from methods.extended.maps import GCDoubledMaps
-    from methods.extended.bm4 import BM4Midpoint
-    from methods.extended.core.projection import solve_projection
-    from methods.extended.core.midpoint import midpoint_step
+    from methods.palindromic.maps import GCDoubledMaps
+    from methods.palindromic.bm4_midpoint import BM4Midpoint
+    from methods.palindromic.core.projection import solve_projection
+    from methods.palindromic.core.midpoint import midpoint_step
     from solvers.nonlinear import NewtonSolver
     import parallel_calculation
 

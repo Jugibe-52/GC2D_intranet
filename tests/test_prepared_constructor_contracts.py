@@ -8,8 +8,8 @@ import numpy as np
 from contracts.studies.comparison import EnergyAccuracySeries, TrajectoryAccuracySeries
 from dynamics.fc import FullCyclotronDynamics
 from dynamics.gc import GuidingCenterDynamics
-from methods.classical.gauss_legendre import GaussLegendre4
-from methods.classical.sdirk import SDIRK4
+from methods.runge_kutta.gauss_legendre import GaussLegendre4
+from methods.runge_kutta.sdirk import SDIRK4
 from potential.potential import Potential
 from solvers.nonlinear import BroydenSolver, NewtonSolver
 from states.history import States

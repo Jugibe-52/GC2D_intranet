@@ -1,6 +1,7 @@
 """Numerical accuracy and runtime contracts for arithmetic-projected BM4."""
 
 from diagnostics.methods.energy import EnergyObserver
+from studies._generalized_energy import simulate_generalized_energy
 from solvers import NewtonSolver
 from dataclasses import replace
 
@@ -14,7 +15,7 @@ from dynamics import GuidingCenterDynamics
 
 from potential import Potential
 from simulation import BM4Midpoint, InitialValueProblem, SimulationRequest, simulate
-from methods.extended.maps import GCDoubledMaps
+from methods.palindromic.maps import GCDoubledMaps
 
 
 class _Rotation:
@@ -87,11 +88,11 @@ class BM4MidpointTests(unittest.TestCase):
 		problem = _gc_problem(np.asarray([1., 1.1, 1.2, 0.9]))
 		request = SimulationRequest.uniform(t_span=(0.2, 0.4),  sample_count=5)
 		plain = simulate(problem.with_request(request), BM4Midpoint(step=0.05))
-		tracked = simulate(problem.with_request(request), BM4Midpoint(step=0.05), observers=(EnergyObserver(),))
+		tracked = simulate_generalized_energy(problem.with_request(request), BM4Midpoint(step=0.05))
 		np.testing.assert_array_equal(plain.states, tracked.states)
 		for particle in range(2):
 			indices = [particle, particle + 2]
-			scalar = simulate(InitialValueProblem(problem.dynamics, np.array(problem.initial_state[indices], dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates).with_request(request), BM4Midpoint(step=0.05), observers=(EnergyObserver(),))
+			scalar = simulate_generalized_energy(InitialValueProblem(problem.dynamics, np.array(problem.initial_state[indices], dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates).with_request(request), BM4Midpoint(step=0.05))
 			np.testing.assert_allclose(tracked.states[:, indices], scalar.states, atol=2e-15)
 			np.testing.assert_allclose(tracked.diagnostics["extended_momentum"][particle],
 				scalar.diagnostics["extended_momentum"][0], atol=2e-15)
@@ -118,8 +119,8 @@ class BM4MidpointTests(unittest.TestCase):
 				sparse = simulate(problem.with_request(SimulationRequest.uniform(t_span=(0.3, 0.5), sample_count=2)), BM4Midpoint(extension, step=0.1), observers=(EnergyObserver(),) if tracking else ())
 				np.testing.assert_array_equal(dense.states[-1], sparse.states[-1])
 				if tracking:
-					np.testing.assert_array_equal(dense.diagnostics["extended_time"], dense.t[None, :])
-					self.assertEqual(dense.diagnostics["extended_momentum_normalization"], "physical_kappa")
+					np.testing.assert_array_equal(dense.diagnostics["hamiltonian_time_derivative"], problem.dynamics.hamiltonian_time_derivative(dense.t, dense.states.T))
+					self.assertNotIn("extended_momentum", dense.diagnostics)
 
 	def test_invalid_configuration_and_energy_capability(self) -> None:
 		for frequency in (0., .7, -1., np.nan, np.inf):

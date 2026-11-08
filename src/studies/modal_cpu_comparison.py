@@ -18,7 +18,7 @@ from request import SimulationRequest
 from diagnostics.io.persistence import load_solution, save_solution
 from execution.execution_modal import Execution_Modal
 from states.generators import radial_star
-from methods.extended.bm4 import BM4Midpoint
+from methods.palindromic.bm4_midpoint import BM4Midpoint
 from potential.load import DEFAULT_FIELD_INDICES
 from potential.potential import Potential
 from simulation.runner import simulate
@@ -110,7 +110,7 @@ def run_cpu_star_comparison(
     problem: InitialValueProblem
     request: SimulationRequest
     problem, request = build_star_problem(potential, config)
-    method: BM4Midpoint = BM4Midpoint(step=1.0 / config.steps_per_cycle, progress=False)
+    method: BM4Midpoint = BM4Midpoint(step=1.0 / config.steps_per_cycle)
     options: ExecutionOptions = ExecutionOptions(backend='jax', device='cpu')
     solutions: dict[int, States]
     records: dict[str, dict[str, Any]]

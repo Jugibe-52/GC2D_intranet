@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from typing import Any, Protocol, TYPE_CHECKING, runtime_checkable
-from contracts.methods.functions import JacobianStructure, VectorField
+from contracts.methods.functions import VectorField
 if TYPE_CHECKING:
 	from methods.base import IntegrationMethod
 	from states.initial import InitialConditions
@@ -15,8 +15,7 @@ class NumericalMethod(Protocol):
 
 	def new_run(
 		self, f: VectorField, initial_conditions: InitialConditions,
-		*, jacobian: VectorField | None = None, jacobian_structure: JacobianStructure = "dense",
-		observe: bool = False, capture_quadrature: bool = False,
+		*, jacobian: VectorField | None = None,
 	) -> IntegrationMethod[Any]: ...
 
 

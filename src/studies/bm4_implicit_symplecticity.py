@@ -14,7 +14,7 @@ import numpy as np
 
 
 from potential import Potential
-from methods.extended.bm4 import BM4Implicit
+from methods.palindromic.bm4_implicit import BM4Implicit
 
 from ._gc_symplecticity import (
 	GCSymplecticityResult,
@@ -111,7 +111,7 @@ def run_bm4_implicit_symplecticity_study(
 		notebook_path=notebook_path,
 		config=config,
 		method_factory=lambda: BM4Implicit(
-			progress=config.progress,
+
 			solver=NewtonSolver(absolute_tolerance=config.newton_absolute_tolerance, relative_tolerance=config.newton_relative_tolerance, max_iterations=config.newton_max_iterations, jacobian_relative_step=config.newton_jacobian_relative_step, jacobian_method='analytic'),
 		),
 		result_type=BM4ImplicitSymplecticityResult,

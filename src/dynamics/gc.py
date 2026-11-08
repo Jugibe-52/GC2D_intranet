@@ -127,21 +127,26 @@ class GuidingCenterDynamics:
 		x, y = self.coordinates.split(state)
 		return self.hamiltonian_potential.evaluate(t, x, y)
 
-	def extended_momentum_derivative(
+	def hamiltonian_time_derivative(
 		self,
 		t: Any,
 		state: Any,
 	) -> Any:
-		"""Evaluate the time-conjugate momentum derivative."""
+		"""Evaluate positive partial_t H in the physical Hamiltonian normalization."""
 		x: BackendArray
 		y: BackendArray
 		x, y = self.coordinates.split(state)
-		return -self.hamiltonian_potential.evaluate(
+		return self.hamiltonian_potential.evaluate(
 			t,
 			x,
 			y,
 			dt=1,
 		)
+
+	def extended_momentum_derivative(self, t: Any, state: Any) -> Any:
+		"""Return -partial_t H for specialized time-extended diagnostics."""
+		return -self.hamiltonian_time_derivative(t, state)
+
 
 
 __all__ = ["GuidingCenterDynamics"]
