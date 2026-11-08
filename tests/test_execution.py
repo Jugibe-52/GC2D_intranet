@@ -70,6 +70,37 @@ class ExecutionTests(unittest.TestCase):
         np.testing.assert_array_equal(default.states, explicit.states)
         self.assertFalse(explicit.states.flags.writeable)
 
+    def test_explicit_execution_does_not_access_a_derivative_provider(self):
+        class DerivativeForbidden(RotationDynamics):
+            @property
+            def particle_vector_field_jacobians(self):
+                raise AssertionError('Explicit execution must not request a derivative.')
+
+        problem = InitialValueProblem(DerivativeForbidden(), self.problem.initial_conditions,
+            request=self.request)
+        actual = simulate(problem, self.method)
+        expected = simulate(self.problem, self.method)
+        np.testing.assert_array_equal(actual.states, expected.states)
+
+    def test_implicit_execution_passes_available_derivatives_to_extensions(self):
+        from methods.runge_kutta.gauss_legendre import GaussLegendre4
+
+        class RotationWithDerivative(RotationDynamics):
+            def particle_vector_field_jacobians(self, time, state):
+                return np.broadcast_to([[0., 1.], [-1., 0.]], (state.size // 2, 2, 2))
+
+        class ExtendedGauss(GaussLegendre4):
+            pass
+
+        dynamics = RotationWithDerivative()
+        problem = InitialValueProblem(dynamics, self.problem.initial_conditions, request=self.request)
+        method = ExtendedGauss(step=.01)
+        with patch.object(method, 'new_run', wraps=method.new_run) as prepare:
+            result = simulate(problem, method)
+        prepare.assert_called_once_with(dynamics.vector_field, problem.initial_conditions,
+            jacobian=dynamics.particle_vector_field_jacobians)
+        np.testing.assert_allclose(result.states[-1], [np.cos(.2), -np.sin(.2)], atol=1e-10)
+
     def test_simulation_dispatches_one_complete_job_to_the_subclass(self):
         data = Execution().run(self.problem.with_request(self.request), self.method)
         executor = ReturnedExecution(data)
@@ -115,8 +146,7 @@ class ExecutionTests(unittest.TestCase):
         with patch.object(RK4, "new_run", return_value=run) as prepare:
             with patch.object(run, "controller", wraps=run.controller) as controller:
                 result = Execution().run(self.problem.with_request(self.request), self.method)
-        prepare.assert_called_once_with(self.problem.dynamics.vector_field, self.problem.initial_conditions,
-                                        jacobian=None)
+        prepare.assert_called_once_with(self.problem.dynamics.vector_field, self.problem.initial_conditions)
         controller.assert_called_once_with()
         self.assertEqual(run._status, "finished")
         self.assertEqual(result.diagnostics["execution_backend"], "scipy")
@@ -127,9 +157,9 @@ class ExecutionTests(unittest.TestCase):
 
         class ExternalMethod:
 
-            def new_run(self, f, initial_conditions, **kwargs):
+            def new_run(self, f, initial_conditions):
                 calls.append((f, initial_conditions))
-                return RK4(step=.01).new_run(f, initial_conditions, **kwargs)
+                return RK4(step=.01).new_run(f, initial_conditions)
 
         for options in (None, ExecutionOptions()):
             with self.subTest(options=options):

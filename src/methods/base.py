@@ -42,7 +42,6 @@ class IntegrationMethod(ABC, Generic[Detail]):
 	"""A numerical algorithm with fresh resources for each function binding."""
 
 	f: VectorField
-	jacobian: VectorField | None
 	metadata: Mapping[str, DiagnosticValue]
 	_status: str = "configuration"
 	copies: ClassVar[int] = 1
@@ -53,23 +52,30 @@ class IntegrationMethod(ABC, Generic[Detail]):
 
 	def new_run(
 		self, f: VectorField, initial_conditions: InitialConditions,
-		*, jacobian: VectorField | None = None,
 	) -> Self:
 		"""Bind fresh numerical resources without retaining physical initial data."""
+		method: Self = self._copy_for_run(f, initial_conditions)
+		method._initialize_run(initial_conditions)
+		return method
+
+	def _copy_for_run(self, f: VectorField, initial_conditions: InitialConditions) -> Self:
+		"""Copy configuration before binding family-specific numerical resources."""
 		if not is_dataclass(self):
 			raise TypeError("Numerical methods must declare their options as dataclass fields.")
-		if not callable(f) or (jacobian is not None and not callable(jacobian)):
-			raise TypeError("Supply a field function and an optional Jacobian function.")
+		if not callable(f):
+			raise TypeError("Supply a field function.")
 		if not isinstance(initial_conditions, InitialConditions):
 			raise TypeError("Supply physical InitialConditions for method preparation.")
 		method: Self = replace(self)
 		method.f = f
-		method.jacobian = jacobian
 		method.metadata = {}
-		method.initialize(initial_conditions)
-		method.metadata = _readonly_metadata({**method.metadata, **method._state_metadata(initial_conditions.values.size)})
-		method._status = "ready"
 		return method
+
+	def _initialize_run(self, initial_conditions: InitialConditions) -> None:
+		"""Finalize a fresh binding after all required functions are available."""
+		self.initialize(initial_conditions)
+		self.metadata = _readonly_metadata({**self.metadata, **self._state_metadata(initial_conditions.values.size)})
+		self._status = "ready"
 
 	@abstractmethod
 	def initialize(self, initial_conditions: InitialConditions) -> None:

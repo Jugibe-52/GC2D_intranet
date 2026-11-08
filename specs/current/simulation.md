@@ -2,7 +2,7 @@
 schema_version = 1
 kind = "spec"
 id = "simulation"
-sources = ["src/methods/palindromic/base.py", "src/methods/palindromic/projected_base.py", "src/methods/palindromic/midpoint_base.py", "src/methods/palindromic/abba2_implicit.py", "src/methods/palindromic/abba4_implicit.py", "src/methods/palindromic/abba2_midpoint.py", "src/methods/palindromic/bm4_implicit.py", "src/methods/palindromic/bm4_midpoint.py", "src/methods/palindromic/implicit.py", "src/methods/palindromic/midpoint.py", "src/methods/runge_kutta/base.py", "src/methods/runge_kutta/tableau.py", "src/methods/runge_kutta/explicit.py", "src/methods/runge_kutta/diagonally_implicit.py", "src/methods/runge_kutta/implicit.py", "src/contracts/methods/runge_kutta/gauss_legendre.py", "src/dynamics/gc.py", "src/contracts/methods/functions.py", "src/contracts/methods/quadrature.py", "src/diagnostics/methods/energy.py", "src/solvers/derivatives.py", "src/formulations/state.py", "src/states/initial.py", "src/solvers/nonlinear.py", "src/methods/projection.py", "src/methods/palindromic/core/projection.py", "src/simulation/runner.py", "src/problem.py", "src/request.py", "src/execution/execution.py", "src/execution/_plan.py", "src/contracts/execution/plan.py", "src/execution/_jax_step.py", "src/execution/_jax_fixed.py", "src/execution/_jax.py", "src/dynamics/jax_dynamics.py", "src/dynamics/jax_coordinates.py", "src/methods/base.py", "src/execution/options.py", "src/contracts/arrays.py", "src/contracts/methods/base.py", "src/contracts/execution/controllers.py", "src/contracts/dynamics/protocols.py", "src/contracts/methods/maps.py", "src/contracts/methods/projection.py"]
+sources = ["src/methods/palindromic/base.py", "src/methods/palindromic/projected_base.py", "src/methods/palindromic/midpoint_base.py", "src/methods/palindromic/abba2_implicit.py", "src/methods/palindromic/abba4_implicit.py", "src/methods/palindromic/abba2_midpoint.py", "src/methods/palindromic/bm4_implicit.py", "src/methods/palindromic/bm4_midpoint.py", "src/methods/palindromic/implicit.py", "src/methods/palindromic/midpoint.py", "src/methods/runge_kutta/base.py", "src/methods/runge_kutta/tableau.py", "src/methods/runge_kutta/explicit.py", "src/methods/runge_kutta/diagonally_implicit.py", "src/methods/runge_kutta/implicit.py", "src/contracts/methods/runge_kutta/gauss_legendre.py", "src/dynamics/gc.py", "src/contracts/methods/functions.py", "src/contracts/methods/quadrature.py", "src/diagnostics/methods/energy.py", "src/solvers/derivatives.py", "src/formulations/state.py", "src/states/initial.py", "src/solvers/nonlinear.py", "src/methods/projection.py", "src/methods/palindromic/core/projection.py", "src/simulation/runner.py", "src/problem.py", "src/request.py", "src/execution/execution.py", "src/execution/_plan.py", "src/contracts/execution/plan.py", "src/execution/_jax_step.py", "src/execution/_jax_fixed.py", "src/execution/_jax.py", "src/dynamics/jax_dynamics.py", "src/dynamics/jax_coordinates.py", "src/methods/base.py", "src/methods/implicit.py", "src/execution/options.py", "src/contracts/arrays.py", "src/contracts/methods/base.py", "src/contracts/execution/controllers.py", "src/contracts/dynamics/protocols.py", "src/contracts/methods/maps.py", "src/contracts/methods/projection.py"]
 documents = ["docs/simulation/runge-kutta.md", "docs/simulation/initial-solvers-formulations.md", "docs/simulation/integration-architecture.md", "docs/simulation/execution.md", "docs/simulation/jax-execution.md"]
 
 [[requirements]]
@@ -103,7 +103,21 @@ run before result allocation. Custom controllers retain their own policies.
 See [shared planning](../../docs/simulation/execution.md#shared-fixed-step-plan)
 and `tests/test_fixed_step_plan.py`.
 
-`new_run(f, initial_conditions, *, jacobian=None)` creates a fresh run and calls `initialize(initial_conditions)`. Initial data and layout are temporary preparation inputs: the numerical base retains only functions, numerical metadata, run status and copy count. Execution owns the initial snapshot and passes it explicitly to controllers. Supplied Jacobians have independent particle shape `(N,d,d)`; finite-difference Jacobians remain dense. There is no `jacobian_structure`, `capture_quadrature` or method-level `progress` option.
+`IntegrationMethod.new_run(f, initial_conditions)` prepares a fresh run without
+an algebraic solver or Jacobian. `ImplicitIntegrationMethod` in `methods.implicit`
+adds `new_run(f, initial_conditions, *, jacobian=None)` and the solver contract;
+concrete families retain their defaults. Both bases are exported from `methods`.
+Explicit methods use the common base and reject the `jacobian` keyword. There
+is no separate explicit base. Execution supplies derivatives only to implicit
+configurations, and JAX reads derivative settings only for those runs.
+
+Both paths call `initialize(initial_conditions)` after binding their functions.
+Initial data and layout are temporary inputs; the common base retains `f`,
+metadata, status and copy count, while execution owns the initial snapshot.
+Only implicit runs retain `jacobian`. Supplied derivatives have independent
+particle shape `(N,d,d)`; finite differences remain dense. Solver strategies,
+Broyden's projection matrix and deferred derivative validation are unchanged.
+There is no `jacobian_structure`, `capture_quadrature` or method-level `progress` option.
 
 `EnergyObserver()` records physical H and the positive analytic partial time derivative `hamiltonian_time_derivative` at accepted endpoints and requested physical samples. It does not consume internal stages or integrate momentum. Per-step diagnostics are `energy_start`, `energy_end`, `energy_change`, `energy_time_derivative_start` and `energy_time_derivative_end`, with shape `(steps,N)`. Saved histories `physical_hamiltonian` (alias `hamiltonian`), `energy_drift` and `hamiltonian_time_derivative` have shape `(N,T)`. Energy variation in a time-dependent Hamiltonian is not a numerical conservation error.
 

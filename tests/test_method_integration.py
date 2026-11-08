@@ -17,6 +17,7 @@ from simulation import (
 	ABBA2Implicit, ABBA2Midpoint, ABBA4Implicit, BM4Implicit, BM4Midpoint, ExplicitEuler, RK4,
 	GaussLegendre4, SDIRK4, HBVM42, InitialValueProblem, SimulationRequest, simulate,
 )
+from methods.implicit import ImplicitIntegrationMethod
 from methods.base import IntegrationMethod
 from contracts.methods.step import StepInfo, StepResult
 from execution._host import FixedStepController
@@ -56,8 +57,10 @@ def _methods():
 
 
 def _prepare(method, problem, request, *, tracking=False, observe=False):
-	return method.new_run(problem.dynamics.vector_field, problem.initial_conditions,
-		jacobian=problem.dynamics.particle_vector_field_jacobians)
+	if isinstance(method, ImplicitIntegrationMethod):
+		return method.new_run(problem.dynamics.vector_field, problem.initial_conditions,
+			jacobian=problem.dynamics.particle_vector_field_jacobians)
+	return method.new_run(problem.dynamics.vector_field, problem.initial_conditions)
 
 
 class MethodIntegrationTests(unittest.TestCase):

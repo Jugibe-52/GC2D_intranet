@@ -8,6 +8,7 @@ from methods.palindromic import (
 	ProjectionPlacement, ProjectionFormulation, StateExtension,
 )
 from methods.base import FixedStepMethod, IntegrationMethod
+from methods.implicit import ImplicitIntegrationMethod
 from contracts.methods.base import NumericalMethod
 from methods.runge_kutta import (
 	ExplicitEuler,
@@ -52,6 +53,7 @@ __all__ = [
 	"NonlinearSolver",
 	"NumericalMethod",
 	"IntegrationMethod",
+	"ImplicitIntegrationMethod",
 	"FixedStepMethod",
 	"ProjectionPlacement",
 	"ProjectionFormulation",

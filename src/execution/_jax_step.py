@@ -18,6 +18,7 @@ from contracts.methods.functions import VectorField
 from contracts.methods.step import StepResult
 from states.initial import InitialConditions
 from methods.base import IntegrationMethod
+from methods.implicit import ImplicitIntegrationMethod
 from methods.runge_kutta.euler import ExplicitEuler
 from methods.runge_kutta.rk4 import RK4
 from methods.runge_kutta.gauss_legendre import GaussLegendre4
@@ -79,29 +80,30 @@ def prepare_step(
 	if type(method) not in _SUPPORTED_FIXED:
 		raise TypeError('JAX fixed integration requires a supported built-in method; subclass overrides are not compiled.')
 	if (callbacks or progress
-			or getattr(getattr(method, "solver", None), "iteration_observer", None) is not None):
+			or (isinstance(method, ImplicitIntegrationMethod) and method.solver.iteration_observer is not None)):
 		raise NotImplementedError(
 			"JAX fixed integration requires no step or iteration callbacks "
 			"and progress=False; Python callbacks "
 			"are supported by the SciPy execution path."
 		)
-	prepared: Any = copy(method)
-	solver: Any = getattr(prepared, 'solver', None)
-	if solver is not None:
-		prepared.solver = solver._as_jax()
-		# Rebind method-owned residual closures to the prepared solver. No stages
-		# or physical initial data are changed by this isolated initialization.
-		prepared.initialize(initial_conditions)
-	selected: str = getattr(prepared, 'resolved_jacobian_method',
-		'analytic' if prepared.jacobian is not None else 'finite_difference')
-	if solver is not None and solver.jacobian_method != 'auto':
-		selected = solver.jacobian_method
+	prepared: IntegrationMethod[Any] = copy(method)
 	assert is_dataclass(method)
 	controls: tuple[Any, ...] = tuple((item.name, getattr(method, item.name))
 		for item in fields(method) if item.init)
-	return PreparedStep((type(method), controls, method.jacobian,
-		initial_conditions.values.size, selected), method.f, device,
-		solver is not None and selected == 'finite_difference', prepared)
+	signature: tuple[Any, ...] = (type(method), controls, initial_conditions.values.size)
+	finite_difference: bool = False
+	if isinstance(prepared, ImplicitIntegrationMethod):
+		prepared.solver = prepared.solver._as_jax()
+		# Rebind method-owned residual closures to the prepared solver. No stages
+		# or physical initial data are changed by this isolated initialization.
+		prepared.initialize(initial_conditions)
+		selected: str = getattr(prepared, 'resolved_jacobian_method',
+			'analytic' if prepared.jacobian is not None else 'finite_difference')
+		if prepared.solver.jacobian_method != 'auto':
+			selected = prepared.solver.jacobian_method
+		signature += (prepared.jacobian, selected)
+		finite_difference = selected == 'finite_difference'
+	return PreparedStep(signature, method.f, device, finite_difference, prepared)
 
 
 

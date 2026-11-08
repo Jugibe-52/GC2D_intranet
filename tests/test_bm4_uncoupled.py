@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import numpy as np
 
+from methods.implicit import ImplicitIntegrationMethod
 from methods.palindromic.maps import HarmonicCoupling
 from methods.palindromic.maps import GCDoubledMaps
 from methods.palindromic.core.composition import compose
@@ -37,7 +38,9 @@ class UncoupledBM4Tests(unittest.TestCase):
 				with self.assertRaises(TypeError):
 					constructor(coupling_frequency=0.)
 				with patch.object(HarmonicCoupling, 'apply', side_effect=AssertionError('BM4 invoked C')):
-					run = replace(constructor(), step=h).new_run(p.dynamics.vector_field, p.initial_conditions, jacobian=getattr(p.dynamics, 'particle_vector_field_jacobians', None))
+					method = constructor(step=h)
+					run = (method.new_run(p.dynamics.vector_field, p.initial_conditions, jacobian=p.dynamics.particle_vector_field_jacobians)
+						if isinstance(method, ImplicitIntegrationMethod) else method.new_run(p.dynamics.vector_field, p.initial_conditions))
 					self.assertIsNone(run.formulation.coupling)
 					actual = simulate(p.with_request(request), replace(constructor(), step=h), observers=(EnergyObserver(),))
 				np.testing.assert_allclose(actual.states[-1], expected, rtol=0., atol=3e-15)

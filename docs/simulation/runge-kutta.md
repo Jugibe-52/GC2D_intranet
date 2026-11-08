@@ -86,3 +86,12 @@ stages, a three-stage coupled method against an independent linear solution,
 and custom NumPy/JAX agreement and cache signatures. Existing method tests cover
 convergence, energy, callbacks, physical observations and full execution.
 Floating-point summation order can change the last bits of existing trajectories.
+
+## Shared preparation
+
+RungeKutta inherits FixedStepMethod and the common IntegrationMethod contract.
+ExplicitRungeKutta binds only `f` and initial conditions, with no Jacobian or
+solver attribute. `_NewtonRungeKutta` also inherits ImplicitIntegrationMethod,
+which supplies optional derivative binding before the shared initialization.
+Both diagonal and coupled algorithms therefore retain their solver controls
+and derivative strategies. Family equations and tableaux remain shared.

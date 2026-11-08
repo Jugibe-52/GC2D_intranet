@@ -171,8 +171,10 @@ Current module responsibilities and diagrams are documented in
 
 \section{Common integration lifecycle}
 The executor initializes a fresh numerical instance through
-\texttt{IntegrationMethod.new\_run} and starts the shared integration driver.
-Implicit orders share a family base.
+\texttt{method.new\_run} and starts the shared integration driver.
+Implicit methods bind optional derivatives through
+\texttt{ImplicitIntegrationMethod}; arithmetic-mean methods use the common
+\texttt{IntegrationMethod} preparation. Implicit orders share a family base.
 The fixed controller supplies accepted intervals and independent shadow
 samples; the coordinator owns progress, collection and event dispatch.
 Only sampled states and accepted metric rows are retained by the collector.

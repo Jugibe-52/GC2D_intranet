@@ -66,7 +66,7 @@ to avoid runtime cycles.
 `arrays.py` remains the shared NumPy/JAX representation boundary. It does not
 select devices or prepare execution. Existing record validation is unchanged;
 RMS, energy, and recurrence calculations remain in `diagnostics.studies`.
-Implementations such as `IntegrationMethod`, `InitialValueProblem`, `States`,
+Implementations such as `IntegrationMethod`, `ImplicitIntegrationMethod`, `InitialValueProblem`, `States`,
 and projection equations remain in their own domains.
 
 Common observation records live in `methods/observation.py`; Gauss records live in `methods/runge_kutta/gauss_legendre.py`, and ABBA/BM4 records in `methods/palindromic/`. Adaptive method observations are retired. The old flat `observation.py` and `study_results.py` modules are removed. See [API migration](api-migration.md#contracts-organized-by-source-domain) for removed paths and archive compatibility.

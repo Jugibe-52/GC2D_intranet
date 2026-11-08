@@ -113,7 +113,21 @@ Neither potential class accepts execution options. Existing study helpers keep
 
 ## Method preparation contract
 
-`new_run(f, initial_conditions, *, jacobian=None)` creates a fresh run and calls `initialize(initial_conditions)`. Initial data and layout are temporary preparation inputs: the numerical base retains only functions, numerical metadata, run status and copy count. Execution owns the initial snapshot and passes it explicitly to controllers. Supplied Jacobians have independent particle shape `(N,d,d)`; finite-difference Jacobians remain dense. There is no `jacobian_structure`, `capture_quadrature` or method-level `progress` option.
+`IntegrationMethod.new_run(f, initial_conditions)` prepares a fresh run without
+an algebraic solver or Jacobian. `ImplicitIntegrationMethod` in `methods.implicit`
+adds `new_run(f, initial_conditions, *, jacobian=None)` and the solver contract;
+concrete families retain their defaults. Both bases are exported from `methods`.
+Explicit methods use the common base and reject the `jacobian` keyword. There
+is no separate explicit base. Execution supplies derivatives only to implicit
+configurations, and JAX reads derivative settings only for those runs.
+
+Both paths call `initialize(initial_conditions)` after binding their functions.
+Initial data and layout are temporary inputs; the common base retains `f`,
+metadata, status and copy count, while execution owns the initial snapshot.
+Only implicit runs retain `jacobian`. Supplied derivatives have independent
+particle shape `(N,d,d)`; finite differences remain dense. Solver strategies,
+Broyden's projection matrix and deferred derivative validation are unchanged.
+There is no `jacobian_structure`, `capture_quadrature` or method-level `progress` option.
 
 ## Extending execution
 
@@ -190,3 +204,21 @@ in `step_sizes`. `advance` remains the numerical operation.
 ## Temporal and derivative preparation
 
 `auto` selects a supplied Jacobian without evaluating it, or finite differences when no derivative is supplied. For Newton corrections, `analytic` requires a derivative and `finite_difference` explicitly forces approximation. Broyden continues to use the projection-supplied initial matrix and residual updates without evaluating field derivatives. Shapes and finite values are checked at actual evaluations. A supplied derivative failure propagates; auto does not silently fall back. Gauss, SDIRK, HBVM and projected compositions share `solvers.derivatives.resolve_jacobian_method`. HBVM retains its validation boundary after the first residual. Numerical stage and projection equations are unchanged.
+
+## Common and implicit extension points
+
+The structural `NumericalMethod` protocol requires only
+`new_run(f, initial_conditions)`. An external provider can implement exactly
+that signature and return a ready IntegrationMethod. To receive an available
+analytic field derivative automatically, an implicit extension derives from
+`methods.implicit.ImplicitIntegrationMethod`. Execution checks that capability
+before accessing the dynamics' Jacobian provider; it does not inspect signatures
+or infer implicitness from a solver attribute. A wrapper that only implements
+the common protocol must bind any additional dependencies itself.
+
+`FixedStepMethod` describes scheduling independently of implicitness. The
+Newton Runge--Kutta base, projected palindromic base and HBVM combine their family
+or fixed-step base with ImplicitIntegrationMethod. This shares preparation
+without duplicating stages, projection equations or solver defaults. JAX cache
+signatures include derivative identity and strategy only for implicit runs;
+explicit signatures depend on method configuration and physical size.

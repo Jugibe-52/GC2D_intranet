@@ -8,6 +8,7 @@ import unittest
 
 import numpy as np
 
+from methods.implicit import ImplicitIntegrationMethod
 from contracts.methods.step import StepInfo
 from methods.runge_kutta import (
 	ButcherTableau, RungeKutta, ExplicitRungeKutta,
@@ -144,8 +145,12 @@ class RungeKuttaTests(unittest.TestCase):
 		def device_jacobian(t, z):
 			return jnp.broadcast_to(-jnp.eye(2), (z.size // 2, 2, 2))
 		for method in methods:
-			cpu = method.new_run(lambda t, z: t - z, self.initial, jacobian=lambda t, z: np.broadcast_to(-np.eye(2), (z.size // 2, 2, 2)))
-			device = method.new_run(device_field, self.initial, jacobian=device_jacobian)
+			if isinstance(method, ImplicitIntegrationMethod):
+				cpu = method.new_run(lambda t, z: t - z, self.initial, jacobian=lambda t, z: np.broadcast_to(-np.eye(2), (z.size // 2, 2, 2)))
+				device = method.new_run(device_field, self.initial, jacobian=device_jacobian)
+			else:
+				cpu = method.new_run(lambda t, z: t - z, self.initial)
+				device = method.new_run(device_field, self.initial)
 			kernel = prepare_step(device, jax.devices('cpu')[0], initial_conditions=self.initial)
 			signatures.append(kernel.signature)
 			actual = jax.jit(kernel)(.3, jnp.asarray(self.initial.values), .17)
@@ -154,7 +159,7 @@ class RungeKuttaTests(unittest.TestCase):
 			self.assertTrue(actual[2])
 		self.assertNotEqual(signatures[0], signatures[1])
 		self.assertEqual(len(set(signatures)), len(methods))
-		repeated = methods[0].new_run(device_field, self.initial, jacobian=device_jacobian)
+		repeated = methods[0].new_run(device_field, self.initial)
 		self.assertEqual(prepare_step(repeated, jax.devices('cpu')[0], initial_conditions=self.initial).signature, signatures[0])
 
 	@unittest.skipUnless(importlib.util.find_spec('jax'), 'Optional JAX is not installed')

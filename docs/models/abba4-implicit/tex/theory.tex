@@ -177,7 +177,8 @@ It declares its own complete tuple and ABBA observation adapter, with no
 intermediate ABBA base or projected ABBA2 wrapper.
 Execution owns output and energy observation,
 and calls
-\texttt{IntegrationMethod.new\_run} to create a fresh instance of the same
+\texttt{ImplicitIntegrationMethod.new\_run} to bind the field and optional
+derivative to a fresh instance of the same
 concrete class for each execution, then starts the common driver. The instance
 owns its concrete state formulation, spatial projection equation and coefficients; no separate context
 or callback-based method record is needed. Each advance returns accepted state,

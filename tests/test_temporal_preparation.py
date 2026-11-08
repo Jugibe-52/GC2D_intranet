@@ -5,6 +5,7 @@ import unittest
 import numpy as np
 
 from dynamics.coordinates import GCCoordinates
+from methods.implicit import ImplicitIntegrationMethod
 from methods import (
     ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42,
     ABBA2Implicit, ABBA4Implicit, BM4Implicit, ABBA2Midpoint, BM4Midpoint,
@@ -28,6 +29,40 @@ class TemporalPreparationTests(unittest.TestCase):
     def jacobian(self, time, state):
         return (1 + time) * self.matrix[None, :, :]
 
+    def test_explicit_methods_have_no_derivative_or_solver_binding(self):
+        for cls in (ExplicitEuler, RK4, ABBA2Midpoint, BM4Midpoint):
+            with self.subTest(method=cls.__name__):
+                method = cls()
+                run = method.new_run(self.field, self.initial)
+                self.assertNotIsInstance(run, ImplicitIntegrationMethod)
+                self.assertFalse(hasattr(run, 'jacobian'))
+                self.assertFalse(hasattr(run, 'solver'))
+                with self.assertRaisesRegex(TypeError, 'jacobian'):
+                    method.new_run(self.field, self.initial, jacobian=None)
+                if hasattr(run, 'formulation'):
+                    self.assertIsNone(run.formulation.jacobian)
+
+    def test_implicit_rebinding_does_not_retain_a_previous_derivative(self):
+        derivative = self.jacobian
+        for cls in IMPLICIT:
+            with self.subTest(method=cls.__name__):
+                solver = NewtonSolver(jacobian_method='auto')
+                method = cls(solver=solver)
+                first = method.new_run(self.field, self.initial, jacobian=derivative)
+                second = first.new_run(self.field, self.initial)
+                self.assertIsInstance(first, ImplicitIntegrationMethod)
+                self.assertIs(first.jacobian, derivative)
+                self.assertIsNone(second.jacobian)
+                self.assertIs(first.solver, solver)
+                self.assertIs(second.solver, solver)
+                self.assertFalse(hasattr(method, 'jacobian'))
+                self.assertEqual(method._status, 'configuration')
+                self.assertEqual(first._status, 'ready')
+                np.testing.assert_allclose(first.advance(.7, self.initial.values, .05).state,
+                    second.advance(.7, self.initial.values, .05).state, rtol=0., atol=2e-12)
+                with self.assertRaisesRegex(TypeError, 'Jacobian'):
+                    method.new_run(self.field, self.initial, jacobian=42)
+
     def test_preparation_evaluates_no_physical_function_and_keeps_no_request(self):
         def forbidden(time, state):
             raise AssertionError('Preparation must not evaluate physical functions.')
@@ -35,7 +70,8 @@ class TemporalPreparationTests(unittest.TestCase):
         for cls in (*IMPLICIT, ExplicitEuler, RK4, ABBA2Midpoint, BM4Midpoint):
             with self.subTest(method=cls.__name__):
                 method = cls(solver=NewtonSolver(jacobian_method='auto')) if cls in IMPLICIT else cls()
-                run = method.new_run(forbidden, self.initial, jacobian=forbidden)
+                run = (method.new_run(forbidden, self.initial, jacobian=forbidden)
+                    if isinstance(method, ImplicitIntegrationMethod) else method.new_run(forbidden, self.initial))
                 self.assertFalse(hasattr(run, 'request'))
                 self.assertEqual(run._status, 'ready')
                 self.assertIsNot(run, method)

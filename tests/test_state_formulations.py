@@ -7,6 +7,7 @@ from dynamics.gc import GuidingCenterDynamics
 import unittest
 from types import SimpleNamespace
 import numpy as np
+from methods.implicit import ImplicitIntegrationMethod
 from contracts.dynamics.protocols import DynamicalSystem, HamiltonianSystem
 from dynamics import FullCyclotronDynamics
 
@@ -87,9 +88,11 @@ class FourStateFormulationTests(unittest.TestCase):
                 with self.subTest(method=cls.__name__, particles=particles):
                     plain = simulate(problem.with_request(request), cls(step=.02))
                     events = []
-                    method = cls()
-                    run = replace(method, step=.02).new_run(problem.dynamics.vector_field, problem.initial_conditions,
-                        jacobian=getattr(problem.dynamics, 'particle_vector_field_jacobians', None))
+                    method = cls(step=.02)
+                    run = (method.new_run(problem.dynamics.vector_field, problem.initial_conditions,
+                        jacobian=problem.dynamics.particle_vector_field_jacobians)
+                        if isinstance(method, ImplicitIntegrationMethod)
+                        else method.new_run(problem.dynamics.vector_field, problem.initial_conditions))
                     spatial = (4 if cls in DUPLICATED else 2)*particles
                     self.assertFalse(hasattr(run, 'initial_state'))
                     self.assertFalse(hasattr(run, 'initial_momentum'))

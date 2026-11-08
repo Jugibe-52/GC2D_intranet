@@ -1,13 +1,27 @@
 # Integration, physical states and temporary workspaces
 
-All public fixed methods use executor-owned preparation through `IntegrationMethod.new_run`.
+All public fixed methods use executor-owned preparation through their common or implicit `new_run` contract.
 Execution selects the host or device driver. Dynamics defines physics and coordinate roles; formulation
 prepares temporary copies; the method defines numerical operations; execution controls
 accepted intervals and collects output.
 
 `problem.py` composes dynamics, initial conditions and a request; `request.py` defines the temporal request (interval and output times); `contracts/` owns shared interfaces, step records and array compatibility. `dynamics.coordinates` owns physical structural descriptions, while reusable formulations prepare temporary copies. `methods/` implements numerical steps. `execution/` owns preparation, accepted `IntegrationState` snapshots, sampling and host/device loops; `methods.base` owns numerical preparation. `states/` owns the physical recording container and completed result. `simulation/runner.py` validates that result against the inputs and returns the same object. Internal consumers import directly from each defining module.
 
-`new_run(f, initial_conditions, *, jacobian=None)` creates a fresh run and calls `initialize(initial_conditions)`. Initial data and layout are temporary preparation inputs: the numerical base retains only functions, numerical metadata, run status and copy count. Execution owns the initial snapshot and passes it explicitly to controllers. Supplied Jacobians have independent particle shape `(N,d,d)`; finite-difference Jacobians remain dense. There is no `jacobian_structure`, `capture_quadrature` or method-level `progress` option.
+`IntegrationMethod.new_run(f, initial_conditions)` prepares a fresh run without
+an algebraic solver or Jacobian. `ImplicitIntegrationMethod` in `methods.implicit`
+adds `new_run(f, initial_conditions, *, jacobian=None)` and the solver contract;
+concrete families retain their defaults. Both bases are exported from `methods`.
+Explicit methods use the common base and reject the `jacobian` keyword. There
+is no separate explicit base. Execution supplies derivatives only to implicit
+configurations, and JAX reads derivative settings only for those runs.
+
+Both paths call `initialize(initial_conditions)` after binding their functions.
+Initial data and layout are temporary inputs; the common base retains `f`,
+metadata, status and copy count, while execution owns the initial snapshot.
+Only implicit runs retain `jacobian`. Supplied derivatives have independent
+particle shape `(N,d,d)`; finite differences remain dense. Solver strategies,
+Broyden's projection matrix and deferred derivative validation are unchanged.
+There is no `jacobian_structure`, `capture_quadrature` or method-level `progress` option.
 
 Long validation blocks are organized as private preparation functions within
 their owning modules. `SimulationRequest` separates interval validation from

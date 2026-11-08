@@ -6,6 +6,7 @@ import sys
 import unittest
 import numpy as np
 from dynamics.coordinates import PhysicalCoordinates
+from methods.implicit import ImplicitIntegrationMethod
 from formulations.state import DoubleFormulation
 from simulation import ABBA2Implicit, ABBA2Midpoint, BroydenSolver, NewtonSolver, InitialValueProblem, SimulationRequest
 from states.energy import energy_diagnostics
@@ -81,9 +82,11 @@ class IndependentFormulationTests(unittest.TestCase):
 	def test_methods_prepare_supplied_states_and_optional_quadrature(self):
 		problem = _problem(); request = SimulationRequest.uniform(t_span=(.3, .36))
 		for method in (ABBA2Midpoint(), ABBA2Implicit(solver=NewtonSolver()), ABBA2Implicit(solver=BroydenSolver())):
+			bindings = ({'jacobian': problem.dynamics.particle_vector_field_jacobians}
+				if isinstance(method, ImplicitIntegrationMethod) else {})
 			for tracking in (False, True):
 				run = replace(method, step=.02).new_run(problem.dynamics.vector_field,
-					problem.initial_conditions, jacobian=problem.dynamics.particle_vector_field_jacobians)
+					problem.initial_conditions, **bindings)
 				first = run.advance(.3, problem.initial_state, .02)
 				self.assertEqual(first.state.shape, problem.initial_state.shape)
 				for offset, duration in ((0., .02), (.03, .007)):
@@ -92,7 +95,7 @@ class IndependentFormulationTests(unittest.TestCase):
 					np.testing.assert_array_equal(candidate, before)
 					fresh_initial = type(problem.initial_conditions)(candidate, layout=problem.layout)
 					fresh = method.new_run(problem.dynamics.vector_field, fresh_initial,
-						jacobian=problem.dynamics.particle_vector_field_jacobians)
+						**bindings)
 					expected = fresh.advance(.32, candidate, duration)
 					np.testing.assert_array_equal(actual.state, expected.state)
 					self.assertIsNotNone(actual.quadrature)

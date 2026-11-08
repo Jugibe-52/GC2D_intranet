@@ -10,6 +10,7 @@ from contracts.states.history import DiagnosticValue
 from contracts.methods.step import StepInfo, StepResult
 from methods.projection import ProjectionChoice, resolve_projection
 from methods.base import FixedStepMethod
+from methods.implicit import ImplicitIntegrationMethod
 from methods.palindromic.configuration import _state_dimension_diagnostics
 from methods.palindromic.core.projection import solve_projection
 from contracts.methods.palindromic.core.records import ProjectedMap
@@ -19,7 +20,7 @@ from solvers.nonlinear import AlgebraicSolver, BroydenSolver, validate_solver
 from methods.palindromic.base import PalindromicMethod
 
 
-class ProjectedPalindromicMethod(PalindromicMethod[ProjectedMapResult]):
+class ProjectedPalindromicMethod(PalindromicMethod[ProjectedMapResult], ImplicitIntegrationMethod[ProjectedMapResult]):
 	"""Assemble one Hairer equation around a complete operation palindrome."""
 
 	solver: AlgebraicSolver
@@ -42,7 +43,7 @@ class ProjectedPalindromicMethod(PalindromicMethod[ProjectedMapResult]):
 
 	def _prepare_projection(self, initial_conditions: InitialConditions, projection: ProjectionChoice) -> None:
 		"""Resolve capabilities once while leaving controls with the solver."""
-		self._prepare_maps(initial_conditions)
+		self._prepare_maps(initial_conditions, jacobian=self.jacobian)
 		requested = self.solver.jacobian_method
 		# Broyden uses the projection's initial matrix, not the field derivative.
 		resolved: ResolvedJacobianMethod = (requested if isinstance(self.solver, BroydenSolver) and requested != 'auto'

@@ -228,7 +228,21 @@ The former GC/FC wrappers and internal state containers are removed without alia
 
 ## Callable methods, solver controls and observers (2026-10-24)
 
-`new_run(f, initial_conditions, *, jacobian=None)` creates a fresh run and calls `initialize(initial_conditions)`. Initial data and layout are temporary preparation inputs: the numerical base retains only functions, numerical metadata, run status and copy count. Execution owns the initial snapshot and passes it explicitly to controllers. Supplied Jacobians have independent particle shape `(N,d,d)`; finite-difference Jacobians remain dense. There is no `jacobian_structure`, `capture_quadrature` or method-level `progress` option.
+`IntegrationMethod.new_run(f, initial_conditions)` prepares a fresh run without
+an algebraic solver or Jacobian. `ImplicitIntegrationMethod` in `methods.implicit`
+adds `new_run(f, initial_conditions, *, jacobian=None)` and the solver contract;
+concrete families retain their defaults. Both bases are exported from `methods`.
+Explicit methods use the common base and reject the `jacobian` keyword. There
+is no separate explicit base. Execution supplies derivatives only to implicit
+configurations, and JAX reads derivative settings only for those runs.
+
+Both paths call `initialize(initial_conditions)` after binding their functions.
+Initial data and layout are temporary inputs; the common base retains `f`,
+metadata, status and copy count, while execution owns the initial snapshot.
+Only implicit runs retain `jacobian`. Supplied derivatives have independent
+particle shape `(N,d,d)`; finite differences remain dense. Solver strategies,
+Broyden's projection matrix and deferred derivative validation are unchanged.
+There is no `jacobian_structure`, `capture_quadrature` or method-level `progress` option.
 
 Explicit solvers supply every algebraic control. Preserve the effective family defaults when migrating only one old keyword: Gauss/SDIRK use tolerances 1e-14/1e-13 and 20 iterations; ABBA/BM4/HBVM use 1e-13/1e-12 and 12 iterations. HBVM defaults to `backtracking=True`. Set `jacobian_method` explicitly when preserving a prior analytic or finite-difference choice. Physical initial values, numerical coefficients, requested sampling and saved archive schemas are unchanged.
 
@@ -354,3 +368,20 @@ available for electrostatic field evaluation.
 ## Request-free method preparation
 
 `auto` selects a supplied Jacobian without evaluating it, or finite differences when no derivative is supplied. For Newton corrections, `analytic` requires a derivative and `finite_difference` explicitly forces approximation. Broyden continues to use the projection-supplied initial matrix and residual updates without evaluating field derivatives. Shapes and finite values are checked at actual evaluations. A supplied derivative failure propagates; auto does not silently fall back. Gauss, SDIRK, HBVM and projected compositions share `solvers.derivatives.resolve_jacobian_method`. HBVM retains its validation boundary after the first residual. Numerical stage and projection equations are unchanged.
+
+## Jacobian binding belongs to implicit methods
+
+Use `RK4().new_run(f, initial)` and the same two-input preparation for
+ExplicitEuler, ExplicitRungeKutta, ABBA2Midpoint, BM4Midpoint and
+PalindromicMidpoint. Remove `jacobian=...`, including `jacobian=None`, from these
+calls: explicit runs no longer accept or retain that dependency. `simulate`
+keeps its public signature and performs this selection automatically.
+
+Implicit methods keep `new_run(f, initial, jacobian=df)` or omit the derivative
+when their solver strategy permits it. Import the common base from
+`methods.base` and the implicit base from `methods.implicit`; both are public
+exports of `methods`. External implicit extensions inherit
+ImplicitIntegrationMethod for automatic derivative binding by Execution.
+Configured built-in method names and completed solution schemas are unchanged.
+Recreate previously serialized prepared runs, which may contain obsolete bound
+attributes; they are not completed-result archives.

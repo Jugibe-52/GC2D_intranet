@@ -22,6 +22,7 @@ from request import SimulationRequest
 from states.history import States
 from states.initial import InitialConditions
 from methods.base import IntegrationMethod, FixedStepMethod
+from methods.implicit import ImplicitIntegrationMethod
 from contracts.methods.base import NumericalMethod
 
 
@@ -163,11 +164,14 @@ def _prepare_numerical_run(
 	method: NumericalMethod, prepared_dynamics: DynamicalSystem, *, track_energy: bool,
 ) -> tuple[IntegrationMethod[Any], dict[str, DiagnosticValue]]:
 	"""Bind explicit initial inputs and validate a fresh numerical run."""
-	jacobian: VectorField | None = None
-	if isinstance(prepared_dynamics, GuidingCenterJacobianSystem):
-		jacobian = prepared_dynamics.particle_vector_field_jacobians
-	numerical_run: IntegrationMethod[Any] = method.new_run(
-		prepared_dynamics.vector_field, initial_conditions, jacobian=jacobian)
+	numerical_run: IntegrationMethod[Any]
+	if isinstance(method, ImplicitIntegrationMethod):
+		jacobian: VectorField | None = None
+		if isinstance(prepared_dynamics, GuidingCenterJacobianSystem):
+			jacobian = prepared_dynamics.particle_vector_field_jacobians
+		numerical_run = method.new_run(prepared_dynamics.vector_field, initial_conditions, jacobian=jacobian)
+	else:
+		numerical_run = method.new_run(prepared_dynamics.vector_field, initial_conditions)
 	metadata: dict[str, DiagnosticValue] = {"track_energy": track_energy}
 	if track_energy:
 		metadata.update(energy_observer="EnergyObserver", energy_derivative="analytic_partial_t_H")

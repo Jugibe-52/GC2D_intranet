@@ -16,6 +16,7 @@ from contracts.methods.quadrature import StageQuadrature
 from contracts.methods.step import StepInfo, StepResult, StepValue
 from contracts.states.history import DiagnosticValue
 from methods.base import FixedStepMethod
+from methods.implicit import ImplicitIntegrationMethod
 from methods.runge_kutta.tableau import ButcherTableau
 from methods.runge_kutta._jacobians import _checked_analytic_jacobians, _dense_finite_difference_jacobian
 from solvers.derivatives import ResolvedJacobianMethod, resolve_jacobian_method
@@ -86,7 +87,7 @@ class RungeKutta(FixedStepMethod[_RungeKuttaStep]):
 
 
 @dataclass
-class _NewtonRungeKutta(RungeKutta):
+class _NewtonRungeKutta(RungeKutta, ImplicitIntegrationMethod[_RungeKuttaStep]):
 	"""Common algebraic preparation; solvers retain all nonlinear controls."""
 
 	solver: NewtonSolver = field(default_factory=lambda: NewtonSolver(1e-14, 1e-13, 20), kw_only=True)

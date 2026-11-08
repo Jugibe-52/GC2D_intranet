@@ -220,7 +220,7 @@ class ModalExecutionTests(unittest.TestCase):
     def test_unserializable_job_fails_before_sdk(self):
         class LocalMethod:
 
-            def new_run(self, f, initial_conditions, *, jacobian=None):
+            def new_run(self, f, initial_conditions):
                 raise AssertionError("Not called")
 
         with self.assertRaises((AttributeError, pickle.PicklingError)):

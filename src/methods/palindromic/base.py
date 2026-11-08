@@ -5,6 +5,7 @@ from states.initial import InitialConditions
 import json
 from typing import Generic, TypeVar
 from contracts.states.history import DiagnosticValue
+from contracts.methods.functions import VectorField
 from methods.palindromic.maps import GCDoubledMaps, HarmonicCoupling
 from methods.base import FixedStepMethod
 from methods.palindromic.core.composition import Composition, validate_composition
@@ -23,7 +24,7 @@ class PalindromicMethod(FixedStepMethod[Detail], Generic[Detail]):
 	def _configured_coupling(self) -> HarmonicCoupling | None:
 		return None
 
-	def _prepare_maps(self, initial_conditions: InitialConditions) -> None:
+	def _prepare_maps(self, initial_conditions: InitialConditions, *, jacobian: VectorField | None = None) -> None:
 		"""Require explicit C operations and their independent rate together."""
 		validate_composition(self.recipe)
 		if not isinstance(self.composition_name, str) or not self.composition_name.strip():
@@ -34,7 +35,7 @@ class PalindromicMethod(FixedStepMethod[Detail], Generic[Detail]):
 		if any(op.name == 'C' for op in self.recipe) != (coupling is not None):
 			raise ValueError('Explicit C operations and a HarmonicCoupling must be configured together.')
 		self.formulation = GCDoubledMaps(self.f, initial_conditions.values.size, coordinates=initial_conditions.layout,
-			jacobian=self.jacobian,
+			jacobian=jacobian,
 			coupling_frequency=None if coupling is None else coupling.frequency)
 
 	def _operation_metadata(self) -> dict[str, DiagnosticValue]:

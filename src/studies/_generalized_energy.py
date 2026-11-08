@@ -15,6 +15,7 @@ from contracts.dynamics.protocols import GuidingCenterJacobianSystem, Hamiltonia
 from diagnostics.methods.stage_energy import StageEnergyObserver, PreparedStageEnergyObserver
 from execution.options import ExecutionOptions
 from methods.base import IntegrationMethod
+from methods.implicit import ImplicitIntegrationMethod
 from problem import InitialValueProblem
 from simulation.runner import simulate
 from states.history import States
@@ -44,8 +45,12 @@ def simulate_generalized_energy(problem: InitialValueProblem, method: NumericalM
 		states.append(np.array(event.state_after, copy=True))
 
 	solution: States = simulate(problem, method, options=options, observers=(accept, *observers))
-	run: IntegrationMethod[Any] = method.new_run(dynamics.vector_field, problem.initial_conditions,
-		jacobian=dynamics.particle_vector_field_jacobians if isinstance(dynamics, GuidingCenterJacobianSystem) else None)
+	run: IntegrationMethod[Any]
+	if isinstance(method, ImplicitIntegrationMethod):
+		run = method.new_run(dynamics.vector_field, problem.initial_conditions,
+			jacobian=dynamics.particle_vector_field_jacobians if isinstance(dynamics, GuidingCenterJacobianSystem) else None)
+	else:
+		run = method.new_run(dynamics.vector_field, problem.initial_conditions)
 	samples: list[np.ndarray] = []
 	for time in solution.times:
 		index: int = max(0, int(np.searchsorted(times, time, side="right")) - 1)

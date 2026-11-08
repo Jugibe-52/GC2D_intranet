@@ -25,7 +25,21 @@ supersedes earlier diagrams showing a duplicated clock or full time/momentum pro
 
 Every accepted snapshot is `IntegrationState(time, values)`: scalar time and a physical vector of shape `(d*N,)`. GC remains 2N and FC 4N with or without energy observation. Temporary doubled GC work has 4N entries; generic doubled FC work has 8N. These workspaces never become accepted states. This generic copy support does not extend GC numerical methods to FC.
 
-`new_run(f, initial_conditions, *, jacobian=None)` creates a fresh run and calls `initialize(initial_conditions)`. Initial data and layout are temporary preparation inputs: the numerical base retains only functions, numerical metadata, run status and copy count. Execution owns the initial snapshot and passes it explicitly to controllers. Supplied Jacobians have independent particle shape `(N,d,d)`; finite-difference Jacobians remain dense. There is no `jacobian_structure`, `capture_quadrature` or method-level `progress` option.
+`IntegrationMethod.new_run(f, initial_conditions)` prepares a fresh run without
+an algebraic solver or Jacobian. `ImplicitIntegrationMethod` in `methods.implicit`
+adds `new_run(f, initial_conditions, *, jacobian=None)` and the solver contract;
+concrete families retain their defaults. Both bases are exported from `methods`.
+Explicit methods use the common base and reject the `jacobian` keyword. There
+is no separate explicit base. Execution supplies derivatives only to implicit
+configurations, and JAX reads derivative settings only for those runs.
+
+Both paths call `initialize(initial_conditions)` after binding their functions.
+Initial data and layout are temporary inputs; the common base retains `f`,
+metadata, status and copy count, while execution owns the initial snapshot.
+Only implicit runs retain `jacobian`. Supplied derivatives have independent
+particle shape `(N,d,d)`; finite differences remain dense. Solver strategies,
+Broyden's projection matrix and deferred derivative validation are unchanged.
+There is no `jacobian_structure`, `capture_quadrature` or method-level `progress` option.
 
 `EnergyObserver()` records physical H and the positive analytic partial time derivative `hamiltonian_time_derivative` at accepted endpoints and requested physical samples. It does not consume internal stages or integrate momentum. Per-step diagnostics are `energy_start`, `energy_end`, `energy_change`, `energy_time_derivative_start` and `energy_time_derivative_end`, with shape `(steps,N)`. Saved histories `physical_hamiltonian` (alias `hamiltonian`), `energy_drift` and `hamiltonian_time_derivative` have shape `(N,T)`. Energy variation in a time-dependent Hamiltonian is not a numerical conservation error.
 

@@ -15,7 +15,6 @@ class NumericalMethod(Protocol):
 
 	def new_run(
 		self, f: VectorField, initial_conditions: InitialConditions,
-		*, jacobian: VectorField | None = None,
 	) -> IntegrationMethod[Any]: ...
 
 

@@ -16,6 +16,7 @@ from problem import InitialValueProblem
 from request import SimulationRequest
 from execution._plan import build_fixed_step_plan
 
+from methods.implicit import ImplicitIntegrationMethod
 from methods.runge_kutta.gauss_legendre import GaussLegendre4
 from methods.runge_kutta.rk4 import RK4
 from solvers.nonlinear import NewtonSolver
@@ -42,8 +43,10 @@ class CompiledStepContractTests(unittest.TestCase):
 		from execution._jax import prepare_dynamics
 		problem = self.problem if problem is None else problem
 		dynamics = prepare_dynamics(problem.dynamics)
-		return method.new_run(dynamics.vector_field, problem.initial_conditions,
-			jacobian=dynamics.particle_vector_field_jacobians)
+		if isinstance(method, ImplicitIntegrationMethod):
+			return method.new_run(dynamics.vector_field, problem.initial_conditions,
+				jacobian=dynamics.particle_vector_field_jacobians)
+		return method.new_run(dynamics.vector_field, problem.initial_conditions)
 
 	def prepare_kernel(self, run, problem=None):
 		from execution._jax import resolve_device

@@ -4,6 +4,7 @@ import unittest
 import numpy as np
 
 from contracts.methods.step import StepInfo
+from methods.implicit import ImplicitIntegrationMethod
 from methods import ABBA2Implicit, ABBA4Implicit, BM4Implicit, ABBA2Midpoint, BM4Midpoint
 from methods.palindromic.core.composition import compose
 from methods.palindromic.core.operations import A, B, T, C
@@ -27,7 +28,9 @@ class FunctionPalindromesTests(unittest.TestCase):
 	def test_all_presets_accept_plain_functions_and_own_only_physical_state(self) -> None:
 		for kind in (ABBA2Implicit, ABBA4Implicit,  BM4Implicit, ABBA2Midpoint, BM4Midpoint):
 			with self.subTest(method=kind.__name__):
-				run = kind().new_run(self.f, self.initial, jacobian=self.jacobian)
+				method = kind()
+				run = (method.new_run(self.f, self.initial, jacobian=self.jacobian)
+					if isinstance(method, ImplicitIntegrationMethod) else method.new_run(self.f, self.initial))
 				step = run.advance(.2, self.initial.values, .03)
 				self.assertEqual(step.state.shape, (4,))
 				for name in ('dynamics', 'problem', 'state_formulation', 'track_energy', 'initial_momentum'):

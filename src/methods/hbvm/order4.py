@@ -20,6 +20,7 @@ from contracts.methods.quadrature import StageQuadrature
 from methods.runge_kutta._jacobians import _checked_vector_field, _checked_analytic_jacobians
 
 from methods.base import FixedStepMethod
+from methods.implicit import ImplicitIntegrationMethod
 from contracts.methods.step import StepInfo, StepResult
 from contracts.methods.observation import IntegrationStep
 
@@ -234,7 +235,7 @@ def _advance_hbvm42(
 
 
 @dataclass(slots=True)
-class HBVM42(FixedStepMethod[_HBVMStepResult]):
+class HBVM42(FixedStepMethod[_HBVMStepResult], ImplicitIntegrationMethod[_HBVMStepResult]):
 	"""Fourth-order HBVM(4,2) with four quadrature nodes and two coefficients.
 
 	For autonomous polynomial Hamiltonians of degree at most four, energy is

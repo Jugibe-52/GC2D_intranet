@@ -138,9 +138,9 @@ class PalindromicOperationTests(unittest.TestCase):
 		for method in (PalindromicMidpoint(COUPLED), PalindromicImplicit(COUPLED),
 			PalindromicMidpoint(EDGES, coupling=HarmonicCoupling(.7))):
 			with self.assertRaisesRegex(ValueError, 'configured together'):
-				replace(method, step=0.02).new_run(p.dynamics.vector_field, p.initial_conditions, jacobian=getattr(p.dynamics, 'particle_vector_field_jacobians', None))
+				replace(method, step=0.02).new_run(p.dynamics.vector_field, p.initial_conditions)
 		with patch.object(HarmonicCoupling, 'apply', wraps=HarmonicCoupling(.7).apply) as operation:
-			run = PalindromicMidpoint(COUPLED, step=0.02, coupling=HarmonicCoupling(0.7)).new_run(p.dynamics.vector_field, p.initial_conditions, jacobian=getattr(p.dynamics, 'particle_vector_field_jacobians', None))
+			run = PalindromicMidpoint(COUPLED, step=0.02, coupling=HarmonicCoupling(0.7)).new_run(p.dynamics.vector_field, p.initial_conditions)
 			run.advance(.3, p.initial_state, .02)
 			self.assertEqual(operation.call_count, 2)
 
