@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from diagnostics.methods.energy import EnergyObserver
+    from diagnostics.execution.horizontal_transport import HorizontalTransportObserver
     from execution.options import ExecutionOptions
     from problem import InitialValueProblem
     from contracts.methods.base import NumericalMethod
@@ -34,7 +35,7 @@ def benchmark_payload(payload: bytes, *, cpu_cores: int, repetitions: int) -> tu
     problem: InitialValueProblem
     method: NumericalMethod
     options: ExecutionOptions
-    observers: tuple[EnergyObserver, ...]
+    observers: tuple[EnergyObserver | HorizontalTransportObserver, ...]
     problem, method, options, observers = decode_job(payload)
     if options.backend != "jax" or options.device != "cpu":
         raise ValueError("This benchmark requires explicit JAX CPU options.")

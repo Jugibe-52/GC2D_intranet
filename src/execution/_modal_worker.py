@@ -8,6 +8,7 @@ from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from diagnostics.methods.energy import EnergyObserver
+    from diagnostics.execution.horizontal_transport import HorizontalTransportObserver
 import pickle
 from time import perf_counter, time
 
@@ -25,7 +26,7 @@ PAYLOAD_VERSION = 4
 def validate_job(
     problem: InitialValueProblem, method: NumericalMethod,
     options: ExecutionOptions | None,
-    observers: Sequence[EnergyObserver | Callable[[Any], None]] = (),
+    observers: Sequence[EnergyObserver | HorizontalTransportObserver | Callable[[Any], None]] = (),
 ) -> ExecutionOptions:
     """Reject unsupported work before submission and again in the worker."""
     if not isinstance(problem, InitialValueProblem):
@@ -41,9 +42,10 @@ def validate_job(
         raise NotImplementedError("Modal execution currently supports CPU devices only.")
     if observers:
         from diagnostics.methods.energy import EnergyObserver
-    if (any(not isinstance(observer, EnergyObserver) for observer in observers) or choice.progress
+        from diagnostics.execution.horizontal_transport import HorizontalTransportObserver
+    if (any(not isinstance(observer, (EnergyObserver, HorizontalTransportObserver)) for observer in observers) or choice.progress
         or getattr(getattr(method, "solver", None), "iteration_observer", None) is not None):
-        raise NotImplementedError("Modal execution supports EnergyObserver configurations but no step or iteration callbacks or progress.")
+        raise NotImplementedError("Modal execution supports energy and horizontal transport configurations but no step or iteration callbacks or progress.")
     if getattr(method, "_status", "configuration") != "configuration":
         raise ValueError("Submit a configured method, not an initialized or completed run.")
     return choice
@@ -52,7 +54,7 @@ def validate_job(
 def encode_job(
     problem: InitialValueProblem, method: NumericalMethod,
     options: ExecutionOptions | None,
-    observers: Sequence[EnergyObserver | Callable[[Any], None]] = (),
+    observers: Sequence[EnergyObserver | HorizontalTransportObserver | Callable[[Any], None]] = (),
 ) -> bytes:
     """Snapshot inputs using importable project types, excluding device caches.
 
@@ -63,7 +65,7 @@ def encode_job(
     return pickle.dumps((PAYLOAD_VERSION, problem, method, choice, tuple(observers)), protocol=5)
 
 
-def decode_job(payload: bytes) -> tuple[InitialValueProblem, NumericalMethod, ExecutionOptions, tuple[EnergyObserver, ...]]:
+def decode_job(payload: bytes) -> tuple[InitialValueProblem, NumericalMethod, ExecutionOptions, tuple[EnergyObserver | HorizontalTransportObserver, ...]]:
     """Restore and validate a trusted job once for one or several integrations."""
     version: Any
     problem: Any
@@ -87,7 +89,7 @@ def execute_payload(payload: bytes) -> tuple[int, str, States]:
     problem: InitialValueProblem
     method: NumericalMethod
     choice: ExecutionOptions
-    observers: tuple[EnergyObserver, ...]
+    observers: tuple[EnergyObserver | HorizontalTransportObserver, ...]
     problem, method, choice, observers = decode_job(payload)
     data: States = Execution().run(problem, method, options=choice, observers=observers)
     if not isinstance(data, States):
@@ -96,12 +98,13 @@ def execute_payload(payload: bytes) -> tuple[int, str, States]:
 
 
 def execute_cycle_payload(payload: bytes) -> tuple[int, str, States]:
-    """Return cycle observations and scalar diagnostics with worker timing.
+    """Return cycle states, scalar diagnostics and final transport vectors.
 
     Absolute Unix intervals allow the submitting batch to measure integration
     overlap rather than infer it from the configured container ceiling.
     """
     import numpy as np
+    from diagnostics.execution.horizontal_transport import HORIZONTAL_METRIC_ARRAYS
 
     started_unix: float
     started: float
@@ -111,7 +114,7 @@ def execute_cycle_payload(payload: bytes) -> tuple[int, str, States]:
     data: States
     version, digest, data = execute_payload(payload)
     diagnostics: dict[str, DiagnosticValue] = {key: value for key, value in data.diagnostics.items()
-                   if not isinstance(value, np.ndarray)}
+                   if not isinstance(value, np.ndarray) or key in HORIZONTAL_METRIC_ARRAYS}
     diagnostics.update(worker_wall_seconds=perf_counter() - started,
                        worker_started_unix_seconds=started_unix,
                        worker_finished_unix_seconds=time())

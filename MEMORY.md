@@ -286,3 +286,9 @@ NumPy/JAX distinctions. See docs/development/typing.md for scope and examples.
 ## Runge--Kutta tableaux
 
 `methods.runge_kutta` replaces `methods.classical`, with mirrored contracts and no aliases. Immutable, hashable `ButcherTableau(A,B,C)` owns finite, consistent coefficients. `ExplicitEuler`/`RK4`, `SDIRK4` and `GaussLegendre4` inherit explicit, diagonal and coupled stage algorithms; recipes declare coefficients/metadata, with Gauss retaining its specialized observation. Generic family instances accept tableaux and support NumPy/JAX, including zero-diagonal DIRK stages and arbitrary stage counts. Newton controls remain in solvers; generic compiled cache keys include coefficients. Preserve named facade exports and recorded tableau metadata; recreate old configured-object pickles. See `docs/simulation/runge-kutta.md`.
+
+## Full-integration horizontal transport
+
+HorizontalTransportObserver lives in diagnostics.execution and accumulates actual |vx| with endpoint trapezoids on accepted full steps, plus initial-inclusive unwrapped x extrema. Its O(particles) host/JAX state does not change numerical steps; Modal cycle workers preserve its five per-particle vectors. Qx=travel/(cycles*width), with undefined NaN at zero width. Do not substitute Poincare differences or signed splitting substeps. See docs/studies/poincare-horizontal-transport-viewer.md.
+
+For repetition of the historical four-method 40-star+8-probe viewer, use studies.horizontal_transport_reproduction with archived metadata: the original x-axis period and normalization arithmetic differ slightly from current generic imports. Preserve groups separately because global Newton stopping can change rounding when particles are regrouped. Publish rerun returns and observer values together; retain fingerprints and original archives.

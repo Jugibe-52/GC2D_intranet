@@ -32,6 +32,7 @@ from states.history import States
 
 if TYPE_CHECKING:
 	from diagnostics.methods.energy import PreparedEnergyObserver
+	from diagnostics.execution.horizontal_transport import PreparedHorizontalTransportObserver
 	from methods.base import IntegrationMethod
 
 
@@ -163,7 +164,7 @@ def _observation(method: IntegrationMethod[Any], info: StepInfo, result: StepRes
 def run_steps(
 	method: IntegrationMethod[Detail], saved: States, request: SimulationRequest, *,
 	source: DynamicalSystem, controller: StepController[Detail], observers: Sequence[Callable[[Any], None]] = (),
-	energy: PreparedEnergyObserver | None = None, initial_state: np.ndarray, progress: bool = False,
+	energy: PreparedEnergyObserver | None = None, horizontal: PreparedHorizontalTransportObserver | None = None, initial_state: np.ndarray, progress: bool = False,
 ) -> dict[str, DiagnosticValue]:
 	"""Record accepted steps and samples in the executor's open result.
 
@@ -196,6 +197,8 @@ def run_steps(
 			statistics: dict[str, Any] = dict(result.statistics)
 			if energy is not None:
 				statistics.update(energy.accept(info, np.asarray(result.state)))
+			if horizontal is not None:
+				horizontal.accept(info, np.asarray(result.state))
 			saved.record_step(info, statistics)
 			if observers:
 				event = _observation(method, info, result, source)
@@ -232,6 +235,8 @@ def run_steps(
 	diagnostics: dict[str, DiagnosticValue] = {}
 	if energy is not None:
 		diagnostics.update(energy.diagnose_history(saved.times, saved.values.T))
+	if horizontal is not None:
+		diagnostics.update(horizontal.diagnose(duration=tf - t0))
 	diagnostics["output_interpolation_count"] = interior_sample_count
 	return diagnostics
 

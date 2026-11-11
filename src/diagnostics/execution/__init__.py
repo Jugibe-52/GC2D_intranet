@@ -1,3 +1,5 @@
-"""Progress diagnostics for complete executions and reference runs."""
+"""Diagnostics for complete executions and reference runs."""
 
-__all__: list[str] = []
+from diagnostics.execution.horizontal_transport import HorizontalTransportObserver
+
+__all__ = ["HorizontalTransportObserver"]

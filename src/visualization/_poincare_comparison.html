@@ -21,6 +21,11 @@ button,select{padding:6px 12px}input[type=range]{flex:1;min-width:220px}
 canvas{width:100%;aspect-ratio:1;touch-action:none;cursor:crosshair}h3{text-align:center;margin:4px}
 #particles{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
 label.particle{border:1px solid #ddd;border-radius:5px;padding:5px;cursor:pointer}
+#particles.with-transport{grid-template-columns:repeat(auto-fit,minmax(205px,1fr))}
+.particle-metrics{display:grid;grid-template-columns:1fr 1fr;gap:3px 8px;margin:5px 0 0 4px;font-size:11px;font-variant-numeric:tabular-nums}
+.particle-metric{white-space:nowrap;display:flex;justify-content:space-between;gap:5px}
+.particle-metric b{font-weight:600}
+#transport-note{font-size:13px;line-height:1.5;margin:8px 0;color:#475569}
 </style>
 <h2>Synchronized Poincare sections</h2>
 <p id="description">Wrapped coordinates x/L and y/L. Small dots: accumulated returns. Large dot: current return.
@@ -48,6 +53,7 @@ After zooming, Shift-drag or right-drag to pan all panels.</p>
 <div class="plots" id="plots"></div>
 <div class="controls"><button id="all">Show all</button><button id="none">Hide all</button><button id="invert">Invert</button><button id="probe-only" hidden></button><span id="count"></span></div>
 <div class="controls" id="particle-groups" hidden></div>
+<p id="transport-note" hidden></p>
 <div id="particles"></div>
 <section id="field-section" hidden aria-label="Shared effective potential">
 <div id="field-plots"></div>
@@ -77,7 +83,7 @@ if(detachedField){
  section.prepend(document.getElementById('field-controls'));
 }
 const colorById=new Map();panels.forEach(panel=>panel.ids.forEach((id,p)=>colorById.set(id,panel.colors[p])));
-const selected=new Set(allIds),boxes=[];
+const selected=new Set(allIds),boxes=[],metricContainers=new Map();
 const slider=document.getElementById('cycle'),startSlider=document.getElementById('start-cycle'),play=document.getElementById('play');
 const speed=document.getElementById('speed'), trail=document.getElementById('trail');
 slider.min=firstCycle;startSlider.min=firstCycle;startSlider.value=firstCycle;slider.max=N;startSlider.max=N;speed.value=String(cfg.step);
@@ -151,8 +157,25 @@ allIds.forEach((id,p)=>{
  const label=document.createElement('label'),box=document.createElement('input');
  label.className='particle';label.style.borderLeft='5px solid '+colorById.get(id);box.type='checkbox';box.checked=true;
  box.onchange=()=>{box.checked?selected.add(id):selected.delete(id);draw();};
- label.append(box,document.createTextNode(cfg.particleLabels?.[id]??('Particle '+id)));document.getElementById('particles').append(label);boxes.push(box);
+ label.append(box,document.createTextNode(cfg.particleLabels?.[id]??('Particle '+id)));
+ const metrics=document.createElement('span');metrics.className='particle-metrics';metrics.hidden=true;label.append(metrics);metricContainers.set(id,metrics);
+ document.getElementById('particles').append(label);boxes.push(box);
 });
+function updateTransport(dataset){
+ const transport=dataset?.horizontalTransport,note=document.getElementById('transport-note');
+ note.hidden=!transport;document.getElementById('particles').classList.toggle('with-transport',!!transport);
+ if(transport)note.textContent=`Qx = ∫ |dx/dt| dt / [N (xmax − xmin)] · Entire ${transport.cycles.toLocaleString('en-US')}-cycle experiment · Physical unwrapped x · BM4-M: midpoint; BM4-I: implicit; GL4: Gauss–Legendre. Values stay fixed when the cycle interval changes. Hover over a value for its distance and width.`;
+ for(const id of allIds){
+  const container=metricContainers.get(id);container.replaceChildren();container.hidden=!transport;
+  if(!transport)continue;
+  for(const method of transport.methods){
+   const value=method.particles[id],item=document.createElement('span'),name=document.createElement('span'),number=document.createElement('b');
+   item.className='particle-metric';item.tabIndex=0;name.textContent=method.label;number.textContent=value.q===null?'undefined':value.q.toPrecision(5);
+   const detail=`${method.method}, particle ${id}: Qx ${value.q===null?'undefined (zero horizontal width)':value.q.toPrecision(10)}. Integral of |dx/dt|: ${value.travel.toPrecision(10)} ${transport.units}; horizontal width: ${value.width.toPrecision(10)} ${transport.units}. ${transport.cycles} cycles, ${method.stepsPerCycle} complete steps per cycle. Full-integration values; independent of the displayed interval.`;
+   item.title=detail;item.setAttribute('aria-label',detail);item.append(name,number);container.append(item);
+  }
+ }
+}
 if(cfg.particleGroups?.length){
  const container=document.getElementById('particle-groups');container.hidden=false;
  container.append(document.createTextNode('Isolate: '));
@@ -303,6 +326,7 @@ if(cfg.datasets?.length){
   stop();stopPhase();panels=decodePanels(dataset.panels);
   canvases.forEach((canvas,index)=>{canvas.previousElementSibling.textContent=panels[index].title;canvas.setAttribute('aria-label',panels[index].title);});
   document.getElementById('dataset-note').textContent=dataset.note;
+  updateTransport(dataset);
   draw();
  };
  selector.onchange=chooseDataset;chooseDataset();

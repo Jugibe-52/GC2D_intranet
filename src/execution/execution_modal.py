@@ -15,6 +15,7 @@ from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from diagnostics.methods.energy import EnergyObserver
+    from diagnostics.execution.horizontal_transport import HorizontalTransportObserver
 from uuid import uuid4
 
 from execution.options import ExecutionOptions
@@ -129,7 +130,7 @@ class Execution_Modal(Execution):
     def run(
         self, problem: InitialValueProblem, method: NumericalMethod,
         *, options: ExecutionOptions | None = None,
-        observers: Sequence[EnergyObserver | Callable[[Any], None]] = (),
+        observers: Sequence[EnergyObserver | HorizontalTransportObserver | Callable[[Any], None]] = (),
     ) -> States:
         """Submit once, save its ID, then fetch the result without local fallback.
 

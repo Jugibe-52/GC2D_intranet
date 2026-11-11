@@ -271,3 +271,32 @@ result = simulate(problem, RK4(step=0.01), request,
 EnergyObserver records H and positive analytic partial_t H only at accepted endpoints and requested physical samples. It has no configuration fields, initial momentum or accumulator. Per-step diagnostics have shape (steps,N); saved physical_hamiltonian, energy_drift and hamiltonian_time_derivative histories have shape (N,T). Nonautonomous energy variation is not a conservation error.
 
 Historical generalized-energy studies explicitly use diagnostics.methods.stage_energy.StageEnergyObserver, retaining signed stage quadrature and archived kappa conventions. This diagnostic is separate from the generic observer and executor.
+
+## Horizontal transport during execution
+
+`HorizontalTransportObserver(cycle_duration=1.0)` is defined in
+`diagnostics.execution.horizontal_transport` and exported from `diagnostics`.
+Pass it through `simulate(..., observers=(HorizontalTransportObserver(),))`.
+It integrates the absolute physical horizontal velocity on every accepted
+complete interval with the composite trapezoidal rule. Internal composition
+stages, backward splitting substeps and shadow output samples are excluded.
+The width is the largest minus smallest unwrapped x coordinate across the
+initial state and all accepted endpoints. It is not the width of folded
+Poincare samples. The dimensionless rate is travel / (elapsed cycles * width),
+where elapsed cycles = elapsed runtime time / `cycle_duration`.
+
+The final per-particle vectors are `horizontal_travel`, `horizontal_min`,
+`horizontal_max`, `horizontal_width` and `horizontal_transport_rate`.
+A zero width yields NaN for the rate and is identified by
+`horizontal_zero_width="undefined_nan"`. Scalar metadata includes
+`horizontal_cycles`, `horizontal_cycle_duration`, `horizontal_observed_steps`,
+`horizontal_coordinates="physical_unwrapped"` and
+`horizontal_quadrature="trapezoid_accepted_endpoints"`.
+NumPy and JAX use the same accepted endpoints and O(particles) accumulation;
+no per-step transport history is retained. The cycle-only Modal worker preserves
+these five final vectors while discarding other diagnostic arrays.
+
+This is a numerical quadrature, not an exact integral. Both the integral and
+sampled width may miss excursions below the integration step; check step
+refinement when assessing accuracy. The observer does not change the method,
+its physical trajectory, saved output times or other observers.

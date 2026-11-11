@@ -7,6 +7,7 @@ from typing import Any, TYPE_CHECKING
 import numpy as np
 if TYPE_CHECKING:
 	from diagnostics.methods.energy import EnergyObserver
+	from diagnostics.execution.horizontal_transport import HorizontalTransportObserver
 
 from contracts.methods.base import NumericalMethod
 from execution.options import ExecutionOptions
@@ -53,7 +54,7 @@ def simulate(
 	method: NumericalMethod,
 	*, execution: Execution | None = None,
 	options: ExecutionOptions | None = None,
-	observers: Sequence[EnergyObserver | Callable[[Any], None]] = (),
+	observers: Sequence[EnergyObserver | HorizontalTransportObserver | Callable[[Any], None]] = (),
 ) -> States:
 	"""Integrate one problem and verify that its solution matches the request.
 

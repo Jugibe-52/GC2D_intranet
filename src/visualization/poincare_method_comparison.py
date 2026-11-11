@@ -120,6 +120,7 @@ def export_rho_method_comparison(
     vector_grid_size: int = 17, phase_steps: int = 50,
     colormap: str = 'turbo', color_range: tuple[float, float] = (0.025, 0.975),
     probe_runs_by_method: Mapping[str, Mapping[float, StoredSolution]] | None = None,
+    horizontal_transport: Mapping[str, Any] | None = None,
 ) -> Path:
     """Export four horizontal method panels and a field below particle selection.
 
@@ -130,6 +131,8 @@ def export_rho_method_comparison(
     available rho set. Additional requested rho values appear unavailable.
     Optional probe archives add the same eight explicit seeds to each method,
     retaining the original star palette and all independently saved returns.
+    Optional horizontal transport values must cover every available rho, method
+    and particle, and use the same full integration interval as these runs.
     """
     available: set[float] = _available_comparison_rhos(runs_by_method, rho_values)
     labels: dict[float, str] = _rho_labels(rho_values)
@@ -166,7 +169,12 @@ def export_rho_method_comparison(
         # Preparing the first method only reconstructs the physical field and
         # initial condition. It does not invoke an execution backend.
         record: dict[str, Any] = runs_by_method[_METHODS[0]][rho].metadata
-        prepared: PreparedRhoStar = prepare_rho_star(source, rho_config_from_metadata(record))
+        prepared: PreparedRhoStar
+        if 'historical_reproduction' in record:
+            from studies.horizontal_transport_reproduction import prepare_horizontal_reproduction
+            prepared = prepare_horizontal_reproduction(source, record)
+        else:
+            prepared = prepare_rho_star(source, rho_config_from_metadata(record))
         _require_matching_metadata(record, prepared.metadata, include_rho=True)
         for method in _METHODS:
             saved = runs_by_method[method][rho]
@@ -223,6 +231,7 @@ def export_rho_method_comparison(
         selected_dataset=labels[selected_rho], particle_labels=particle_labels,
         particle_groups=groups,
         field_placement='below_particles',
+        horizontal_transport=horizontal_transport,
         description=(
             'BM4 midpoint, BM4 implicit, RK4 and Gauss–Legendre share rho, particles, '
             'Start cycle, current cycle, playback and viewport controls. Every saved return '

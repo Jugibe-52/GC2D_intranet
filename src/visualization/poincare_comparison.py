@@ -202,6 +202,7 @@ def export_poincare_panel_comparison(
     datasets: Sequence[Mapping[str, Any]] | None = None, dataset_label: str = "Dataset",
     selected_dataset: object = None, particle_labels: Mapping[int, str] | None = None,
     first_cycle: int = 1, field_placement: str = "panel",
+    horizontal_transport: Mapping[str, Any] | None = None,
 ) -> Path:
     """Export aligned panels with optional selection between completed datasets.
 
@@ -215,6 +216,8 @@ def export_poincare_panel_comparison(
     ``field_placement="below_particles"`` moves the single static field and
     its phase controls below particle selection, keeping the trajectory panels
     together in their original order. Every control still shares one state.
+    ``horizontal_transport`` optionally adds validated full-integration metrics
+    beside each particle in a four-method rho comparison.
     """
     bounds: np.ndarray = np.asarray((0., 0., 1.) if coordinate_bounds is None else coordinate_bounds, dtype=float)
     if bounds.shape != (3,) or not np.isfinite(bounds).all() or bounds[2] <= 0:
@@ -250,6 +253,9 @@ def export_poincare_panel_comparison(
         encoded_panels, lower, upper, initial_view, highlight_particle, title,
         particle_groups, highlight_particles, regions,
     ))
+    if horizontal_transport is not None:
+        from visualization.poincare_transport import attach_horizontal_transport
+        config = attach_horizontal_transport(config, horizontal_transport)
     template: str = Path(__file__).with_name("_poincare_comparison.html").read_text()
     payload: str = json.dumps(config).replace('<', '\\u003c')
     Path(path).write_text(template.replace("__CONFIG__", payload), encoding="utf-8")

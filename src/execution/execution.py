@@ -27,7 +27,9 @@ from contracts.methods.base import NumericalMethod
 
 
 if TYPE_CHECKING:
+	from contracts.dynamics.coordinates import StateLayout
 	from diagnostics.methods.energy import EnergyObserver, PreparedEnergyObserver
+	from diagnostics.execution.horizontal_transport import HorizontalTransportObserver, PreparedHorizontalTransportObserver
 	from jax import Device
 	from execution._jax_fixed import PreparedIntegration
 
@@ -52,7 +54,7 @@ class Execution:
 	def run(
 		self, problem: InitialValueProblem, method: NumericalMethod,
 		*, options: ExecutionOptions | None = None,
-		observers: Sequence[EnergyObserver | Callable[[Any], None]] = (),
+		observers: Sequence[EnergyObserver | HorizontalTransportObserver | Callable[[Any], None]] = (),
 	) -> States:
 		"""Prepare once, advance using the selected worker, then seal one result."""
 		if not isinstance(problem, InitialValueProblem):
@@ -69,8 +71,9 @@ class Execution:
 		metadata: dict[str, DiagnosticValue]
 		prepared_dynamics, device, mode, metadata = _prepare_backend(problem.dynamics, method, execution_options)
 		energy: PreparedEnergyObserver | None
+		horizontal: PreparedHorizontalTransportObserver | None
 		callbacks: list[Callable[[Any], None]]
-		energy, callbacks = _prepare_observers(observers, prepared_dynamics,
+		energy, horizontal, callbacks = _prepare_observers(observers, prepared_dynamics,
 			problem=problem)
 		numerical_run: IntegrationMethod[Any]
 		observation_metadata: dict[str, DiagnosticValue]
@@ -97,12 +100,12 @@ class Execution:
 				from execution._jax_fixed import prepare_integration
 				assert device is not None and plan is not None
 				kernel: CompiledStep = prepare_step(numerical_run, device, initial_conditions=problem.initial_conditions, callbacks=callbacks, progress=execution_options.progress)
-				prepared = prepare_integration(numerical_run, kernel, plan, initial_state=problem.initial_state, energy=energy)
+				prepared = prepare_integration(numerical_run, kernel, plan, initial_state=problem.initial_state, energy=energy, horizontal=horizontal)
 			saved: States = States.prepare(request.output_times, problem.initial_state, layout=problem.layout)
 			if prepared is None:
 				assert controller is not None
 				step_diagnostics: dict[str, DiagnosticValue] = run_steps(numerical_run, saved, request,
-					source=problem.dynamics, controller=controller, observers=callbacks, energy=energy,
+					source=problem.dynamics, controller=controller, observers=callbacks, energy=energy, horizontal=horizontal,
 					initial_state=problem.initial_state, progress=execution_options.progress)
 			else:
 				from execution._jax_fixed import run_steps as run_compiled_steps
@@ -136,14 +139,16 @@ def _prepare_backend(
 
 
 def _prepare_observers(
-	observers: Sequence[EnergyObserver | Callable[[Any], None]], dynamics: DynamicalSystem,
+	observers: Sequence[EnergyObserver | HorizontalTransportObserver | Callable[[Any], None]], dynamics: DynamicalSystem,
 	*, problem: InitialValueProblem,
-) -> tuple[PreparedEnergyObserver | None, list[Callable[[Any], None]]]:
-	"""Bind endpoint energy observation and keep caller-owned callbacks in order."""
+) -> tuple[PreparedEnergyObserver | None, PreparedHorizontalTransportObserver | None, list[Callable[[Any], None]]]:
+	"""Bind passive endpoint observers and keep caller-owned callbacks in order."""
 	energy: PreparedEnergyObserver | None = None
+	horizontal: PreparedHorizontalTransportObserver | None = None
 	callbacks: list[Callable[[Any], None]] = []
 	if observers:
 		from diagnostics.methods.energy import EnergyObserver
+		from diagnostics.execution.horizontal_transport import HorizontalTransportObserver
 	for observer in observers:
 		if isinstance(observer, EnergyObserver):
 			if energy is not None:
@@ -152,11 +157,17 @@ def _prepare_observers(
 				raise TypeError("Energy observation requires HamiltonianSystem.")
 			energy = observer.new_run(dynamics.hamiltonian, dynamics.hamiltonian_time_derivative,
 				particle_count=problem.particle_count)
+		elif isinstance(observer, HorizontalTransportObserver):
+			if horizontal is not None:
+				raise ValueError("Register at most one HorizontalTransportObserver per run.")
+			coordinates: StateLayout = getattr(dynamics, "coordinates", problem.layout)
+			horizontal = observer.new_run(dynamics.vector_field, coordinates.positions,
+				particle_count=problem.particle_count)
 		elif callable(observer):
 			callbacks.append(observer)
 		else:
-			raise TypeError("Observers must be EnergyObserver configurations or step callbacks.")
-	return energy, callbacks
+			raise TypeError("Observers must be energy or horizontal transport configurations, or step callbacks.")
+	return energy, horizontal, callbacks
 
 
 def _prepare_numerical_run(
