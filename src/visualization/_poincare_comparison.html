@@ -26,6 +26,13 @@ label.particle{border:1px solid #ddd;border-radius:5px;padding:5px;cursor:pointe
 .particle-metric{white-space:nowrap;display:flex;justify-content:space-between;gap:5px}
 .particle-metric b{font-weight:600}
 #transport-note{font-size:13px;line-height:1.5;margin:8px 0;color:#475569}
+#particles.with-families{display:block}
+.particle-family{border:1px solid #cbd5e1;border-radius:9px;margin:12px 0;padding:12px;background:#f8fafc}
+.family-header{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.family-header label{font-weight:600;cursor:pointer}
+.family-note{color:#475569;font-size:12px;flex:1}
+.family-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(205px,1fr));gap:8px}
+.family-cards .particle{background:white}
 </style>
 <h2>Synchronized Poincare sections</h2>
 <p id="description">Wrapped coordinates x/L and y/L. Small dots: accumulated returns. Large dot: current return.
@@ -59,8 +66,24 @@ After zooming, Shift-drag or right-drag to pan all panels.</p>
 <div id="field-plots"></div>
 </section>
 <script>
+(async()=>{
 const cfg=__CONFIG__;
 if(cfg.title){document.title=cfg.title;document.querySelector('h2').textContent=cfg.title;}
+async function resolveDataset(dataset){
+ if(!dataset.panels&&dataset.asset){
+  const response=await fetch(dataset.asset);
+  if(!response.ok)throw new Error('Unable to load rho '+dataset.key+' ('+response.status+')');
+  const payload=await response.json();
+  if(payload.key!==dataset.key||!payload.panels)throw new Error('Invalid rho dataset');
+  Object.assign(dataset,payload);
+ }
+ return dataset;
+}
+if(!cfg.panels){
+ document.getElementById('status').textContent='Loading trajectories…';
+ const initial=await resolveDataset(cfg.datasets.find(item=>item.key===cfg.selectedDataset));
+ cfg.panels=initial.panels;
+}
 if(cfg.description)document.getElementById('description').textContent=cfg.description;
 function decodeFloat(data){return new Float32Array(Uint8Array.from(atob(data),c=>c.charCodeAt(0)).buffer);}
 function decodePanels(records){return records.map(panel=>{
@@ -83,7 +106,7 @@ if(detachedField){
  section.prepend(document.getElementById('field-controls'));
 }
 const colorById=new Map();panels.forEach(panel=>panel.ids.forEach((id,p)=>colorById.set(id,panel.colors[p])));
-const selected=new Set(allIds),boxes=[],metricContainers=new Map();
+const selected=new Set(allIds),boxes=[],metricContainers=new Map(),particleCards=new Map(),familyControls=[];
 const slider=document.getElementById('cycle'),startSlider=document.getElementById('start-cycle'),play=document.getElementById('play');
 const speed=document.getElementById('speed'), trail=document.getElementById('trail');
 slider.min=firstCycle;startSlider.min=firstCycle;startSlider.value=firstCycle;slider.max=N;startSlider.max=N;speed.value=String(cfg.step);
@@ -159,8 +182,39 @@ allIds.forEach((id,p)=>{
  box.onchange=()=>{box.checked?selected.add(id):selected.delete(id);draw();};
  label.append(box,document.createTextNode(cfg.particleLabels?.[id]??('Particle '+id)));
  const metrics=document.createElement('span');metrics.className='particle-metrics';metrics.hidden=true;label.append(metrics);metricContainers.set(id,metrics);
- document.getElementById('particles').append(label);boxes.push(box);
+ label.dataset.particleId=String(id);box.setAttribute('aria-label','Select particle '+id);
+ document.getElementById('particles').append(label);boxes.push(box);particleCards.set(id,label);
 });
+if(cfg.particleFamilies?.length){
+ const root=document.getElementById('particles');root.classList.add('with-families');
+ const assigned=new Set();
+ const groups=cfg.particleFamilies.map(group=>({...group,ids:[...group.ids]}));
+ groups.forEach(group=>group.ids.forEach(id=>{
+  if(!particleCards.has(id)||assigned.has(id))throw new Error('Invalid or duplicate family particle '+id);
+  assigned.add(id);
+ }));
+ const others=allIds.filter(id=>!assigned.has(id));
+ if(others.length)groups.push({label:'Other original particles',ids:others,note:'Original IDs and saved trajectories.'});
+ groups.forEach(group=>{
+  const section=document.createElement('section');section.className='particle-family';
+  section.setAttribute('aria-label',group.label);if(group.parent)section.dataset.parent=String(group.parent);
+  const header=document.createElement('div');header.className='family-header';
+  const label=document.createElement('label'),box=document.createElement('input');box.type='checkbox';box.checked=true;
+  box.setAttribute('aria-label','Select '+group.label);label.append(box,document.createTextNode(' '+group.label));
+  const note=document.createElement('span');note.className='family-note';note.textContent=group.note??'';
+  const isolate=document.createElement('button');isolate.type='button';isolate.textContent='Isolate';
+  isolate.setAttribute('aria-label','Isolate '+group.label);
+  const syncBoxes=()=>boxes.forEach((input,p)=>input.checked=selected.has(allIds[p]));
+  box.onchange=()=>{group.ids.forEach(id=>box.checked?selected.add(id):selected.delete(id));syncBoxes();draw();};
+  isolate.onclick=()=>{selected.clear();group.ids.forEach(id=>selected.add(id));syncBoxes();draw();};
+  header.append(label,note,isolate);
+  if(group.view){const zoom=document.createElement('button');zoom.type='button';zoom.textContent='Zoom';
+   zoom.setAttribute('aria-label','Zoom '+group.label);zoom.onclick=()=>{view={...group.view};drag=null;draw();plots.scrollIntoView({behavior:'smooth',block:'start'});};header.append(zoom);}
+  const cards=document.createElement('div');cards.className='family-cards';
+  group.ids.forEach(id=>cards.append(particleCards.get(id)));
+  section.append(header,cards);root.append(section);familyControls.push({box,ids:group.ids});
+ });
+}
 function updateTransport(dataset){
  const transport=dataset?.horizontalTransport,note=document.getElementById('transport-note');
  note.hidden=!transport;document.getElementById('particles').classList.toggle('with-transport',!!transport);
@@ -219,6 +273,8 @@ function drawField(ctx,field,phase){
  }
 }
 function draw(){
+ familyControls.forEach(({box,ids})=>{const count=ids.filter(id=>selected.has(id)).length;
+  box.checked=count===ids.length;box.indeterminate=count>0&&count<ids.length;});
  const cycle=Number(slider.value),startCycle=Number(startSlider.value);
  const diameter=Number(pointSize.value),digits=Math.max(2,Math.ceil(-Math.log10(view.span))+2);
  document.getElementById('point-size-value').textContent=diameter+' px';
@@ -260,11 +316,11 @@ function draw(){
  ctx.restore();
  const note=canvas.nextElementSibling;
  if(field){
-  note.textContent=`Effective Hρ (${field.units}). Arrows: GC drift, lengths proportional to speed; fixed scale across phases, maximum ${field.maxSpeed.toPrecision(4)}. Phase ${field.phases[Number(phaseSlider.value)].toFixed(2)}.`;
+  note.textContent=cfg.plotLanguage==='fr'?`Hρ effectif (${field.units}). Flèches : dérive GC, longueurs proportionnelles à la vitesse ; échelle fixe entre les phases, maximum ${field.maxSpeed.toPrecision(4)}. Phase ${field.phases[Number(phaseSlider.value)].toFixed(2)}.`:`Effective Hρ (${field.units}). Arrows: GC drift, lengths proportional to speed; fixed scale across phases, maximum ${field.maxSpeed.toPrecision(4)}. Phase ${field.phases[Number(phaseSlider.value)].toFixed(2)}.`;
   const gradient=ctx.createLinearGradient(left,0,left+size,0);
   for(let k=0;k<=4;k++)gradient.addColorStop(k/4,'rgb('+heatColor(k/4).join(',')+')');
   ctx.fillStyle=gradient;ctx.fillRect(left,552,size,10);ctx.fillStyle='#334155';ctx.font='12px system-ui';ctx.textAlign='left';ctx.fillText(field.minimum.toPrecision(4),left,577);ctx.textAlign='right';ctx.fillText(field.maximum.toPrecision(4),left+size,577);
- }else if(!fixed)note.textContent=`Hollow circles: particle positions at Start cycle ${startCycle}. Filled dots: subsequent returns; larger dots: Current cycle ${cycle}.`;
+ }else if(!fixed)note.textContent=cfg.plotLanguage==='fr'?`Cercles vides : positions au cycle initial ${startCycle}. Points pleins : retours suivants ; grands points : cycle courant ${cycle}.`:`Hollow circles: particle positions at Start cycle ${startCycle}. Filled dots: subsequent returns; larger dots: Current cycle ${cycle}.`;
 
  if(drag&&!drag.pan){const b=drag.box;ctx.save();ctx.strokeStyle='#111827';ctx.fillStyle='rgba(59,130,246,.12)';ctx.setLineDash([6,4]);ctx.fillRect(left+b.x*size,top+(1-b.y-b.span)*size,b.span*size,b.span*size);ctx.strokeRect(left+b.x*size,top+(1-b.y-b.span)*size,b.span*size,b.span*size);ctx.restore();}
  });
@@ -316,14 +372,26 @@ if(cfg.datasets?.length){
  const control=document.getElementById('dataset-control'),selector=document.getElementById('dataset-selector');
  control.hidden=false;document.getElementById('dataset-label').textContent=cfg.datasetLabel;
  cfg.datasets.forEach(dataset=>{
-  const option=new Option(dataset.label+(dataset.panels?'':' — not calculated'),dataset.key);
-  option.disabled=!dataset.panels;selector.add(option);
+  const option=new Option(dataset.label+(dataset.panels||dataset.asset?'':' — not calculated'),dataset.key);
+  option.disabled=!dataset.panels&&!dataset.asset;selector.add(option);
  });
  selector.value=cfg.selectedDataset;
- const chooseDataset=()=>{
+ let datasetRequest=0;
+ const chooseDataset=async()=>{
+  const request=++datasetRequest;
   const dataset=cfg.datasets.find(item=>item.key===selector.value);
-  if(!dataset?.panels)return;
-  stop();stopPhase();panels=decodePanels(dataset.panels);
+  if(!dataset||(!dataset.panels&&!dataset.asset))return;
+  stop();stopPhase();selector.disabled=true;
+  document.getElementById('dataset-note').textContent='Loading rho '+dataset.key+'…';
+  try{await resolveDataset(dataset);}catch(error){
+   if(request===datasetRequest){selector.value=cfg.selectedDataset;selector.disabled=false;
+    document.getElementById('dataset-note').textContent=error.message+' — select rho to retry.';}return;
+  }
+  if(request!==datasetRequest)return;
+  selector.disabled=false;cfg.selectedDataset=dataset.key;panels=decodePanels(dataset.panels);
+  // Keep the current encoded dataset only; decoded panels own the active data.
+  cfg.datasets.forEach(item=>{if(item!==dataset&&item.asset)delete item.panels;});
+  delete cfg.panels;
   canvases.forEach((canvas,index)=>{canvas.previousElementSibling.textContent=panels[index].title;canvas.setAttribute('aria-label',panels[index].title);});
   document.getElementById('dataset-note').textContent=dataset.note;
   updateTransport(dataset);
@@ -332,4 +400,5 @@ if(cfg.datasets?.length){
  selector.onchange=chooseDataset;chooseDataset();
 }
 draw();
+})().catch(error=>{document.getElementById('status').textContent='Unable to load viewer: '+error.message;console.error(error);});
 </script></html>

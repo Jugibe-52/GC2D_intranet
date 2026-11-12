@@ -58,6 +58,15 @@ rings. Unavailable cases stay disabled. Reconstruct fields from verified inputs
 without integration, map H and velocity to cell/cycle units, and audit closure
 across 51 phases. Folding changes only display copies.
 
+The shared comparison template also supports optional five-particle families
+and lazy dataset assets for the separate historical
+[parallel-neighbour study](../../docs/studies/poincare-parallel-families.md).
+That study preserves original IDs 1-48, appends 49-84 and keeps the original
+full-integration Qx values. Its nine groups support individual and group
+selection, isolation and reference-curve zoom. Dataset changes preserve particle
+selection; load errors retain the previous data. This extension leaves the
+automation's 48-particle configuration and physical composition unchanged.
+
 ## PNC-004: Bounded skill operations
 
 The project-local simular-poincare skill resolves inputs and uses the tested

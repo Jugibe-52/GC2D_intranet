@@ -1,0 +1,5 @@
+# Accepted study
+
+The user accepted the proposal and authorized execution and publication on 2026-11-12. Construct 36 fixed seeds from the archived GaussLegendre4 returns at rho=0.30: two inside and two outside each selected curve, displaced by 2% and 4% of its width projected onto the local unit normal. Fit that normal using the 40 spatially nearest returns. For particle 2 use the initial component of the seven-island chain (returns 0, 7, 14, ...). Check the inside/outside classification and normal sensitivity against all four methods. Assign IDs 49-84 in parent order; within each family use inner-near, inner-far, outer-near, outer-far.
+
+Run those same seeds for rho=0,0.05,...,0.50 with BM4Midpoint, BM4Implicit, RK4 and GaussLegendre4 in Modal using CPU JAX float64. Preserve the historical radial field construction, B=1.5, source field 15, 5000 cycles, 50 full steps/cycle and original solver tolerances. Save all 5001 returns and full-integration Qx. Reuse the original 48 archives without reintegration. Publish a new Cloudflare Pages project with all 84 IDs and family and individual selection. Do not replace the existing website.
