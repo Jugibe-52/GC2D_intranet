@@ -126,14 +126,53 @@ reused all nine other files. The production exporter uses the same viewport.
 
 ## Remaining work
 
-Resolve the two numerical failures before finalizing a complete 88-case campaign;
-neither upload recovery
-nor partial result availability satisfies that prerequisite. Consolidated
-`execution-metrics.json` and the production Poincare export remain pending.
-The published Cloudflare site is still the 100-cycle pilot. Actual Modal invoice
-charges remain unavailable. No Git commit, push or production deployment is part
-of this archive-recovery operation.
+The two numerical failures remain unresolved; a complete 88-case campaign would
+require separately verified results for them. The explicitly accepted partial
+publication below is complete, with a separate resource summary for its 86 cases.
+Actual Modal invoice charges remain unavailable. No numerical jobs were resubmitted,
+and this publication did not edit the thesis or create Git commits or pushes.
 
 ## Partial publication implementation
 
-On 2026-11-15 the user authorized publishing the 86 available results with the two absent cases visible. Implementation and validation are in progress; the numerical campaign remains 86/88 complete.
+On 2026-11-15 the user authorized publishing the 86 available results with the two absent cases visible. Implementation, validation and deployment are complete; the numerical campaign remains 86/88 complete.
+
+
+The explicit `--allow-partial` route is implemented in finalization and export;
+the default still rejects an incomplete campaign. It accepts complete B2-verified
+cases and failed cases with no saved archive, rejecting pending uploads, unknown
+cases and corrupt data. Missing panels and independent load errors are explicit.
+The separate `execution-metrics-partial-86.json` was uploaded to B2 and its SHA256
+was verified by remote read-back.
+
+Thirteen campaign tests passed, including five new publication tests. Strict
+mypy passed for 324 source files, JavaScript syntax passed and the SDD validator
+accepted 209 records and 22 requirements. All 86 exported binaries passed size,
+SHA256, finite-value and period-two range checks: each contains `(5001,84,2)`
+float64 values, or 6,721,344 bytes; together they contain 578,035,584 bytes.
+The two missing metadata entries have no asset. There are no extra binary files.
+The archived numerical-source digest matches the frozen campaign; all 189 original
+numerical files are byte-identical to the current counterparts. The whole current
+tree digest differs because a later independent periodic-particle diagnostic
+module was added; the archived fingerprint and result provenance are preserved.
+
+Local browser checks confirmed eight panels in two rows of four, exactly two
+sliders, no method selector, 8/8 results at rho=0.30 and 6/8 at rho=0 with both
+convergence failures visible. Slider intervals 1–4999, 5000–5000, 0–0 and reset
+to 0–5000 passed. A separate disposable fixture with one deliberately missing
+asset loaded the other seven panels and reported one loading error. This fixture
+is outside the deployment directory. Production deployment and public verification are complete.
+
+
+Cloudflare deployment `8f6d7942` published all 88 web files successfully at
+https://gc2d-main-reflected.pages.dev/ on 2026-11-15. The public browser loaded
+all eleven rho values and verified all 86 binary assets through the viewer's
+size/SHA256 checks: six results at rho=0 and eight at each other radius, without
+loading errors. The production sliders and reset passed; screenshots retain the
+eight-panel unit-square layout and the two explicit missing panels. The separate
+pilot still reports 100 cycles. Direct non-browser HTTP checks returned 403, so
+public verification used the functioning browser interface instead.
+`publication-partial-86.json` records the URL, deployment, counts, missing cases,
+asset fingerprints and per-radius browser outcomes. The local `publication.json`
+now points to this successful partial publication. The partial resource summary
+and publication receipt were each verified by SHA256 read-back from B2.
+Project memory retains the accepted partial-publication rule in 300 lines.

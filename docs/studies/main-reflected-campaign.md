@@ -79,7 +79,8 @@ overwrite different objects, resubmit simulations or change the scientific code.
 file against its original SHA256 and size, resuming completed cases from
 `upload-recovery.json`. Until this succeeds, cases remain
 `uploaded_pending_readback`, not `complete`. The two missing numerical cases
-remain failures; uploading saved cases alone does not enable final publication.
+remain failures. Partial publication requires the explicit option below; saved
+cases whose uploads are still unverified cannot be omitted through that option.
 
 ## Time and cost per case
 
@@ -101,8 +102,11 @@ unavailable unless reconciled against a separate Modal billing record.
 
 ## Poincare-only website
 
-The exporter requires all campaign cases and selects every tenth scientific
-sample, including cycle zero. It writes lossless little-endian float64 arrays
+By default, the exporter requires all campaign cases. Explicit partial publication
+admits B2-verified results and recorded failed cases without saved archives;
+pending uploads, unknown cases and corrupt archives still stop the export.
+The exporter selects every tenth scientific sample, including cycle zero.
+It writes lossless little-endian float64 arrays
 `(cycle, 84, xy)`, with a SHA256 fingerprint for each lazily loaded asset. Display
 coordinates are reduced modulo two, not folded into period one. State archives
 remain unwrapped. All eight methods remain visible without a method selector.
@@ -116,6 +120,11 @@ also used on initial load. Returns outside this viewport are clipped; stored
 period-two coordinates and the numerical trajectories are unchanged. The website retains
 rho/particle/family selection, animation and synchronized zoom/pan. It excludes
 intermediate trajectory samples, energy/projection plots and horizontal transport Qx.
+For a partial campaign, an availability notice gives the available/expected counts
+and identifies the missing combinations. Missing cases retain their panels with
+an explanatory message. A missing result or a failed network request does not
+prevent the other panels from loading; load errors remain distinct from numerical
+failures. Every downloaded data asset retains its size and SHA256 checks.
 
 Deploy the generated `site/` to a separate Cloudflare Pages project. The existing
 catalog and previous deployments are not overwritten. No single binary asset
@@ -128,3 +137,28 @@ elapsed span from the first worker start to the last worker finish, then exports
 the complete website. Neither aggregate duration includes local transfers.
 The production archive also retains the campaign inputs and a numerical-source
 snapshot with SHA256 fingerprints.
+
+For the explicitly accepted 86-case publication, use:
+
+```bash
+.venv/bin/python scripts/run_main_campaign.py finalize notebooks/developements/main_reflected_campaign/main-20261115 --allow-partial
+```
+
+The campaign progress remains 86 complete and two failed. Website metadata records
+`publicationStatus="partial"`, 86 available cases and 88 expected cases; the two
+unavailable entries have reasons and no invented assets. Resource summaries include
+only available cases and retain unknown actual billing. Their immutable snapshot
+is `execution-metrics-partial-86.json`, leaving `execution-metrics.json` available
+for a later complete campaign. `view --allow-partial` uses the same availability
+checks but only exports the local website. Neither operation repeats integrations.
+
+
+The accepted 86-case production viewer is published at
+[gc2d-main-reflected.pages.dev](https://gc2d-main-reflected.pages.dev/), with 5000
+cycles per available result. At rho=0, ImplicitMidpoint and ABBA2Implicit show
+recorded nonlinear-convergence failures; the other ten radii contain all eight
+methods. The [100-cycle pilot](https://pilot.gc2d-main-reflected.pages.dev/)
+remains separate. Deployment `8f6d7942` contains 86 data assets and two public
+HTML/metadata files, plus cache headers. The campaign-local publication receipt
+records verification evidence; a partial publication does not mark all 88
+numerical cases complete.
