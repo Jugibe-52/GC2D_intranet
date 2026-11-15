@@ -35,7 +35,12 @@ from contracts.arrays import uses_jax
 
 from ._validation import _readonly_array, _validated_potential_data
 from ._periodic_spline import _build_periodic_spline
+from ._reflected_spline import _build_reflected_spline
 from ._evaluation import validate_derivatives, normalize_coordinates, reconstruct
+from ._spatial import (
+	SpatialExtension, validate_spatial_extension, reflected_coordinates,
+	closed_reflected_samples,
+)
 
 
 if TYPE_CHECKING:
@@ -169,11 +174,17 @@ class Potential:
 		*,
 		metadata: object | None = None,
 		interpolation_order: int = 3,
+		spatial_extension: str = "reflected",
+		reflected_samples: np.ndarray | None = None,
 	) -> None:
 		"""Store sampled fields and prepare their periodic interpolants.
 
 		``interpolation_order`` is the polynomial degree used independently on both
 		spatial axes.  It affects off-grid evaluations but not the stored samples.
+		``spatial_extension="reflected"`` uses cubic splines with zero normal
+		derivatives and spatial period twice the base width. ``"periodic"`` retains
+		the previous wrapped splines with degrees 2 through 5. Optional closed
+		``reflected_samples`` preserve independently supplied upper-edge values.
 		"""
 		if not isinstance(grid, Grid):
 			raise TypeError("`grid` must be a Grid instance.")
@@ -181,26 +192,81 @@ class Potential:
 			or not isinstance(interpolation_order, (int, np.integer))
 			or not 2 <= int(interpolation_order) <= 5):
 			raise ValueError("`interpolation_order` must be an integer from 2 to 5.")
+		self._spatial_extension = validate_spatial_extension(spatial_extension)
+		if self.spatial_extension == "reflected" and interpolation_order != 3:
+			raise ValueError("Reflected potentials require cubic interpolation_order=3; use 'periodic' for other degrees.")
+		if self.spatial_extension == "periodic" and reflected_samples is not None:
+			raise ValueError("`reflected_samples` is only valid for reflected potentials.")
 		self._grid = grid
 		self._interpolation_order = int(interpolation_order)
 		self._mean, self._modes, self._frequencies = _validated_potential_data(
 			grid, mean, modes, frequencies,
 		)
-		self._splines = tuple(
-			_build_periodic_spline(
-				grid.x, grid.y, field, spacing=(grid.dx, grid.dy),
-				interpolation_order=self.interpolation_order,
+		self._reflected_samples: np.ndarray | None = None
+		if self.spatial_extension == "reflected":
+			self._reflected_samples = closed_reflected_samples(
+				np.concatenate((self.mean[None], self.modes)), reflected_samples,
 			)
-			for field in (self.mean, *self.modes)
-		)
+			closed_x: np.ndarray = np.append(grid.x, grid.x0 + grid.period)
+			closed_y: np.ndarray = np.append(grid.y, grid.y0 + grid.period)
+			self._splines = tuple(
+				_build_reflected_spline(closed_x, closed_y, field)
+				for field in self._reflected_samples
+			)
+		else:
+			self._splines = tuple(
+				_build_periodic_spline(
+					grid.x, grid.y, field, spacing=(grid.dx, grid.dy),
+					interpolation_order=self.interpolation_order,
+				)
+				for field in (self.mean, *self.modes)
+			)
 		self.metadata = metadata
 		# Concrete device constants only; traced calls never populate this cache.
 		self._jax_buffers: dict[Any, tuple[Any, ...]] = {}
 
 	@property
 	def grid(self) -> Grid:
-		"""Periodic spatial grid of the sampled potential."""
+		"""Half-open base sampling grid; its width need not be the full period."""
 		return self._grid
+
+	@property
+	def spatial_extension(self) -> SpatialExtension:
+		"""Selected scalar extension, preserved by derived potentials."""
+		return self._spatial_extension
+
+	@property
+	def spatial_period(self) -> float:
+		"""Full physical repeat length, in the grid's coordinate units."""
+		return self.grid.period * (2 if self.spatial_extension == "reflected" else 1)
+
+	@property
+	def reflected_samples(self) -> np.ndarray | None:
+		"""Read-only closed fields (1+m,nx+1,ny+1), or None for periodic fields."""
+		return self._reflected_samples
+
+	def display_coordinates(self, x: Any, y: Any) -> tuple[np.ndarray, np.ndarray]:
+		"""Fold display copies into the base cell without altering physical states."""
+		x, y = np.asarray(x), np.asarray(y)
+		origin: tuple[float, float] = (self.grid.x0, self.grid.y0)
+		if self.spatial_extension == "reflected":
+			x, y, _, _ = reflected_coordinates(x, y, origin, self.grid.period, xp=np)
+		else:
+			x, y = normalize_coordinates(x, y, origin, self.grid.period)
+		return np.asarray(x), np.asarray(y)
+
+	def display_vectors(self, x: Any, y: Any, vx: Any, vy: Any) -> tuple[np.ndarray, np.ndarray]:
+		"""Transform actual trajectory velocities with their display branch signs.
+
+	At a folding seam this is the selected one-sided display velocity. The
+	physical Hamiltonian field is continuous, while a folded path can turn.
+	"""
+		if self.spatial_extension == "reflected":
+			_, _, sx, sy = reflected_coordinates(
+				np.asarray(x), np.asarray(y), (self.grid.x0, self.grid.y0), self.grid.period, xp=np,
+			)
+			return np.asarray(sx * vx), np.asarray(sy * vy)
+		return np.array(vx, copy=True), np.array(vy, copy=True)
 
 	@property
 	def interpolation_order(self) -> int:
@@ -226,11 +292,13 @@ class Potential:
 		"""Serialize physical data only; device buffers and compiled functions are local."""
 		return dict(grid=self.grid, mean=self.mean, modes=self.modes, frequencies=self.frequencies,
 		            metadata=self.metadata, interpolation_order=self.interpolation_order,
+		            spatial_extension=self.spatial_extension, reflected_samples=self.reflected_samples,
 		            frequency_convention="cycles")
 
 	def __setstate__(self, state: dict[str, Any]) -> None:
 		"""Rebuild CPU splines and empty device caches in the receiving process."""
 		state = dict(state)
+		state.setdefault("spatial_extension", "periodic")
 		convention: Any = state.pop("frequency_convention", "cycles")
 		if convention == "angular":
 			state["frequencies"] = np.asarray(state["frequencies"]) / (2 * np.pi)
@@ -248,6 +316,7 @@ class Potential:
 		ny: int,
 		seed: int = 27,
 		interpolation_order: int = 3,
+		spatial_extension: str = "reflected",
 	) -> Self:
 		"""Create the reproducible periodic potential used in the notebooks.
 
@@ -271,6 +340,7 @@ class Potential:
 			modes=mode[np.newaxis, ...],
 			frequencies=np.asarray([1.0 / (2 * np.pi)]),
 			interpolation_order=interpolation_order,
+			spatial_extension=spatial_extension,
 		)
 
 	@classmethod
@@ -283,6 +353,7 @@ class Potential:
 		temporal_rescaling: bool = False,
 		sigma: float | None = None,
 		interpolation_order: int = 3,
+		spatial_extension: str = "reflected",
 	) -> Self:
 		"""Read original HDF5 samples, optionally changing space and time units.
 
@@ -292,11 +363,12 @@ class Potential:
 		included in every component when the respective flags are enabled.
 		B belongs to GuidingCenterDynamics, never to this loader.
 		"""
+		validate_spatial_extension(spatial_extension)
 		data: _GC2DH5Data = _load_data(filename, indx=indx, spatial_rescaling=spatial_rescaling,
 			temporal_rescaling=temporal_rescaling, sigma=sigma)
 		return cls(data.grid, mean=data.mean, modes=data.modes,
 			frequencies=data.frequencies, metadata=data.metadata,
-			interpolation_order=interpolation_order)
+			interpolation_order=interpolation_order, spatial_extension=spatial_extension)
 
 	@cached_property
 	def _spline_data(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -335,9 +407,16 @@ class Potential:
 		time, x, y = np.asarray(t), np.asarray(x), np.asarray(y)
 		if x.shape != y.shape:
 			raise ValueError("`x` and `y` must have the same shape.")
-		x, y = normalize_coordinates(x, y, (self.grid.xmin, self.grid.ymin), self.grid.period)
+		factor: Any = 1.0
+		if self.spatial_extension == "reflected":
+			x, y, sx, sy = reflected_coordinates(
+				x, y, (self.grid.xmin, self.grid.ymin), self.grid.period, xp=np,
+			)
+			factor = sx**dx * sy**dy
+		else:
+			x, y = normalize_coordinates(x, y, (self.grid.xmin, self.grid.ymin), self.grid.period)
 		fields: np.ndarray = np.stack([spline.evaluate(x, y, dx=int(dx), dy=int(dy)) for spline in self._splines])
-		return reconstruct(time, fields, self.frequencies, int(dt), xp=np)
+		return reconstruct(time, fields * factor, self.frequencies, int(dt), xp=np)
 
 	def evaluate_grid(self, t: Any, *, dt: int = 0) -> np.ndarray:
 		"""Return NumPy grid values with spatial axes before the time axes.
@@ -378,6 +457,23 @@ class Potential:
 			raise ValueError("`rho` must be finite and non-negative.")
 		if radius == 0:
 			return self
+		if self.reflected_samples is not None:
+			# Reflect the closed block without duplicating the 2L endpoint.
+			ix: np.ndarray = np.concatenate((np.arange(self.grid.nx + 1), np.arange(self.grid.nx - 1, 0, -1)))
+			iy: np.ndarray = np.concatenate((np.arange(self.grid.ny + 1), np.arange(self.grid.ny - 1, 0, -1)))
+			doubled: np.ndarray = self.reflected_samples[:, ix][:, :, iy]
+			wave_x: np.ndarray = fftfreq(2 * self.grid.nx, d=self.grid.dx)
+			wave_y: np.ndarray = fftfreq(2 * self.grid.ny, d=self.grid.dy)
+			multiplier: np.ndarray = jv(0, 2 * np.pi * radius * np.hypot(wave_x[:, None], wave_y[None, :]))
+			averaged: np.ndarray = ifft2(fft2(doubled, axes=(-2, -1)) * multiplier, axes=(-2, -1))
+			closed: np.ndarray = np.array(averaged[:, :self.grid.nx + 1, :self.grid.ny + 1], copy=True)
+			closed[0] = closed[0].real
+			return type(self)(
+				self.grid, mean=closed[0, :-1, :-1].real, modes=closed[1:, :-1, :-1],
+				frequencies=self.frequencies, metadata=self.metadata,
+				interpolation_order=self.interpolation_order,
+				spatial_extension=self.spatial_extension, reflected_samples=closed,
+			)
 		# ``fftfreq`` returns cycles per unit length; multiplying its norm by
 		# ``2*pi`` below converts it to the angular wave number used by J_0.
 		kx: np.ndarray = fftfreq(self.grid.nx, d=self.grid.dx)
@@ -405,6 +501,7 @@ class Potential:
 			frequencies=self.frequencies,
 			metadata=self.metadata,
 			interpolation_order=self.interpolation_order,
+			spatial_extension=self.spatial_extension,
 		)
 
 

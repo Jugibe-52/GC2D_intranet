@@ -88,9 +88,11 @@ def export_star_poincare(saved: StoredSolution, path: str | Path, *,
     grid = saved.potential.grid
     origin: np.ndarray = np.array([grid.x0, grid.y0])
     if wrap_periodic:
-        coordinates = origin + np.remainder(coordinates - origin, grid.period)
+        coordinates = np.stack(saved.potential.display_coordinates(
+            coordinates[..., 0], coordinates[..., 1]), axis=-1)
         bounds = (grid.x0, grid.y0, grid.period)
-        coordinate_note = "Display positions are folded into the periodic HDF5 cell; axes remain in meters."
+        coordinate_note = (f"Display positions use the {saved.potential.spatial_extension} extension "
+                           "to fold into the HDF5 base tile; axes remain in meters.")
     else:
         lower: np.ndarray = np.minimum(origin, coordinates.min(axis=(0, 1)))
         upper: np.ndarray = np.maximum(origin + grid.period, coordinates.max(axis=(0, 1)))

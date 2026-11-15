@@ -67,7 +67,9 @@ def run_energy_balance(potential: Potential, configuration: np.ndarray, config: 
         raise ValueError("This study requires three particles.")
     request: SimulationRequest = SimulationRequest((0., duration),  times)
     arrays = {'times': times, 'initial_state': z0,
-              'domain': np.array([potential.grid.xmin, potential.grid.ymin, potential.grid.period])}
+              'domain': np.array([potential.grid.xmin, potential.grid.ymin, potential.grid.period]),
+              'spatial_extension_reflected': np.asarray(potential.spatial_extension == 'reflected'),
+              'spatial_period': np.asarray(potential.spatial_period)}
     print('Starting DOP853', flush=True)
     reference = solve_ivp(dynamics.vector_field, request.t_span, z0, method="DOP853",
         max_step=h, rtol=config['reference_rtol'], atol=config['reference_atol'], dense_output=True)
@@ -114,7 +116,7 @@ def run_energy_balance(potential: Potential, configuration: np.ndarray, config: 
         arrays[name+'.H'] = energy
         arrays[name+'.balance'] = energy + arrays[name+'.kappa'] - energy[:, :1]
         delta = states - arrays['DOP853.states']
-        delta = (delta + potential.grid.period/2) % potential.grid.period - potential.grid.period/2
+        delta = (delta + potential.spatial_period/2) % potential.spatial_period - potential.spatial_period/2
         arrays[name+'.distance'] = np.linalg.norm(delta.reshape(2, n, -1), axis=0)
     if any(not np.all(np.isfinite(a)) for a in arrays.values()):
         raise ValueError('Nonfinite study results.')

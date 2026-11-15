@@ -623,7 +623,7 @@ def run_implicit_method_accuracy_study(
 				method_name,
 				solution.states.T,
 				reference.states[:, indices],
-				period=float(potential.grid.period),
+				period=float(potential.spatial_period),
 				distance_convention=distance_convention,
 			)
 	assert reference_indices is not None

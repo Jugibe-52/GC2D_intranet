@@ -74,7 +74,7 @@ class MethodStepTests(unittest.TestCase):
 			import jax
 		except ImportError:
 			self.skipTest('Optional JAX is unavailable')
-		potential = Potential.random(A=.08, M=3, nx=16, ny=16, seed=27, interpolation_order=5)
+		potential = Potential.random(A=.08, M=3, nx=16, ny=16, seed=27, spatial_extension="periodic", interpolation_order=5)
 		p = InitialValueProblem(GuidingCenterDynamics(potential, rho=.05), np.array([1., 1.2]))
 		r = SimulationRequest((.3, .355), np.array([.3, .305, .32, .345, .355]))
 		with jax.experimental.enable_x64():

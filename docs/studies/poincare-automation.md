@@ -49,7 +49,8 @@ OS lock prevents two simultaneous writers to the same study.
 | `--no-temporal-rescaling` | Disable the default physical-cycle time change of variables |
 | `--reference-length` | `0.06` meters; defines the requested rho convention |
 | `--sigma` | Omitted: no smoothing; otherwise nonnegative grid-sample width |
-| `--interpolation-order` | `3`; `5` is also supported |
+| `--spatial-extension` | `reflected`; use `periodic` explicitly for the original spatial model |
+| `--interpolation-order` | `3`; `5` is supported only with `--spatial-extension periodic` |
 | `--coupling-frequency` | `0`; per-cycle BM4 coupling rate, required zero for Runge--Kutta methods |
 | `--newton-absolute-tolerance` | `1e-12` in runtime coordinates |
 | `--newton-relative-tolerance` | `1e-11`; solver threshold, not trajectory-error guarantee |
@@ -64,6 +65,12 @@ schedule. A study with two rho values, two B values and two methods has eight
 cases. The physical model is GC; full cyclotron and additional numerical
 methods are not silently substituted. Multimode and constant-only forcing
 are outside this single-period workflow.
+
+`AutomationConfig(spatial_extension="reflected")` is also the Python default.
+The original model remains selectable with
+`AutomationConfig(spatial_extension="periodic")`; it uses the original
+interpolation and gyroaverage. The selection is fixed for a study, so changing
+it requires a separate output directory.
 
 The CLI uses local execution and local archives. Python callers may provide an
 explicitly configured existing `Execution` subclass to `run_automation`.
@@ -91,19 +98,39 @@ There is no extra legacy amplitude correction. With either flag disabled,
 the study derives coordinates, runtime rho and cycle duration directly from
 the current loader metadata. Coupling is mapped as a time rate as well.
 
-Each archive stores unwrapped component-major float64 states, cycle zero and
-one sample per cycle. The default shapes are `(96,5001)` for states and
+The reflected model uses cubic splines with zero normal derivatives on the
+base square, then extends the scalar Hamiltonian by reflection in both axes.
+Its physical spatial period is `2*L`; the original periodic model has period
+`L`. The gyroaverage uses that physical period without changing the meaning of
+rho. Integration always advances the canonical field `(-H_y,H_x)` in the
+unwrapped plane. The [potential contract](../../specs/current/potential.md)
+describes endpoint completion and regularity.
+
+Each archive stores unwrapped float64 states with one time per row, cycle zero
+and one sample per cycle. The default shapes are `(5001,96)` for states and
 `(5001,48,2)` for display positions. The manifest, exact source hash, all input
 controls, particle identity and physical time provenance prevent accidental
-reuse across configurations. Historical radial fields agree at corresponding
-cycle indices after mapping coordinates; their archived legacy seconds are
-not rewritten or presented as the corrected physical clock.
+reuse across configurations. New case metadata uses schema 2 and records
+`spatial_extension` and the runtime `spatial_period`. Configuration documents
+keep schema 1 with the extension explicitly included among their controls.
+Historical configuration documents without this control restore `periodic`,
+retaining their exact original configuration, case keys, input digests and
+schema-1 case metadata. Their archives are neither relabeled as reflected nor
+reintegrated to view them. Historical radial fields agree with the explicit
+periodic model at corresponding cycle indices after mapping coordinates;
+their archived legacy seconds are not rewritten as the corrected physical clock.
 
-The viewer folds only display copies into the unit cell. Its left panel shows
-the effective gyroaveraged Hamiltonian and GC velocity in cell/cycle units,
+The viewer folds only display copies into the base unit square, using reflection
+for `reflected` and ordinary wrapping for `periodic`. Its left panel shows
+the effective gyroaveraged Hamiltonian and GC velocity of the base tile in cell/cycle units,
 with 51 phases and audited endpoint closure. The right panel contains all
 48 particles, start-cycle rings and every saved return. Changing case updates
 both panels. A source fingerprint mismatch prevents field reconstruction.
+For reflected fields the viewer labels the left arrows as base-tile velocities:
+a trajectory from a tile with one reflected axis has the opposite projected
+orientation after folding. A single background arrow cannot describe both
+branches at the same folded point. The shared particle animations transform
+actual particle velocities by the same per-axis signs as their positions.
 
 ## Implementation and validation
 
@@ -115,6 +142,7 @@ independent. Development outputs remain ignored by Git.
 
 Use reduced 1-2 cycle studies for routine validation. Tests cover exact particle
 identity, defaults without a full run, all four methods and rescaling choices,
-DOP853/Radau reference agreement, archive reuse, failure recovery and viewer
-payloads. Full-duration production runs require a simulation request; creating
+DOP853/Radau reference agreement, both spatial choices, exact legacy archive
+key preservation, failure recovery, reflected viewer positions and transformed
+particle arrows. Full-duration production runs require a simulation request; creating
 or validating the skill does not launch them.

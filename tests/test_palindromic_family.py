@@ -28,7 +28,7 @@ from methods.palindromic.core.projection import solve_projection
 
 def problem(count: int = 3) -> InitialValueProblem:
     """Small reproducible nonautonomous field with analytic spatial derivatives."""
-    return InitialValueProblem(GuidingCenterDynamics(Potential.random(A=.08, M=3, nx=16, ny=16, seed=27, interpolation_order=5), rho=.05), GuidingCenterDynamics.coordinates.pack_components(np.linspace(1, 1.2, count), np.linspace(1.2, 1.4, count)), layout=GuidingCenterDynamics.coordinates)
+    return InitialValueProblem(GuidingCenterDynamics(Potential.random(A=.08, M=3, nx=16, ny=16, seed=27, spatial_extension="periodic", interpolation_order=5), rho=.05), GuidingCenterDynamics.coordinates.pack_components(np.linspace(1, 1.2, count), np.linspace(1.2, 1.4, count)), layout=GuidingCenterDynamics.coordinates)
 
 
 _BM4_HALF = (.0792036964311957, .1303114101821663, .2228614958676077,

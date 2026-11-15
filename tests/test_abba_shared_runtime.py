@@ -24,7 +24,7 @@ from contracts.methods.step import StepInfo
 
 def _problem() -> InitialValueProblem:
 	"""One inexpensive smooth non-autonomous particle."""
-	potential = Potential.random(A=0.08, M=3, nx=16, ny=16, seed=27, interpolation_order=5)
+	potential = Potential.random(A=0.08, M=3, nx=16, ny=16, seed=27, spatial_extension="periodic", interpolation_order=5)
 	return InitialValueProblem(GuidingCenterDynamics(potential, rho=0.05), GuidingCenterDynamics.coordinates.pack_components([1.0], [1.2]), layout=GuidingCenterDynamics.coordinates)
 
 

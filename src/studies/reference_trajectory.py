@@ -154,6 +154,14 @@ def potential_fingerprint(potential: Potential) -> str:
 	grid = potential.grid
 	digest: HASH = hashlib.sha256()
 	digest.update(b"gc2d-sampled-potential-v1")
+	# Preserve historical periodic hashes; reflected physics has a distinct identity
+	# even for a zero field whose samples and off-grid derivatives all coincide.
+	if potential.spatial_extension != "periodic":
+		digest.update(potential.spatial_extension.encode("ascii"))
+		digest.update(np.asarray(potential.spatial_period, dtype=np.float64).tobytes())
+		closed_samples: np.ndarray = np.ascontiguousarray(potential.reflected_samples, dtype=np.complex128)
+		digest.update(str(closed_samples.shape).encode("ascii"))
+		digest.update(closed_samples.tobytes())
 	grid_values: np.ndarray = np.asarray(
 		(
 			grid.x0,
@@ -200,6 +208,8 @@ def _potential_grid_metadata(potential: Potential) -> dict[str, Any]:
 		"period": grid.period,
 		"shape": grid.shape,
 		"interpolation_order": potential.interpolation_order,
+		"spatial_extension": potential.spatial_extension,
+		"spatial_period": potential.spatial_period,
 	}
 
 
@@ -435,7 +445,7 @@ def run_high_precision_reference_trajectory(
 		states,
 		audit_states,
 		distance_convention=config.distance_convention,
-		period=potential.grid.period,
+		period=potential.spatial_period,
 	)
 	audit: ReferenceTrajectoryAuditSummary = _audit_summary(audit_distances, states, audit_states)
 	particle_count: int = GuidingCenterDynamics.coordinates.particle_count(initial_state)

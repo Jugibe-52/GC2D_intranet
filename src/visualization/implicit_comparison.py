@@ -148,7 +148,7 @@ def plot_implicit_trajectory_differences(
 	if len(labels) < 2:
 		raise ValueError("The distance matrix requires at least two solutions.")
 
-	period: float = float(potential.grid.period)
+	period: float = float(potential.spatial_period)
 	positions = {label: solutions[label].positions() for label in labels}
 	# A minimum-image displacement measures physical separation across periodic edges.
 	distance_matrix: np.ndarray = np.zeros((len(labels), len(labels)), dtype=float)
@@ -254,7 +254,7 @@ def animate_implicit_method_trajectories(
 	fields: np.ndarray = np.asarray(potential.evaluate_grid(frame_times), dtype=float)
 	if fields.shape != (*potential.grid.shape, indices.size):
 		raise ValueError("Potential evaluation returned an unexpected animation shape.")
-	positions = {label: solutions[label].positions() for label in labels}
+	positions = {label: potential.display_coordinates(*solutions[label].positions()) for label in labels}
 
 	grid = potential.grid
 	xmax = grid.xmin + grid.period

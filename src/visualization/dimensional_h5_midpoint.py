@@ -29,12 +29,14 @@ def format_dimensional_h5_metadata(metadata: Mapping[str, Any], potential: Poten
         ("Gyro-radius rho", f"{float(metadata['rho_m']):.8g} m (rho_hat = {float(metadata['rho_hat']):g})"),
         ("Characteristic length", f"{float(metadata['characteristic_length_m']):g} m"),
         ("H5 spatial origin (R, Z)", f"({grid.x0:.8g}, {grid.y0:.8g}) m"),
-        ("H5 periodic cell span", f"{grid.period:.8g} m"),
+        ("H5 base tile span", f"{grid.period:.8g} m"),
+        ("Spatial extension", potential.spatial_extension),
+        ("Physical spatial period", f"{potential.spatial_period:.8g} m"),
         ("H5 grid", f"{grid.nx} × {grid.ny}; spacing ({grid.dx:.8g}, {grid.dy:.8g}) m"),
         ("Potential values", "Original H5 field units; no amplitude normalization"),
         ("Normalized mode frequencies", f"`{tuple(float(v) for v in potential.frequencies)}` cycles per normalized time"),
         ("Time normalization", f"tau = t / T0; T0 = {float(metadata['time_unit_seconds']):.10g} s"),
-        ("Interpolation", f"Periodic spline, order {int(metadata['interpolation_order'])}"),
+        ("Interpolation", f"{potential.spatial_extension} spline, order {int(metadata['interpolation_order'])}"),
         ("Initial position (R, Z)", f"`{tuple(float(v) for v in metadata['initial_xy'])}` m"),
         ("Initial radial geometry", f"{float(metadata['initial_radial_fraction']):g} cell periods at {float(metadata['initial_angle_rad']):g} rad"),
         ("BM4Midpoint coupling frequency", f"{float(metadata['coupling_frequency']):.8g} per normalized time"),
@@ -62,11 +64,12 @@ def plot_particle_in_potential(
     field: np.ndarray = potential.evaluate_grid(snapshot_time)
     wrapped_x: np.ndarray
     wrapped_y: np.ndarray
-    wrapped_x, wrapped_y = grid.normalize(states[0], states[1])
+    wrapped_x, wrapped_y = potential.display_coordinates(states[0], states[1])
     # Break the plotted line at periodic crossings instead of drawing across
     # the whole cell, which would suggest a spurious long particle displacement.
-    jumps = (np.abs(np.diff(wrapped_x)) > grid.period / 2) | (
-        np.abs(np.diff(wrapped_y)) > grid.period / 2)
+    jumps = (potential.spatial_extension == "periodic") & (
+        (np.abs(np.diff(wrapped_x)) > grid.period / 2) |
+        (np.abs(np.diff(wrapped_y)) > grid.period / 2))
     plot_x: np.ndarray
     plot_y: np.ndarray
     plot_x, plot_y = wrapped_x.copy(), wrapped_y.copy()

@@ -19,6 +19,7 @@ import scipy
 from dynamics import GuidingCenterDynamics
 
 from potential import Potential
+from potential._spatial import reflected_coordinates, validate_spatial_extension
 from methods.palindromic.bm4_midpoint import BM4Midpoint
 from problem import InitialValueProblem
 from methods.runge_kutta.rk4 import RK4
@@ -130,7 +131,7 @@ def integrate_region_probes(potential: Potential, settings: RegionProbeSettings,
             progress(end, count)
         diagnostics = solution.diagnostics
     result: dict[str, object] = dict(times=times, xy=xy, runtime_seconds=time.perf_counter() - started,
-                  step_count=count)
+                  step_count=count, spatial_extension=potential.spatial_extension)
     if settings.method == 'BM4Midpoint':
         expected: dict[str, object] = dict(composition_stage_count=12, projection_kind='arithmetic_mean',
                         nonlinear_unknown_dimension=0, vector_field_evaluations_per_step=24,
@@ -158,7 +159,13 @@ def region_probe_section(result: dict, settings: RegionProbeSettings, period: fl
         raise ValueError('Probe times are not on the required cycle grid.')
     if not np.allclose(xy[0] / period, settings.initial_xy_over_L, atol=1e-14, rtol=0):
         raise ValueError('Probe initial positions differ from the configured geometry.')
-    return (xy[::settings.steps_per_cycle] / period) % 1.0
+    fractions: np.ndarray = xy[::settings.steps_per_cycle] / period
+    if validate_spatial_extension(result.get("spatial_extension", "periodic")) == "reflected":
+        x: np.ndarray
+        y: np.ndarray
+        x, y, _, _ = reflected_coordinates(fractions[..., 0], fractions[..., 1], (0., 0.), 1., xp=np)
+        return np.stack((x, y), axis=-1)
+    return fractions % 1.0
 
 
 def region_probe_panel(background: SavedPoincareSection,

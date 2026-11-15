@@ -190,7 +190,7 @@ class ImplicitTrajectoryComparisonResult:
 	) -> tuple[ImplicitTrajectoryDifferenceSummary, ...]:
 		"""Compare every pair on the periodic cell over particles and time."""
 		rows: list[ImplicitTrajectoryDifferenceSummary] = []
-		period = self.potential.grid.period
+		period = self.potential.spatial_period
 		for first_method, second_method in combinations(IMPLICIT_METHOD_NAMES, 2):
 			first_x: np.ndarray
 			first_y: np.ndarray

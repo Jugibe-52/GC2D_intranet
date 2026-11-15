@@ -52,6 +52,7 @@ def deterministic_potential(*, interpolation_order: int = 5) -> Potential:
 		nx=16,
 		ny=16,
 		seed=27,
+		spatial_extension="periodic",
 		interpolation_order=interpolation_order,
 	)
 

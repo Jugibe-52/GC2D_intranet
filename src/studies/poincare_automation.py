@@ -9,7 +9,7 @@ from studies._validation import require_uncoupled_bm4
 from dynamics.gc import GuidingCenterDynamics
 
 from contextlib import contextmanager
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from hashlib import file_digest, sha256
 from itertools import product
 import json
@@ -137,6 +137,7 @@ class AutomationConfig:
 	reference_length: float = .06
 	sigma: float | None = None
 	interpolation_order: int = 3
+	spatial_extension: Literal["periodic", "reflected"] = "reflected"
 	cycles: int = 5000
 	steps_per_cycle: int = 50
 	coupling_frequency: float = 0.0
@@ -150,6 +151,7 @@ class AutomationConfig:
 	cycles_per_frame: int = 25
 	field_grid_size: int = 64
 	vector_grid_size: int = 17
+	_legacy_spatial_extension: bool = field(default=False, init=False, repr=False, compare=False)
 
 	def __post_init__(self) -> None:
 		"""Freeze JSON sequences and validate inputs before accessing source data."""
@@ -162,6 +164,10 @@ class AutomationConfig:
 			_validate_positive_count(getattr(self, name), name)
 		if self.interpolation_order not in (3, 5):
 			raise ValueError("Use cubic or quintic interpolation for this study.")
+		if self.spatial_extension not in ("periodic", "reflected"):
+			raise ValueError("spatial_extension must be 'periodic' or 'reflected'.")
+		if self.spatial_extension == "reflected" and self.interpolation_order != 3:
+			raise ValueError("Reflected fields require cubic interpolation.")
 		if min(self.field_grid_size, self.vector_grid_size) < 2:
 			raise ValueError("Viewer grids require at least two samples per axis.")
 		for name in ("spatial_rescaling", "temporal_rescaling"):
@@ -186,7 +192,20 @@ class AutomationConfig:
 			for rho, B, method in product(self.rhos, self.magnetic_fields, self.methods))
 
 	def to_dict(self) -> dict[str, Any]:
-		return cast(dict[str, Any], json.loads(canonical_json(asdict(self))))
+		"""Preserve exact historical inputs when restoring a pre-extension archive."""
+		values: dict[str, Any] = asdict(self)
+		values.pop("_legacy_spatial_extension")
+		if self._legacy_spatial_extension:
+			values.pop("spatial_extension")
+		return cast(dict[str, Any], json.loads(canonical_json(values)))
+
+	@classmethod
+	def from_dict(cls, values: dict[str, Any]) -> AutomationConfig:
+		"""Restore absent extension metadata as the historical periodic model."""
+		legacy: bool = "spatial_extension" not in values
+		config: AutomationConfig = cls(**{"spatial_extension": "periodic", **values})
+		object.__setattr__(config, "_legacy_spatial_extension", legacy)
+		return config
 
 
 @dataclass(frozen=True)
@@ -218,7 +237,8 @@ def load_automation_field(config: AutomationConfig, project_root: Path) -> Autom
 		digest: str = file_digest(stream, "sha256").hexdigest()
 	potential: Potential = Potential.load(path, indx=(config.source_index,),
 		spatial_rescaling=config.spatial_rescaling, temporal_rescaling=config.temporal_rescaling,
-		sigma=config.sigma, interpolation_order=config.interpolation_order)
+		sigma=config.sigma, interpolation_order=config.interpolation_order,
+		spatial_extension=config.spatial_extension)
 	return AutomationField(potential, path, digest)
 
 
@@ -248,7 +268,8 @@ def prepare_automation_case(config: AutomationConfig, case: AutomationCase,
 		raise ValueError("A measured single-frequency potential is required.")
 	if (m.spatial_rescaling != config.spatial_rescaling or m.temporal_rescaling != config.temporal_rescaling
 			or tuple(m.source_field_indices) != (config.source_index,) or m.sigma != config.sigma
-			or p.interpolation_order != config.interpolation_order):
+			or p.interpolation_order != config.interpolation_order
+			or p.spatial_extension != config.spatial_extension):
 		raise ValueError("Loaded field controls do not match the configuration.")
 	length = len(m.source_x) * float(m.source_x[1] - m.source_x[0])
 	origin: np.ndarray = np.array((m.source_x[0], m.source_y[0]))
@@ -281,6 +302,9 @@ def prepare_automation_case(config: AutomationConfig, case: AutomationCase,
 		position_wrapping="none", execution_options=asdict(config.execution_options()),
 		expected_step_count=config.cycles*config.steps_per_cycle,
 		initial_state_saved=True, samples_per_cycle=1)
+	if not config._legacy_spatial_extension:
+		metadata.update(schema_version=2, spatial_extension=p.spatial_extension,
+			spatial_period=p.spatial_period)
 	metadata["input_digest"] = sha256(canonical_json(metadata).encode()).hexdigest()
 	return PreparedAutomationCase(config, case, problem, request, metadata)
 

@@ -70,8 +70,11 @@ class GuidingCenterDynamics:
 		# H=P/B drives all equations, including Jacobians and time derivatives.
 		if B != 1.0:
 			averaged = type(averaged)(averaged.grid, mean=averaged.mean / B,
-				modes=averaged.modes / B, frequencies=averaged.frequencies,
-				interpolation_order=averaged.interpolation_order)
+					modes=averaged.modes / B, frequencies=averaged.frequencies,
+					interpolation_order=averaged.interpolation_order,
+					spatial_extension=averaged.spatial_extension,
+					reflected_samples=(None if averaged.reflected_samples is None
+						else averaged.reflected_samples / B))
 		object.__setattr__(self, "hamiltonian_potential", averaged)
 
 	def vector_field(self, t: Any, state: Any) -> Any:

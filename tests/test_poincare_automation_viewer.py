@@ -12,7 +12,8 @@ import numpy as np
 
 from test_poincare_automation import create_field
 from studies.poincare_automation import AutomationConfig, load_automation_field, prepare_automation_case
-from studies.poincare_automation_io import prepare_automation, run_automation
+from studies.poincare_automation_io import prepare_automation, run_automation, load_completed_case
+from states.history import States
 from visualization.poincare_automation import particle_presentation, sample_automation_field, export_automation_viewer
 
 
@@ -62,6 +63,25 @@ class AutomationViewerTests(unittest.TestCase):
 				if baseline is None: baseline=field
 				for name in ('potential','velocity'):
 					np.testing.assert_allclose(field[name],baseline[name],rtol=1e-10,atol=1e-12)
+
+	def test_reflected_returns_follow_the_hamiltonian_map_and_label_base_tile_arrows(self):
+		c=replace(self.config,rhos=(0.,),methods=('RK4',),magnetic_fields=(1.5,))
+		d=prepare_automation(c,self.root,self.root/'reflected');run_automation(d)
+		p=prepare_automation_case(c,c.cases()[0],load_automation_field(c,self.root))
+		stored=load_completed_case(d,p)
+		states=stored.solution.states.copy()
+		states[1,:48]=states[0,:48]+1.
+		states[1,48:]=states[0,48:]-2.
+		shown=replace(stored,solution=States(t=stored.solution.t,states=states,
+			initial_state=states[0],layout=stored.solution.layout))
+		with patch('visualization.poincare_automation.load_completed_case',return_value=shown):
+			data=payload(export_automation_viewer(d))['datasets'][0]
+		returns=data['panels'][1]
+		xy=np.frombuffer(base64.b64decode(returns['data']),dtype='<f4').reshape(2,48,2)
+		np.testing.assert_allclose(xy[1,:,0],1-states[0,:48],atol=3e-8)
+		np.testing.assert_allclose(xy[1,:,1],states[0,48:],atol=3e-8)
+		self.assertIn('Base-tile',data['panels'][0]['title'])
+		self.assertIn('opposite projected orientation',data['note'])
 
 	def test_missing_cases_remain_unavailable_and_source_mismatch_fails(self):
 		d=prepare_automation(self.config,self.root,self.root/'partial')

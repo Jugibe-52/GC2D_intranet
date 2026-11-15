@@ -53,6 +53,7 @@ class RK4ExecutionConfig:
     repetitions: int
     equivalence_rtol: float
     equivalence_atol: float
+    spatial_extension: str = "reflected"
 
 
 @dataclass(frozen=True)
@@ -88,6 +89,7 @@ def run_rk4_execution_comparison(
     potential: Potential = Potential.random(
         A=config.amplitude, M=config.maximum_wave_number, nx=config.nx, ny=config.ny,
         seed=config.potential_seed, interpolation_order=config.interpolation_order,
+        spatial_extension=config.spatial_extension,
     )
     grid = potential.grid
     rng: np.random.Generator = np.random.default_rng(config.particle_seed)
@@ -125,7 +127,7 @@ def run_rk4_execution_comparison(
             for name in ("physical_hamiltonian", "hamiltonian_time_derivative", "energy_drift"):
                 np.testing.assert_allclose(np.asarray(solution.diagnostics[name]), np.asarray(baseline.diagnostics[name]),
                                            rtol=config.equivalence_rtol, atol=config.equivalence_atol)
-        discrepancy: np.ndarray = periodic_discrepancy(baseline, solution, grid.period)
+        discrepancy: np.ndarray = periodic_discrepancy(baseline, solution, potential.spatial_period)
         q25: Any
         median: Any
         q75: Any

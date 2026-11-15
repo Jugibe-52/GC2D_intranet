@@ -144,7 +144,7 @@ def run_five_method_comparison(
 			problem.initial_state,
 			request.output_times,
 			period=(
-				potential.grid.period
+				potential.spatial_period
 				if config.distance_convention == "periodic"
 				else None
 			),
@@ -194,7 +194,7 @@ def run_five_method_comparison(
 			problem.initial_state,
 			request.output_times,
 			audit_reference=reused_audit_reference,
-			period=potential.grid.period if config.distance_convention == "periodic" else None,
+			period=potential.spatial_period if config.distance_convention == "periodic" else None,
 			distance_convention=config.distance_convention,
 			relative_tolerance=config.reference_relative_tolerance,
 			absolute_tolerance=config.reference_absolute_tolerance,
@@ -324,7 +324,7 @@ def run_five_method_comparison(
 			solution.states.T,
 			reference.states,
 			period=(
-				potential.grid.period
+				potential.spatial_period
 				if config.distance_convention == "periodic"
 				else None
 			),

@@ -72,6 +72,8 @@ def _write_archive(
     potential: Potential | None,
 ) -> None:
     """Encode physical layout, diagnostics and the actual sampled potential."""
+    # Earlier readers accept v1/v2 but cannot reconstruct reflected fields.
+    schema_version = 3 if potential is not None and potential.spatial_extension == "reflected" else 2
     layout = solution.layout
     if layout == GuidingCenterDynamics.coordinates:
         layout_name = "gc_component_major_xy"
@@ -100,6 +102,8 @@ def _write_archive(
     if potential is not None:
         potential_arrays = {"mean": potential.mean, "modes": potential.modes,
                             "frequencies": potential.frequencies}
+        if potential.reflected_samples is not None:
+            potential_arrays["reflected_samples"] = potential.reflected_samples
         provenance = potential.metadata
         # Preserve typed HDF5 provenance as well as the actual processed arrays.
         if isinstance(provenance, GC2DH5Metadata):
@@ -118,13 +122,15 @@ def _write_archive(
             provenance_kind = "json"
         potential_record = {
             "frequency_convention": "cycles",
+            "spatial_extension": potential.spatial_extension,
+            "spatial_period": potential.spatial_period,
             "grid": asdict(potential.grid),
             "interpolation_order": potential.interpolation_order,
             "provenance_kind": provenance_kind, "provenance": provenance,
         }
         np.savez_compressed(directory / "potential.npz", **potential_arrays)
     _write_json(directory / "metadata.json", {
-        "schema_version": 2, "artifact_kind": "gc2d_solution",
+        "schema_version": schema_version, "artifact_kind": "gc2d_solution",
         "created_utc": datetime.now(timezone.utc).isoformat(),
         "layout": layout_name, "diagnostics": diagnostics,
         "has_initial_state": initial_state is not None,
@@ -136,7 +142,7 @@ def _write_archive(
     if potential is not None:
         files.append("potential.npz")
     _write_json(directory / "manifest.json", {
-        "schema_version": 2, "artifact_kind": "gc2d_solution",
+        "schema_version": schema_version, "artifact_kind": "gc2d_solution",
         "files": {name: {"sha256": _digest(directory / name),
                          "bytes": (directory / name).stat().st_size} for name in files},
     })
@@ -192,7 +198,7 @@ def save_solution(
 
 def _manifest_inventory(manifest: Mapping[str, Any]) -> dict[str, Any]:
     """Validate a solution manifest and return its fixed artifact inventory."""
-    if manifest.get("schema_version") not in (1, 2) or manifest.get("artifact_kind") != "gc2d_solution":
+    if manifest.get("schema_version") not in (1, 2, 3) or manifest.get("artifact_kind") != "gc2d_solution":
         raise ValueError("Unsupported solution manifest.")
     records: Any = manifest.get("files", {})
     required = {"solution.npz", "metadata.json"}
@@ -203,7 +209,7 @@ def _manifest_inventory(manifest: Mapping[str, Any]) -> dict[str, Any]:
 
 def _load_solution_arrays(directory: Path, description: Mapping[str, Any]) -> States:
     """Validate solution metadata and reconstruct its canonical state layout."""
-    if description.get("schema_version") not in (1, 2) or description.get("artifact_kind") != "gc2d_solution":
+    if description.get("schema_version") not in (1, 2, 3) or description.get("artifact_kind") != "gc2d_solution":
         raise ValueError("Unsupported solution metadata.")
     with np.load(directory / "solution.npz", allow_pickle=False) as saved:
         initial = saved["initial_state"] if description["has_initial_state"] else None
@@ -246,7 +252,16 @@ def load_solution(source: str | Path) -> StoredSolution:
             raise ValueError("Solution metadata and manifest versions disagree.")
         solution: States = _load_solution_arrays(directory, description)
         potential: Potential | None = None
-        field = description["potential"]
+        field = description.get("potential")
+        if description["schema_version"] == 3:
+            if (not isinstance(field, dict)
+                    or field.get("spatial_extension") != "reflected"
+                    or "spatial_period" not in field):
+                raise ValueError("Schema version 3 requires explicit reflected potential metadata and spatial period.")
+        elif "potential" not in description:
+            raise ValueError("Potential metadata is missing.")
+        elif field is not None and field.get("spatial_extension", "periodic") == "reflected":
+            raise ValueError("A reflected potential archive requires schema version 3.")
         if (field is not None) != ("potential.npz" in records):
             raise ValueError("Potential metadata and manifest disagree.")
         if field is not None:
@@ -274,10 +289,16 @@ def load_solution(source: str | Path) -> StoredSolution:
                 frequencies = saved["frequencies"]
                 if convention == "angular":
                     frequencies = frequencies / (2 * np.pi)
+                if field.get("spatial_extension", "periodic") == "reflected" and "reflected_samples" not in saved:
+                    raise ValueError("A reflected potential archive requires its endpoint samples.")
                 potential = Potential(Grid(**field["grid"]), mean=saved["mean"],
                                       modes=saved["modes"], frequencies=frequencies,
                                       interpolation_order=field["interpolation_order"],
+                                      spatial_extension=field.get("spatial_extension", "periodic"),
+                                      reflected_samples=saved["reflected_samples"] if "reflected_samples" in saved else None,
                                       metadata=provenance)
+                if "spatial_period" in field and field["spatial_period"] != potential.spatial_period:
+                    raise ValueError("Stored spatial period disagrees with the potential extension.")
         return StoredSolution(solution, description["experiment"], potential)
 
 

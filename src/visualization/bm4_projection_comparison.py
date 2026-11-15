@@ -143,8 +143,7 @@ def animate_bm4_comparison(
 		images.append(ax.imshow(fields[:, :, 0].T, origin="lower", extent=(xmin, xmin+period, ymin, ymin+period),
 			cmap="RdBu_r", vmin=vmin, vmax=vmax, alpha=.65))
 		xy: np.ndarray = arrays[f"{name}.states"].reshape(2, -1, times.size).copy()
-		xy[0] = xmin + (xy[0] - xmin) % period
-		xy[1] = ymin + (xy[1] - ymin) % period
+		xy[0], xy[1] = potential.display_coordinates(xy[0], xy[1])
 		positions.append(xy)
 		lines: list[Any]
 		dots: list[Any]
@@ -174,7 +173,8 @@ def animate_bm4_comparison(
 				x: Any
 				y: Any
 				x, y = xy[:, j, :index+1].copy()
-				breaks = np.flatnonzero((np.abs(np.diff(x)) > period/2) | (np.abs(np.diff(y)) > period/2)) + 1
+				breaks = np.flatnonzero((potential.spatial_extension == "periodic") & (
+					(np.abs(np.diff(x)) > period/2) | (np.abs(np.diff(y)) > period/2))) + 1
 				x[breaks], y[breaks] = np.nan, np.nan
 				paths[panel][j].set_data(x, y)
 				markers[panel][j].set_data([xy[0,j,index]], [xy[1,j,index]])

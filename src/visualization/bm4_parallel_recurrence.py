@@ -63,7 +63,7 @@ def animate_parallel_bm4_trajectories(
 	potential_cmap: str = "RdBu_r",
 	trajectory_cmap: str = "viridis",
 ) -> FuncAnimation:
-	"""Animate all saved parallel trajectories inside the periodic cell."""
+	"""Animate saved parallel trajectories using the potential's base-tile map."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
 	_validate_result(result)
@@ -75,8 +75,9 @@ def animate_parallel_bm4_trajectories(
 	particle_count = result.config.particle_count
 	times: np.ndarray = np.asarray(result.times, dtype=float)
 	positions: np.ndarray = np.asarray(result.positions, dtype=float)
-	wrapped_x = grid.xmin + (positions[:, 0] - grid.xmin) % period
-	wrapped_y = grid.ymin + (positions[:, 1] - grid.ymin) % period
+	wrapped_x: np.ndarray
+	wrapped_y: np.ndarray
+	wrapped_x, wrapped_y = potential.display_coordinates(positions[:, 0], positions[:, 1])
 	fields: np.ndarray = np.asarray(potential.evaluate_grid(times), dtype=float)
 	if fields.shape != (*grid.shape, times.size):
 		raise ValueError("Potential evaluation returned an unexpected animation shape.")
@@ -146,7 +147,7 @@ def animate_parallel_bm4_trajectories(
 					np.column_stack(
 						(wrapped_x[particle, : frame + 1], wrapped_y[particle, : frame + 1])
 					),
-					period=period,
+					period=period if potential.spatial_extension == "periodic" else np.inf,
 				)
 				for particle in range(particle_count)
 			]

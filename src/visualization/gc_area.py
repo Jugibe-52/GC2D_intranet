@@ -82,7 +82,7 @@ def animate_gc_area(
 	# Each array has one signed polygon area per common saved time. Normalizing by
 	# the positive initial magnitude preserves the direction of each area change.
 	area_values: tuple[np.ndarray, ...] = tuple(
-		calculate_area(states, period=potential.grid.period, layout=GuidingCenterDynamics.coordinates)
+		calculate_area(states, period=potential.spatial_period, layout=GuidingCenterDynamics.coordinates)
 		for states in state_series
 	)
 	initial_areas: tuple[float, ...] = tuple(float(values[0]) for values in area_values)
@@ -343,8 +343,8 @@ def animate_gc_area(
 			if ax_separation is not None:
 				ax_separation.legend(loc="best", fontsize="small")
 
-	# Every component block has shape (boundary vertices, saved times). Periodic
-	# wrapping is applied independently so each numerical contour remains legible.
+	# Every component block has shape (boundary vertices, saved times). Display
+	# folding follows the field; the area diagnostic uses its full physical period.
 	component_series: tuple[tuple[np.ndarray, ...], ...] = tuple(GuidingCenterDynamics.coordinates.split(states) for states in state_series)
 	period = potential.grid.period
 	xmin = potential.grid.xmin
@@ -354,15 +354,17 @@ def animate_gc_area(
 		series_index: int,
 		solution_index: int,
 	) -> tuple[np.ndarray, np.ndarray]:
-		"""Wrap one contour and break artificial edges crossing the periodic cell."""
+		"""Fold one contour, breaking discontinuous periodic-wrap edges only."""
 		components = component_series[series_index]
-		x = ((components[0][:, solution_index] - xmin) % period) + xmin
-		y = ((components[1][:, solution_index] - ymin) % period) + ymin
+		x: np.ndarray
+		y: np.ndarray
+		x, y = potential.display_coordinates(
+			components[0][:, solution_index], components[1][:, solution_index])
 		plot_x = [float(x[0])]
 		plot_y = [float(y[0])]
 		for vertex in range(x.size):
 			next_vertex = (vertex + 1) % x.size
-			if (
+			if potential.spatial_extension == "periodic" and (
 				abs(x[next_vertex] - x[vertex]) > period / 2
 				or abs(y[next_vertex] - y[vertex]) > period / 2
 			):

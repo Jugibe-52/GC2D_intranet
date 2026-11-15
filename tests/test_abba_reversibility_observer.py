@@ -121,6 +121,7 @@ class ImplicitABBAReversibilityObserverTests(unittest.TestCase):
 			ny=16,
 			seed=27,
 			interpolation_order=5,
+			spatial_extension="periodic",
 		).build()
 		configuration = GuidingCenterDynamics.coordinates.pack_components(np.asarray([1.0]), np.asarray([1.2]))
 		result = run_implicit_abba_reversibility_study(

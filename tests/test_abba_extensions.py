@@ -79,6 +79,7 @@ def _problem(*, particle_count: int = 1) -> InitialValueProblem:
 		nx=16,
 		ny=16,
 		seed=27,
+		spatial_extension="periodic",
 		interpolation_order=5,
 	)
 	configuration = GuidingCenterDynamics.coordinates.pack_components(np.linspace(1.0, 1.1, particle_count), np.linspace(1.2, 1.3, particle_count))

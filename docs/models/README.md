@@ -54,3 +54,8 @@ are superseded by these guides. All methods now support passive energy tracking.
 remain available from `simulation` and retain their respective modules. Physical
 equations stay in `dynamics/` and initial values in `states/initial.py`; the
 executor supplies these inputs separately to methods.
+
+All methods receive the selected physical field unchanged. New potentials default
+to the C1 reflected Hamiltonian field; `spatial_extension="periodic"` retains the
+previous construction. Numerical algorithms and solver controls are unchanged.
+See the shared [spatial extension contract](../dynamics/spatial-extension.md).

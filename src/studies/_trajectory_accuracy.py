@@ -138,9 +138,13 @@ def _validate_reference_provenance(
 	initial_condition_metadata: Mapping[str, object],
 ) -> None:
 	"""Require identical physical and initial-condition provenance in the stored manifest."""
-	if _json_canonical(metadata.get("potential")) != _json_canonical(
-		dict(potential_metadata)
-	):
+	stored_potential: object = metadata.get("potential")
+	actual_potential: dict[str, object] = dict(potential_metadata)
+	if isinstance(stored_potential, Mapping):
+		stored_potential = dict(stored_potential)
+		stored_potential.setdefault("spatial_extension", "periodic")
+	actual_potential.setdefault("spatial_extension", "periodic")
+	if _json_canonical(stored_potential) != _json_canonical(actual_potential):
 		raise ValueError("Potential metadata differs from the reference artifact.")
 	if _json_canonical(metadata.get("initial_conditions")) != _json_canonical(
 		dict(initial_condition_metadata)
@@ -179,6 +183,10 @@ def _validate_reference_dynamics(
 ) -> None:
 	"""Require the same interpolation grid and sampled effective-potential fingerprint."""
 	grid_metadata: object = metadata.get("potential_grid")
+	if isinstance(grid_metadata, Mapping):
+		grid_metadata = dict(grid_metadata)
+		grid_metadata.setdefault("spatial_extension", "periodic")
+		grid_metadata.setdefault("spatial_period", grid_metadata.get("period"))
 	grid = potential.grid
 	actual_grid_metadata = {
 		"xmin": grid.xmin,
@@ -190,6 +198,8 @@ def _validate_reference_dynamics(
 		"period": grid.period,
 		"shape": grid.shape,
 		"interpolation_order": potential.interpolation_order,
+		"spatial_extension": potential.spatial_extension,
+		"spatial_period": potential.spatial_period,
 	}
 	if _json_canonical(grid_metadata) != _json_canonical(actual_grid_metadata):
 		raise ValueError("The comparison potential grid differs from the reference.")

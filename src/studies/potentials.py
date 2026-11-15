@@ -10,11 +10,10 @@ from potential import Potential
 
 @dataclass(frozen=True, slots=True)
 class RandomPotentialConfig:
-	"""Parameters for the standard random periodic study potential.
+	"""Parameters for a reproducible random study potential.
 
-	The defaults reproduce the field used by the area and generalized-energy
-	notebooks. Keeping them in one immutable value prevents small initialization
-	differences between experiments while still exposing the complete setup.
+	New studies use cubic reflected fields. Select direct periodic extension
+	explicitly to reconstruct historical random-field experiments.
 	"""
 
 	amplitude: float = 0.7
@@ -22,7 +21,8 @@ class RandomPotentialConfig:
 	nx: int = 64
 	ny: int = 64
 	seed: int = 27
-	interpolation_order: int = 5
+	interpolation_order: int = 3
+	spatial_extension: str = "reflected"
 
 	def build(self) -> Potential:
 		"""Construct the configured deterministic potential."""
@@ -33,6 +33,7 @@ class RandomPotentialConfig:
 			ny=self.ny,
 			seed=self.seed,
 			interpolation_order=self.interpolation_order,
+			spatial_extension=self.spatial_extension,
 		)
 
 	def metadata(self) -> dict[str, Any]:

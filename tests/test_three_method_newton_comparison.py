@@ -39,6 +39,7 @@ class ThreeMethodNewtonComparisonTests(unittest.TestCase):
 			ny=16,
 			seed=27,
 			interpolation_order=5,
+			spatial_extension="periodic",
 		).build()
 		initial_configuration = latin_hypercube_gc_configuration(
 			potential,

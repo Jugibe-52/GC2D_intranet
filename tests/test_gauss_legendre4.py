@@ -173,6 +173,7 @@ class GaussLegendre4Tests(unittest.TestCase):
 			nx=16,
 			ny=16,
 			seed=27,
+			spatial_extension="periodic",
 			interpolation_order=2,
 		)
 		problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=0.05), np.array(np.asarray((1.0, 1.2)), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
@@ -211,6 +212,7 @@ class GaussLegendre4Tests(unittest.TestCase):
 			nx=16,
 			ny=16,
 			seed=27,
+			spatial_extension="periodic",
 			interpolation_order=5,
 		)
 		problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=0.05), np.array(np.asarray((1.0, 2.0, 1.2, 2.1)), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)

@@ -112,6 +112,7 @@ def _animate_particle_solution(
 	x: np.ndarray
 	y: np.ndarray
 	times, x, y = _particle_history(solution, single_particle=True)
+	x, y = potential.display_coordinates(x, y)
 	annotations: tuple[str, ...] | None = _frame_annotations(frame_annotations, times.size)
 	indices: np.ndarray = _frame_indices(times.size, frames)
 	frame_times = times[indices]
@@ -290,9 +291,9 @@ def animate_gc_particle_trajectories(
 ) -> FuncAnimation:
 	"""Animate several guiding centres over their effective potential.
 
-	The black arrows represent the effective electric field. Gold arrows at the
-	current particle positions represent the normalized guiding-centre velocity
-	``(E_y, -E_x)``, which is perpendicular to the local electric field.
+	The black arrows represent the effective electric field on the base tile.
+	Gold arrows transform the actual normalized velocity ``(E_y, -E_x)`` by
+	the same reflection as the displayed positions. Stored positions stay unchanged.
 	"""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
@@ -311,6 +312,9 @@ def animate_gc_particle_trajectories(
 	x: np.ndarray
 	y: np.ndarray
 	times, x, y = _particle_history(solution, single_particle=False)
+	display_x: np.ndarray
+	display_y: np.ndarray
+	display_x, display_y = potential.display_coordinates(x, y)
 	particle_count = x.shape[0]
 	indices: np.ndarray = _frame_indices(times.size, frames)
 	frame_times = times[indices]
@@ -345,8 +349,10 @@ def animate_gc_particle_trajectories(
 				x[:, int(sample_index)],
 				y[:, int(sample_index)],
 			)
-			particle_drift_values.append((field_y, -field_x))
+			particle_drift_values.append(potential.display_vectors(
+				x[:, int(sample_index)], y[:, int(sample_index)], field_y, -field_x))
 	particle_drifts: tuple[tuple[np.ndarray, np.ndarray], ...] = tuple(particle_drift_values)
+	x, y = display_x, display_y
 
 	# A common scale makes the field and its rotated drift directly comparable.
 	vector_magnitudes = [

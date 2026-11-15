@@ -291,7 +291,7 @@ def run_area_comparison(
 		with GCAreaSymplecticityObserver(
 			notebook_path=notebook_path,
 			area=area,
-			period=potential.grid.period,
+			period=potential.spatial_period,
 			project_root=project_root,
 			block_name=f"{config.block_prefix}_step_{step_tag}",
 			record_every=record_every,

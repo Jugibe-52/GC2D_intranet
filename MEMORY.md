@@ -286,3 +286,7 @@ NumPy/JAX distinctions. See docs/development/typing.md for scope and examples.
 ## Runge--Kutta tableaux
 
 `methods.runge_kutta` replaces `methods.classical`, with mirrored contracts and no aliases. Immutable, hashable `ButcherTableau(A,B,C)` owns finite, consistent coefficients. `ExplicitEuler`/`RK4`, `SDIRK4` and `GaussLegendre4` inherit explicit, diagonal and coupled stage algorithms; recipes declare coefficients/metadata, with Gauss retaining its specialized observation. Generic family instances accept tableaux and support NumPy/JAX, including zero-diagonal DIRK stages and arbitrary stage counts. Newton controls remain in solvers; generic compiled cache keys include coefficients. Preserve named facade exports and recorded tableau metadata; recreate old configured-object pickles. See `docs/simulation/runge-kutta.md`.
+
+## Selectable spatial extension
+
+Potential/load/random default to spatial_extension="reflected" (cubic3); "periodic" keeps degrees2–5 and the original model. Grid.period remains base width L; Potential.spatial_period is 2L or L for physical distances. Reflected splines enforce zero normal derivatives before canonical f=(-H_y,H_x). Preserve read-only reflected_samples (1+m,nx+1,ny+1) across gyroaverage, B scaling and persistence: high edges become independent. Initial missing endpoints use the old periodic trace only once. Display folds copies and transforms actual velocities; opposite tile parity can reverse folded arrows. Missing historical tags restore periodic; preserve historical hashes. See docs/dynamics/spatial-extension.md.

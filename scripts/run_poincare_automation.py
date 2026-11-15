@@ -29,6 +29,7 @@ def main() -> int:
 	prepare.add_argument("--reference-length", type=float, default=.06)
 	prepare.add_argument("--sigma", type=float)
 	prepare.add_argument("--interpolation-order", type=int, default=3)
+	prepare.add_argument("--spatial-extension", choices=("reflected", "periodic"), default="reflected")
 	prepare.add_argument("--cycles", type=int, default=5000)
 	prepare.add_argument("--steps-per-cycle", type=int, default=50)
 	prepare.add_argument("--coupling-frequency", type=float, default=0.)

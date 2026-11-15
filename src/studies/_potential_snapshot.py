@@ -27,6 +27,8 @@ class _H5PotentialSnapshot:
 	metadata: GC2DH5Metadata
 	interpolation_order: int
 	frequency_convention: str = "cycles"
+	spatial_extension: str = "periodic"
+	reflected_samples: np.ndarray | None = None
 
 	@classmethod
 	def from_potential(
@@ -44,6 +46,8 @@ class _H5PotentialSnapshot:
 			metadata=potential.metadata,
 			interpolation_order=potential.interpolation_order,
 			frequency_convention="cycles",
+			spatial_extension=potential.spatial_extension,
+			reflected_samples=potential.reflected_samples,
 		)
 
 	def restore(self) -> Potential:
@@ -58,4 +62,6 @@ class _H5PotentialSnapshot:
 			frequencies=self.frequencies / (2 * np.pi) if convention == "angular" else self.frequencies,
 			metadata=self.metadata,
 			interpolation_order=self.interpolation_order,
+			spatial_extension=getattr(self, "spatial_extension", "periodic"),
+			reflected_samples=getattr(self, "reflected_samples", None),
 		)

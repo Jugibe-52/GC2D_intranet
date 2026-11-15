@@ -3,7 +3,7 @@ schema_version = 1
 kind = "spec"
 id = "potential-import"
 sources = ["src/potential/potential.py", "src/potential/load.py", "src/dynamics/gc.py", "src/diagnostics/io/persistence.py"]
-documents = ["docs/dynamics/gc2d-h5-import.md"]
+documents = ["docs/dynamics/gc2d-h5-import.md", "docs/dynamics/spatial-extension.md"]
 
 [[requirements]]
 id = "POT-001"
@@ -23,7 +23,7 @@ tests = ["tests/test_h5_rescaling.py", "tests/test_h5_frequency_units.py"]
 
 [[requirements]]
 id = "POT-005"
-tests = ["tests/test_h5_rescaling.py::H5RescalingTests.test_orientation_selection_filtering_and_owned_metadata", "tests/test_solution_persistence.py::SolutionPersistenceTests.test_legacy_cyclic_rates_decode_once_and_unknown_conventions_fail", "tests/test_potential_snapshot.py"]
+tests = ["tests/test_h5_rescaling.py::H5RescalingTests.test_orientation_selection_filtering_and_owned_metadata", "tests/test_solution_persistence.py", "tests/test_potential_snapshot.py", "tests/test_spatial_extension_study_contracts.py"]
 +++
 
 # Measured potential import
@@ -40,6 +40,11 @@ defaults to original variable index `(15,)`; missing indices fail. Both
 source samples, origins, spacing, resolution and cyclic frequencies are
 preserved exactly apart from floating-point coordinate representation.
 Interpolation defaults to cubic; import does not resample or transpose.
+`spatial_extension="reflected"` is the default. It constructs a cubic spline
+with zero normal derivatives and reflects the scalar in both directions.
+Explicit `"periodic"` preserves the previous direct repetition and orders 2–5.
+Reflection requires cubic order. The original half-open sample arrays stay
+unchanged; spline evaluation can differ by floating-point roundoff.
 
 ## POT-002: Original selection and orientation
 
@@ -53,7 +58,9 @@ transposition; incompatible sampled shapes fail explicitly.
 ## POT-003: Independent controls and validation
 
 The rescaling flags accept Boolean scalars. `sigma` is None or finite nonnegative.
-These controls are checked before file access. The loader rejects removed B,
+These controls and the spatial extension selector are checked before file
+access; the spline constructor enforces its interpolation-order requirements.
+The loader rejects removed B,
 characteristic length/frequency and nx/ny keywords. Temporal rescaling requires
 at least one selected positive mode and uses the first selected cyclic rate
 as reference. Constant-only loading remains valid without temporal rescaling.
@@ -62,7 +69,10 @@ as reference. Constant-only loading remains valid without temporal rescaling.
 
 All runtime potentials store cyclic rates and reconstruct
 `mean + 2 Re sum modes*exp(i*2*pi*f*t)`; time derivatives use `(i*2*pi*f)**dt`.
-Random potentials store f=1/(2*pi), preserving omega=1. The full cell period is `L=n*dx`.
+Random potentials store f=1/(2*pi), preserving omega=1. The base width is `L=n*dx`.
+`Grid.period` retains L; `Potential.spatial_period` is 2L for reflection and L
+for direct periodicity. Reflection extends the canonical scalar Hamiltonian;
+its base-square sides do not confine trajectories or identify opposite sides.
 With spatial rescaling, `s=L` and `q=(x-origin)/s`; otherwise s=1 and coordinates
 are unchanged. With temporal rescaling, `T=1/f_ref` and `u=t/T`;
 otherwise T=1. Multiply every amplitude by `T/s**2` and cyclic rates by T.
@@ -89,3 +99,12 @@ Unknown conventions fail, while grids, amplitudes and old trajectories remain
 unchanged. Frozen archives running their own original evaluator retain its
 original convention. Historical normalization and optional sampling are explicit
 study composition through the common raw loader, outside the new loader API.
+Those historical helpers explicitly select direct periodicity. New stored
+fields record `spatial_extension`; absent markers mean `"periodic"`, independently
+of the new-construction default. Worker snapshots, pickles and solution
+sidecars retain `reflected_samples` of shape `(1 + mode_count, nx + 1, ny + 1)`.
+The initial missing upper edges copy the opposite input traces; after circular
+averaging on the doubled domain, independent upper edges are preserved and
+the normal derivative constraints are reimposed by the spline fit. Radius units
+remain unchanged. Reflected reference identities differ from periodic ones;
+historical periodic fingerprints retain their original values.

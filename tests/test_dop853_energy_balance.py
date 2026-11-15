@@ -18,7 +18,7 @@ from visualization.dop853_energy_balance import summary_rows, trajectory_player
 
 class EnergyBalanceTests(unittest.TestCase):
     def setUp(self):
-        self.potential = Potential.random(A=.08, M=3, nx=16, ny=16, seed=27, interpolation_order=5)
+        self.potential = Potential.random(A=.08, M=3, nx=16, ny=16, seed=27, spatial_extension="periodic", interpolation_order=5)
         self.configuration = horizontal_configuration(self.potential, [.25, .5, .75], .5)
         self.config = dict(cycles=1, cycle_duration=.02, steps_per_cycle=4, saves_per_cycle=2,
                            rho=.05, coupling_frequency=0.0, newton_atol=1e-13,

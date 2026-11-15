@@ -43,7 +43,7 @@ def plot_abba_trajectory_differences(result: ABBAComparisonResult) -> tuple[Figu
 	figure: Figure
 	axis: Axes
 	figure, axis = plt.subplots(figsize=(10, 5.5), constrained_layout=True)
-	floor = np.finfo(float).eps * result.potential.grid.period
+	floor = np.finfo(float).eps * result.potential.spatial_period
 	for index, series in enumerate(result.trajectory_difference_series()):
 		color = f"C{index}"
 		axis.semilogy(

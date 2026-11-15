@@ -34,6 +34,7 @@ from methods.palindromic.bm4_implicit import BM4Implicit
 from methods.palindromic.bm4_midpoint import BM4Midpoint
 from potential.load import DEFAULT_FIELD_INDICES
 from potential import Grid, Potential
+from potential._spatial import reflected_coordinates, validate_spatial_extension
 from simulation.runner import simulate
 from states.history import States
 from studies.dimensional_h5_midpoint import (
@@ -146,7 +147,10 @@ def build_rho_star(field: DimensionalH5Field, config: RhoStarConfig, *,
         stream = Potential(grid, mean=stream.mean * hamiltonian_scale,
                            modes=stream.modes * hamiltonian_scale,
                            frequencies=stream.frequencies,
-                           interpolation_order=stream.interpolation_order)
+                           interpolation_order=stream.interpolation_order,
+                           spatial_extension=stream.spatial_extension,
+                           reflected_samples=(None if stream.reflected_samples is None
+                                              else hamiltonian_scale * stream.reflected_samples))
     spatial_scale: float
     spatial_origin: np.ndarray
     spatial_scale, spatial_origin = 1.0, np.zeros(2)
@@ -161,7 +165,10 @@ def build_rho_star(field: DimensionalH5Field, config: RhoStarConfig, *,
         stream = Potential(normalized_grid, mean=stream.mean * spatial_scale**2,
                            modes=stream.modes * spatial_scale**2,
                            frequencies=stream.frequencies,
-                           interpolation_order=stream.interpolation_order)
+                           interpolation_order=stream.interpolation_order,
+                           spatial_extension=stream.spatial_extension,
+                           reflected_samples=(None if stream.reflected_samples is None
+                                              else spatial_scale**2 * stream.reflected_samples))
         xy = (physical_xy - spatial_origin) * spatial_scale
         initial = GuidingCenterDynamics.coordinates.pack_components(xy[:, 0], xy[:, 1])
         runtime_rho = config.rho_hat
@@ -196,6 +203,7 @@ def build_rho_star(field: DimensionalH5Field, config: RhoStarConfig, *,
         "initial_positions_m": physical_xy,
         "initial_positions": np.column_stack((x, y)),
         "cell_bounds": (stream.grid.x0, stream.grid.y0, stream.grid.period),
+        "spatial_extension": stream.spatial_extension, "spatial_period": stream.spatial_period,
         "star_center": (center - spatial_origin) * spatial_scale,
         "initial_radii": radii * spatial_scale,
         "particle_id": np.arange(1, config.particles + 1),
@@ -349,7 +357,13 @@ def folded_rho_positions(solution: States, metadata: dict[str, Any]) -> tuple[np
     xy: np.ndarray = np.stack((x.T, y.T), axis=-1)
     if not np.isfinite(xy).all():
         raise ValueError("Cycle positions must be finite before periodic folding.")
-    offsets = (xy - cell[:2]) % cell[2]
+    if validate_spatial_extension(metadata.get("spatial_extension", "periodic")) == "reflected":
+        folded_x: np.ndarray
+        folded_y: np.ndarray
+        folded_x, folded_y, _, _ = reflected_coordinates(xy[..., 0], xy[..., 1], cell[:2], cell[2], xp=np)
+        offsets = np.stack((folded_x, folded_y), axis=-1) - cell[:2]
+    else:
+        offsets = (xy - cell[:2]) % cell[2]
     return offsets + cell[:2], offsets / cell[2]
 
 
@@ -381,7 +395,9 @@ def run_rho_star(prepared: PreparedRhoStar, *, executor: Execution,
             saved_folded_returns=True,
             folded_return_layout="(saved cycle including zero, particle, xy)",
             folded_return_units=prepared.metadata["space_unit"],
-            cell_fraction_definition="((position - cell_origin) modulo cell_width) / cell_width",
+            cell_fraction_definition=("mirror(position - cell_origin, cell_width) / cell_width"
+                if prepared.metadata.get("spatial_extension", "periodic") == "reflected"
+                else "((position - cell_origin) modulo cell_width) / cell_width"),
         )
     if isinstance(executor, Execution_Modal):
         metadata["modal_call_id"] = executor.last_call_id

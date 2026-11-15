@@ -6,17 +6,22 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 from scipy.interpolate import RectBivariateSpline
+
+
+if TYPE_CHECKING:
+	from ._reflected_spline import _TensorSplineComponent
 
 
 @dataclass(frozen=True, slots=True)
 class _ComplexSpline:
 	"""Real and imaginary interpolants of one complex spatial field."""
 
-	real: RectBivariateSpline
-	imag: RectBivariateSpline
+	real: RectBivariateSpline | _TensorSplineComponent
+	imag: RectBivariateSpline | _TensorSplineComponent
 
 	def evaluate(
 		self,

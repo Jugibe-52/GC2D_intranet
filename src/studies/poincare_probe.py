@@ -20,6 +20,7 @@ from scipy.spatial import cKDTree
 from dynamics import GuidingCenterDynamics
 
 from potential import Grid, Potential
+from potential._spatial import reflected_coordinates, validate_spatial_extension
 from problem import InitialValueProblem
 from methods.runge_kutta.rk4 import RK4
 from request import SimulationRequest
@@ -76,7 +77,9 @@ def load_probe_field(snapshot: Path, *, expected_sha256: str,
         with np.load(io.BytesIO(archive.read('field.npz')), allow_pickle=False) as arrays:
             potential: Potential = Potential(Grid(**provenance['grid']), mean=arrays['mean'],
                                   modes=arrays['modes'], frequencies=arrays['frequencies'] * frequency_scale,
-                                  interpolation_order=provenance['interpolation_order'])
+                                  interpolation_order=provenance['interpolation_order'],
+                                  spatial_extension=provenance.get('spatial_extension', 'periodic'),
+                                  reflected_samples=arrays['reflected_samples'] if 'reflected_samples' in arrays else None)
     return potential, provenance
 
 
@@ -125,7 +128,7 @@ def integrate_rk4_probe(potential: Potential, settings: RK4ProbeSettings, *,
         if progress is not None:
             progress(end, count)
     return dict(times=times, xy=xy, runtime_seconds=time.perf_counter() - started,
-                step_count=count)
+                step_count=count, spatial_extension=potential.spatial_extension)
 
 
 def probe_section(result: dict, settings: RK4ProbeSettings, period: float) -> np.ndarray:
@@ -139,7 +142,13 @@ def probe_section(result: dict, settings: RK4ProbeSettings, period: float) -> np
         raise ValueError('Probe trajectory times are not on the required grid.')
     if not np.allclose(xy[0, 0] / period, settings.initial_xy_over_L, atol=1e-14, rtol=0):
         raise ValueError('Probe trajectory does not start at the configured position.')
-    return (xy[::settings.steps_per_cycle] / period) % 1.0
+    fractions: np.ndarray = xy[::settings.steps_per_cycle] / period
+    if validate_spatial_extension(result.get("spatial_extension", "periodic")) == "reflected":
+        x: np.ndarray
+        y: np.ndarray
+        x, y, _, _ = reflected_coordinates(fractions[..., 0], fractions[..., 1], (0., 0.), 1., xp=np)
+        return np.stack((x, y), axis=-1)
+    return fractions % 1.0
 
 
 def probe_clearance(background: SavedPoincareSection, points: np.ndarray) -> np.ndarray:

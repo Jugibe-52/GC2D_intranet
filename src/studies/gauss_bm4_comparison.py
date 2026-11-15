@@ -323,24 +323,27 @@ class GaussBM4ComparisonResult:
 		return tuple(rows)
 
 	def equal_step_ratios(self) -> tuple[GaussBM4EqualStepRatio, ...]:
-		"""Return direct accuracy and runtime ratios at each shared step."""
+		"""Return direct ratios; zero denominators give NaN for 0/0 or +inf otherwise."""
 		summaries = {
 			(row.method_name, row.integration_step): row for row in self.summaries()
 		}
-		return tuple(
-			GaussBM4EqualStepRatio(
-				integration_step=step,
-				gauss_to_bm4_error_ratio=(
-					summaries[("GaussLegendre4", step)].time_integrated_rms_distance
-					/ summaries[("BM4Implicit", step)].time_integrated_rms_distance
-				),
-				bm4_to_gauss_runtime_ratio=(
-					summaries[("BM4Implicit", step)].runtime_seconds
-					/ summaries[("GaussLegendre4", step)].runtime_seconds
-				),
+		# Exact equilibria can have zero measured error for either or both methods.
+		# Preserve the undefined/unbounded ratio instead of imposing an error floor.
+		with np.errstate(divide="ignore", invalid="ignore"):
+			return tuple(
+				GaussBM4EqualStepRatio(
+					integration_step=step,
+					gauss_to_bm4_error_ratio=float(np.divide(
+						summaries[("GaussLegendre4", step)].time_integrated_rms_distance,
+						summaries[("BM4Implicit", step)].time_integrated_rms_distance,
+					)),
+					bm4_to_gauss_runtime_ratio=float(np.divide(
+						summaries[("BM4Implicit", step)].runtime_seconds,
+						summaries[("GaussLegendre4", step)].runtime_seconds,
+					)),
+				)
+				for step in self.config.integration_steps
 			)
-			for step in self.config.integration_steps
-		)
 
 	def equal_accuracy_ratios(self) -> tuple[GaussBM4EqualAccuracyRatio, ...]:
 		"""Interpolate both work--precision curves at three shared errors."""
@@ -442,7 +445,7 @@ def run_gauss_bm4_comparison(
 		dynamics,
 		problem.initial_state,
 		base_request.output_times,
-		period=potential.grid.period,
+		period=potential.spatial_period,
 		relative_tolerance=config.reference_relative_tolerance,
 		absolute_tolerance=config.reference_absolute_tolerance,
 		maximum_step=config.reference_maximum_step,
@@ -472,7 +475,7 @@ def run_gauss_bm4_comparison(
 				method_name,
 				solution.states.T,
 				reference.states,
-				period=potential.grid.period,
+				period=potential.spatial_period,
 				distance_convention="periodic",
 			)
 		timing_methods = {

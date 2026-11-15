@@ -99,7 +99,8 @@ class JaxPotential(Potential):
 					buffers = tuple(jax.device_put(value, device) for value in host_data)
 				self._jax_buffers[device] = buffers
 		return evaluate_splines(time, x, y, *buffers,
-			degree=self.interpolation_order, dx=int(dx), dy=int(dy), dt=int(dt))
+			degree=self.interpolation_order, dx=int(dx), dy=int(dy), dt=int(dt),
+			spatial_extension=self.spatial_extension)
 
 
 __all__ = ["JaxPotential"]

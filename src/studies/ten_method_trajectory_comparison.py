@@ -300,7 +300,7 @@ class TenMethodTrajectoryComparisonResult:
 	) -> tuple[TenMethodTrajectoryDifferenceSummary, ...]:
 		"""Compare all 21 pairs over the periodic cell, particles, and time."""
 		rows: list[TenMethodTrajectoryDifferenceSummary] = []
-		period = self.potential.grid.period
+		period = self.potential.spatial_period
 		for first_method, second_method in combinations(TEN_METHOD_LABELS, 2):
 			first_x: np.ndarray
 			first_y: np.ndarray

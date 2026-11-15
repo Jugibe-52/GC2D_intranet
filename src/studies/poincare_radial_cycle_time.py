@@ -109,7 +109,10 @@ def build_radial_cycle(potential: Potential, config: RadialCycleConfig, baseline
     stream: Potential = Potential(grid, mean=config.stream_scale * potential.mean,
                        modes=config.stream_scale * potential.modes,
                        frequencies=potential.frequencies,
-                       interpolation_order=potential.interpolation_order)
+                       interpolation_order=potential.interpolation_order,
+                       spatial_extension=potential.spatial_extension,
+                       reflected_samples=(None if potential.reflected_samples is None
+                                          else config.stream_scale * potential.reflected_samples))
     count = config.cycles * config.steps_per_cycle
     request: SimulationRequest = SimulationRequest(t_span=(0., float(config.cycles)),
                                 output_times=np.arange(count + 1) / config.steps_per_cycle)

@@ -19,8 +19,9 @@ use `JaxPotential` for tracing, JIT compilation and automatic differentiation.
 
 Simulation backend and device choices remain in
 `execution.options.ExecutionOptions`. Fixed methods run their stages
-and time loop on the selected device; DOP853/Radau use JAX fields with a SciPy
-adaptive controller. See the [execution guide](../simulation/jax-execution.md).
+and time loop on the selected device; DOP853/Radau are standalone SciPy
+reference solvers used by study helpers. See the
+[execution guide](../simulation/jax-execution.md).
 
 ## Installation and use
 
@@ -75,23 +76,36 @@ repeated JAX calls to avoid recurring host-to-device transfers.
 
 `Potential` directly owns validated samples, grid, frequencies and the canonical
 SciPy spline preparation. Public physical attributes (`grid`, `mean`, `modes`,
-`frequencies`, and `interpolation_order`) remain read-only. Construct a new
+`frequencies`, `interpolation_order`, `spatial_extension`, `spatial_period`, and
+`reflected_samples`) remain read-only. Construct a new
 potential to change physical data; `gyroaverage(0)` returns the same object and
 a nonzero radius produces its own potential of the same class. The inherited
 `load` and `random` factories also preserve the calling class.
 
+`spatial_extension="reflected"` is the default for construction and both
+factories. The base grid keeps its original half-open samples and width
+`grid.period=L`; `spatial_period` is `2L` for reflection and `L` for explicit
+`"periodic"` fields. Reflected potentials also retain closed-cell samples with
+shape `(1 + mode_count, nx + 1, ny + 1)`, including independent upper endpoints
+after gyroaveraging. Periodic potentials have `reflected_samples=None`.
+See [spatial extensions](spatial-extension.md) for the endpoint completion,
+gyroaverage and display conventions.
+
 `Potential.evaluate` and `JaxPotential.evaluate` implement the two evaluation
 paths directly, with shared low-level spline kernels. Validation,
-periodic wrapping and harmonic reconstruction retain one shared contract.
+spatial folding or periodic wrapping, derivative signs and harmonic
+reconstruction retain one shared contract.
 Preparing JAX coefficients exports the existing SciPy knots and coefficients;
 it never refits the splines or transfers the full grid samples for evaluation.
 Concrete device coefficients are prepared lazily and reused. Under `jax.jit`,
 coefficients become constants placed by the compiled computation; temporary
 tracers are never stored in persistent caches, including on first use.
 
-Pickling stores physical inputs and metadata only. Receiving processes rebuild
-CPU splines and start with empty device caches. JAX modules, compiled functions
-and device buffers are excluded.
+Pickling stores physical inputs and metadata, including the selected extension
+and closed reflected samples. Receiving processes rebuild CPU splines and start
+with empty device caches. Old payloads without `spatial_extension` restore as
+`"periodic"`, independently of the new constructor default. JAX modules,
+compiled functions and device buffers are excluded.
 
 `PreparedPotential`, `PotentialEvaluator`, `ScipyPotentialEvaluator`, and
 `JaxPotentialEvaluator`, including their former modules and exports, have been
@@ -106,22 +120,39 @@ Former `execution=` keywords on potential methods remain unsupported.
 ## Mathematical equivalence
 
 Spline construction, HDF5 preprocessing, and gyroaveraging remain on CPU. Both
-paths use the same actual knots and coefficients fitted by SciPy's
-`RectBivariateSpline`; JAX does not fit an alternative cubic interpolator.
-Its differentiated Cox--de Boor recurrence supplies spatial derivatives
-directly, with no finite differences. Time dependence is shared:
+paths use the same actual knots and tensor coefficients. Reflected fields use
+successive cubic `make_interp_spline(..., bc_type="clamped")` fits along both
+closed axes, evaluated on CPU with `NdBSpline`. These impose zero first normal
+derivatives along every edge. Explicit periodic fields retain the existing
+`RectBivariateSpline` construction and degrees 2 through 5. JAX does not fit a
+second interpolator: its differentiated Cox--de Boor recurrence evaluates the
+shared coefficients and spatial derivatives without finite differences.
+
+In reflected mode both backends fold each coordinate into the base cell and
+multiply derivative `(dx, dy)` by `sx**dx * sy**dy`. The orientation signs are
+one-sided values `+1` or `-1` even at a seam; the clamped coefficients supply
+the zero normal derivative. Neither a zero orientation sign nor a mask on the
+derivative is used, because either would incorrectly erase second derivatives
+under automatic differentiation. The resulting scalar is spatially `C2`, so
+its gradient and Hessian agree across reflected edges and corners. Its third
+derivatives need not be continuous. Time dependence is shared:
 
 ```text
 Phi(t, x, y) = Phi_0(x, y) + 2 Re sum_j[C_j(x, y) exp(i 2*pi*f_j*t)].
 ```
 
-Spline degrees 2 through 5 and derivative restrictions are unchanged:
+Reflected fields require `interpolation_order=3`; other degrees require explicit
+`spatial_extension="periodic"`. Derivative restrictions remain
 `0 <= dx, dy < interpolation_order` and `dt` in `(0, 1, 2)`. Temporal derivatives
 multiply each mode by `(i*2*pi*f_j)**dt`; the mean contributes only for `dt=0`.
 The shared reconstruction retains sequential addition in mode order.
 Derivative orders are static integers under JIT. `JaxPotential` pointwise calls support
-`jax.jit`, `jax.grad` and `jax.vmap`; derivatives are interpreted away from knots
-and periodic seams. Traced time works even when both coordinates are NumPy arrays. CPU and GPU need not be bitwise identical.
+`jax.jit`, `jax.grad` and `jax.vmap`. For reflected cubic fields, derivatives
+through total spatial order two also apply at knots, reflection seams and
+corners. The legacy periodic construction retains its earlier seam behavior;
+automatic differentiation does not repair discontinuities in that model.
+Traced time works even when both coordinates are NumPy arrays. CPU and GPU
+need not be bitwise identical.
 
 ## Shared dynamics and simulation lifecycle
 
@@ -140,8 +171,7 @@ splines, including GC `hamiltonian_potential`. It neither refits splines,
 repeats gyroaveraging nor mutates the original dynamics. Already compatible
 JAX dynamics are reused; bounded caches retain prepared objects and compiled
 functions. The driver accepts the exact base and explicit JAX dynamics types
-and rejects arbitrary custom subclasses. DOP853/Radau retain their explicit
-host/device adapter for the SciPy controller.
+and rejects arbitrary custom subclasses.
 
 Standalone JAX evaluation does not change simulation defaults. Pass
 `options=ExecutionOptions(backend="jax", device="cpu")` to `simulate` to select
@@ -173,7 +203,15 @@ DOP853 and Radau are standalone SciPy reference solvers used directly by studies
 python -m unittest discover -s tests -p 'test_jax_potential.py' -q
 python -m unittest discover -s tests -p 'test_potential_execution.py' -q
 python -m unittest discover -s tests -p 'test_jax_methods.py' -q
+python -m unittest discover -s tests -p 'test_reflected_spline.py' -q
+python -m unittest discover -s tests -p 'test_reflected_potential.py' -q
 ```
+
+The reflected tests include exact clamped polynomials, gradient and Hessian
+limits at seams, JAX autodifferentiation at edges and corners, and analytic
+cosine-mode gyroaverages on the doubled period. Their endpoint checks also
+exercise sequential gyroaveraging, magnetic scaling and historical pickle
+interpretation.
 
 ## Component-owned preparation
 

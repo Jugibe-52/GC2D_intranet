@@ -1,28 +1,20 @@
 # Work and checks
 
-- [x] Inspect the current potential, gyroaverage, GC equations, recording and
-  plotting paths; identify the boundary discontinuity and missing upper samples.
-- [x] Prepare and present the four documents together; run
-  `.venv/bin/python scripts/check_sdd.py` (198 records, 22 requirements passed).
-  Check that all four Spanish reading copies are ignored by Git.
-- [ ] Resolve the requested boundary behaviour and reconcile all four proposal
-  documents, including the concrete public API and sample representation.
-  The user has requested execution; do not request duplicate approval of an
-  unchanged, fully specified scope.
-- [ ] Implement the selected scalar/domain conventions and preserve legacy
-  archive interpretation. Create `results.md` when implementation begins.
-- [ ] Implement only the selected dynamic/boundary policy, with matching
-  Jacobians and NumPy/JAX behaviour. Keep saved physical states unwrapped.
-- [ ] Migrate the affected visualizations and arrows using one shared fold.
-- [ ] Check negative coordinates, shifted origins, multiple cells, all four
-  orientations, exact edges and corners, and unchanged source arrays. Check
-  scalar/derivative and NumPy/JAX agreement at float64 tolerance `1e-10`.
-- [ ] If physical mirror extension is selected, verify analytic cosine-mode
-  gyroaverages against `J0(rho*|k|)` at grid samples, including distinct averaged
-  endpoint values; target absolute error `1e-12` for well-scaled test fields.
-- [ ] Test the selected boundary behaviour, raw-state persistence, archive
-  mismatch rejection and displayed velocities against transformed trajectories.
-- [ ] Update permanent documentation and Spanish copies, run focused tests,
-  mypy, the headless suite, smoke examples, build and the final SDD check.
-  Record actual results and any mathematical limitations without claiming
-  global symplecticity from interior-cell tests.
+- [x] Preserve the 9 November preparation: code audit and SDD check reported
+  198 records and 22 requirements. That check predates this revision.
+- [x] Reconcile the four documents with the 15 November agreements, including
+  reflected default, selectable periodic mode and code-only scope.
+- [x] Validate and present the four documents before implementation.
+- [x] Implement constrained splines, extension selection, derivative signs,
+  doubled-period averaging and preservation of closed samples.
+- [x] Preserve representation in GC scaling, JAX, snapshots and archives;
+  retain historical periodic interpretation and compatible fingerprints.
+- [x] Apply shared display/vector transforms, study selection and physical periods.
+- [x] Check continuity limits, zero normal slopes, continuous field Jacobians, crossings,
+  canonical structure, cosine-mode averages and CPU/JAX agreement.
+  Record measured discrepancies with appropriate float64 tolerances.
+- [x] Check periodic regressions, serialization, archive mismatch rejection,
+  display orientation and unchanged raw states.
+- [x] Update permanent documentation, current contracts and Spanish copies.
+- [x] Run focused tests, mypy, headless suite, reduced examples, build and SDD
+  validation; record actual results and limitations in results.md.

@@ -49,6 +49,7 @@ def _problem() -> tuple[Potential, np.ndarray, InitialValueProblem]:
 		nx=16,
 		ny=16,
 		seed=27,
+		spatial_extension="periodic",
 		interpolation_order=5,
 	)
 	configuration = GuidingCenterDynamics.coordinates.pack_components(np.asarray([1.0]), np.asarray([1.2]))

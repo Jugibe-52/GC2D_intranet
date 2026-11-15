@@ -80,7 +80,7 @@ def read_automation(directory: Path) -> tuple[AutomationConfig, Path, dict[str, 
 	record: Any = json.loads((directory / "configuration.json").read_text())
 	if record.get("schema_version") != 1 or record.get("particle_set") != PARTICLE_SET:
 		raise ValueError("Unsupported automation configuration.")
-	config: AutomationConfig = AutomationConfig(**record["configuration"])
+	config: AutomationConfig = AutomationConfig.from_dict(record["configuration"])
 	manifest: Any = json.loads((directory / "cases.json").read_text())
 	if manifest.get("schema_version") != 1:
 		raise ValueError("Unsupported automation manifest.")

@@ -187,12 +187,33 @@ diagram unless that cross-model document is explicitly requested.
 Respect `.gitignore` when creating or modifying files. In particular, do not
 use `git add --force` (or `git add -f`) to stage ignored files, and do not
 change a file's tracked or ignored status, unless the user explicitly requests
-that Git-tracking change. Only notebooks under `notebooks/experiments/` and
-`notebooks/sympy/` are intended to be versioned. Development notebooks under
-`notebooks/developements/` are local working files and must remain ignored.
+that Git-tracking change. The former `notebooks/experiments/` and
+`notebooks/sympy/` folders now live inside `notebooks/developements/` at the
+user's request. All notebooks in that development tree are local working
+files and must remain ignored. Do not recreate the former tracked folders
+or force their notebooks into Git.
 Before staging a newly created notebook, verify its status with
 `git check-ignore --no-index <path>` when its intended tracking status is not
 clear.
+
+## Colab publication
+
+The intended Drive destination is `COLAB NOTEBOOKS/MEMOIRE_TFM`.
+Exclude the entire `notebooks/developements/` tree, including its
+`experiments/` and `sympy/` subdirectories, from this publication. Preserve
+the local tree and any other existing content in the destination.
+The publication registry is initially empty; the user will choose the
+notebooks later. An ignored Git status is not a publication selection.
+
+Use the personal `publicar-notebooks-colab` skill for an authorized
+publication or update, and `comprobar-notebooks-colab` for a status query.
+Their installed entry points are under `~/.agents/skills/`; resolve their
+links to read the single maintained registry and procedure. Do not copy
+that registry into this repository. If a skill is unavailable, locate the
+personal configuration repository through the global AGENTS.md symlink.
+Do not assume Drive access or successful publication from local checks.
+Creating these skills does not activate CI or periodic publication, and
+ordinary Git/B2 synchronization does not include deployment to Drive.
 
 ## Commenting style
 
