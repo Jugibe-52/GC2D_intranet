@@ -13,6 +13,7 @@ from methods import (
 	NONLINEAR_SOLVERS, NonlinearSolver, ProjectionPlacement, ProjectionFormulation, StateExtension,
 	RK4, SDIRK4_TABLEAU_A, SDIRK4_TABLEAU_B, SDIRK4_TABLEAU_C, SDIRK_JACOBIAN_METHODS, SDIRK4,
 	SDIRKJacobianMethod,
+	RK2, ImplicitMidpoint,
 )
 from contracts.methods.base import NumericalMethod
 from contracts.methods.palindromic.abba import (
@@ -94,6 +95,7 @@ __all__ = [
 	"ProjectionFormulation",
 	"StateExtension",
 	"RK4",
+	"RK2", "ImplicitMidpoint",
 	"SDIRK4_TABLEAU_A",
 	"SDIRK4_TABLEAU_B",
 	"SDIRK4_TABLEAU_C",

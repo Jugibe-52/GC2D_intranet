@@ -1,0 +1,32 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern,amsmath,amssymb,geometry}
+\usepackage[hidelinks]{hyperref}
+\geometry{margin=2.5cm}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.6em}
+\begin{document}
+\section*{Implicit midpoint}
+For $z'=f(t,z)$ solve one stage equation
+\[
+Y=z_n+\frac h2 f(t_n+h/2,Y),\qquad z_{n+1}=z_n+h f(t_n+h/2,Y).
+\]
+The tableau is $A=(1/2)$, $b=(1)$, $c=(1/2)$.
+The order-two conditions $\sum_i b_i=1$ and $\sum_i b_ic_i=1/2$ hold.
+For sufficiently smooth $f$, the local truncation error is $O(h^3)$ and global error is $O(h^2)$ on bounded time intervals under the usual stability assumptions.
+The Newton stage residual is $R(Y)=Y-z_n-hf(t_n+h/2,Y)/2$ with Jacobian $I-hD_zf/2$.
+The step must admit the intended local solution; smoothness alone does not ensure a unique stage for arbitrary $h$.
+One stage can require multiple nonlinear corrections and field evaluations.
+
+The Runge--Kutta symplecticity condition $b_i a_{ij}+b_j a_{ji}=b_i b_j$ reduces to $1/2+1/2=1$.
+With an exact stage solution the method is symplectic for canonical Hamiltonian systems and symmetric under exchanging endpoints and replacing $h$ by $-h$.
+For any preserved quadratic invariant $Q(z)=z^TCz$, $C=C^T$, the difference is
+$Q(z_{n+1})-Q(z_n)=2hY^TCf(t_n+h/2,Y)=0$.
+Finite algebraic tolerance adds a defect; neither symplecticity nor quadratic conservation implies preservation of a general time-dependent Hamiltonian.
+
+\section*{Implementation boundary}
+The named recipe inherits the shared Runge--Kutta stage algorithm and declares only its fixed tableau and order.
+Methods receive a field and independent initial conditions; physical dynamics and passive energy observation remain outside the step.
+Execution owns fixed-step scheduling, output sampling and NumPy/JAX selection.
+See the adjacent simulation guide for public construction and configuration.
+\end{document}

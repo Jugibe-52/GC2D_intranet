@@ -80,7 +80,9 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 						self.assertEqual(field_counts[0], field_counts[1])
 						np.testing.assert_array_equal(plain.details.state, tracked.details.state)
 						np.testing.assert_array_equal(plain.details.multiplier, tracked.details.multiplier)
-						self.assertEqual(plain.statistics, tracked.statistics)
+						self.assertEqual(plain.statistics.keys(), tracked.statistics.keys())
+						for name in plain.statistics:
+							np.testing.assert_array_equal(plain.statistics[name], tracked.statistics[name])
 						self.assertGreater(tracked.details.iterations, 0)
 						# Replay the explicit recipe independently, accumulating the original
 						# doubled momentum before its final physical normalization.

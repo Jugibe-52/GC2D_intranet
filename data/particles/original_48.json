@@ -1,0 +1,758 @@
+{
+  "schema_version": 1,
+  "source_h5": "data/potential/V1/PHI_2.h5",
+  "source_sha256": "4bbd873cd05992e0a615d66ebbf4d96b38c8b3c36be2ca62932e66af7e6d4ced",
+  "coordinate_units": {
+    "position_m": "meters",
+    "cell_fraction": "fraction of the historical base cell width"
+  },
+  "cell_bounds_m": [
+    0.0007031250000002487,
+    0.00035156249999999993,
+    0.1799999999998363
+  ],
+  "display_potential": {
+    "spatial_extension": "reflected",
+    "source_field_indices": [
+      15
+    ],
+    "constant_field_index": 0,
+    "magnetic_field_T": 1.5,
+    "default_rho": 0.3
+  },
+  "dataset_id": "original_48",
+  "title": "48 original particles",
+  "description": "Original 40 star points and 8 probes.",
+  "particle_count": 48,
+  "target_particle_count": 48,
+  "status": "available",
+  "particles": [
+    {
+      "id": 1,
+      "position_m": [
+        0.0907031249999184,
+        0.09035156249991814
+      ],
+      "cell_fraction": [
+        0.5,
+        0.5
+      ],
+      "parent": 1,
+      "kind": "original",
+      "color": "#372466"
+    },
+    {
+      "id": 2,
+      "position_m": [
+        0.0920901421476292,
+        0.09173857964762895
+      ],
+      "cell_fraction": [
+        0.5077056508206226,
+        0.5077056508206226
+      ],
+      "parent": 2,
+      "kind": "original",
+      "color": "#3d358b"
+    },
+    {
+      "id": 3,
+      "position_m": [
+        0.0907031249999184,
+        0.0942746394229915
+      ],
+      "cell_fraction": [
+        0.5,
+        0.5217948717948718
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#4146ac"
+    },
+    {
+      "id": 4,
+      "position_m": [
+        0.08654207355678596,
+        0.09451261394305058
+      ],
+      "cell_fraction": [
+        0.47688304753813215,
+        0.5231169524618678
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#4559cb"
+    },
+    {
+      "id": 5,
+      "position_m": [
+        0.08285697115377169,
+        0.09035156249991814
+      ],
+      "cell_fraction": [
+        0.45641025641025645,
+        0.5
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#4669e0"
+    },
+    {
+      "id": 6,
+      "position_m": [
+        0.08376803926136434,
+        0.08341647676136409
+      ],
+      "cell_fraction": [
+        0.46147174589688683,
+        0.46147174589688683
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#4778f0"
+    },
+    {
+      "id": 7,
+      "position_m": [
+        0.0907031249999184,
+        0.07858233173069808
+      ],
+      "cell_fraction": [
+        0.5,
+        0.4346153846153846
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#4687fb"
+    },
+    {
+      "id": 8,
+      "position_m": [
+        0.10041224503389408,
+        0.08064244246594246
+      ],
+      "cell_fraction": [
+        0.5539395557443584,
+        0.44606044425564156
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#4099ff"
+    },
+    {
+      "id": 9,
+      "position_m": [
+        0.10639543269221181,
+        0.09035156249991814
+      ],
+      "cell_fraction": [
+        0.5871794871794872,
+        0.5
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#37a8fa"
+    },
+    {
+      "id": 10,
+      "position_m": [
+        0.1031862793293157,
+        0.10283471682931546
+      ],
+      "cell_fraction": [
+        0.5693508573856036,
+        0.5693508573856036
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#2cb7f0"
+    },
+    {
+      "id": 11,
+      "position_m": [
+        0.0907031249999184,
+        0.10996694711528492
+      ],
+      "cell_fraction": [
+        0.5,
+        0.6089743589743589
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#22c5e2"
+    },
+    {
+      "id": 12,
+      "position_m": [
+        0.07544593637509946,
+        0.10560875112473708
+      ],
+      "cell_fraction": [
+        0.41523784097315103,
+        0.5847621590268489
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#1ad2d2"
+    },
+    {
+      "id": 13,
+      "position_m": [
+        0.06716466346147826,
+        0.09035156249991814
+      ],
+      "cell_fraction": [
+        0.3692307692307692,
+        0.5
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#18dec0"
+    },
+    {
+      "id": 14,
+      "position_m": [
+        0.07267190207967783,
+        0.07232033957967758
+      ],
+      "cell_fraction": [
+        0.39982653933190576,
+        0.39982653933190576
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#1de7b2"
+    },
+    {
+      "id": 15,
+      "position_m": [
+        0.0907031249999184,
+        0.06289002403840466
+      ],
+      "cell_fraction": [
+        0.5,
+        0.3474358974358974
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#2aefa1"
+    },
+    {
+      "id": 16,
+      "position_m": [
+        0.11150838221558057,
+        0.06954630528425595
+      ],
+      "cell_fraction": [
+        0.6155847623093395,
+        0.3844152376906605
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#3cf58e"
+    },
+    {
+      "id": 17,
+      "position_m": [
+        0.12208774038450523,
+        0.09035156249991814
+      ],
+      "cell_fraction": [
+        0.6743589743589744,
+        0.5
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#55fa76"
+    },
+    {
+      "id": 18,
+      "position_m": [
+        0.11428241651100221,
+        0.11393085401100195
+      ],
+      "cell_fraction": [
+        0.6309960639505848,
+        0.6309960639505847
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#6dfe62"
+    },
+    {
+      "id": 19,
+      "position_m": [
+        0.0907031249999184,
+        0.12565925480757834
+      ],
+      "cell_fraction": [
+        0.5,
+        0.696153846153846
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#84ff51"
+    },
+    {
+      "id": 20,
+      "position_m": [
+        0.06434979919341297,
+        0.11670488830642359
+      ],
+      "cell_fraction": [
+        0.35359263440817,
+        0.6464073655918301
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#99fe42"
+    },
+    {
+      "id": 21,
+      "position_m": [
+        0.051472355769184845,
+        0.09035156249991814
+      ],
+      "cell_fraction": [
+        0.28205128205128205,
+        0.5
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#acfb38"
+    },
+    {
+      "id": 22,
+      "position_m": [
+        0.061575764897991325,
+        0.06122420239799109
+      ],
+      "cell_fraction": [
+        0.3381813327669247,
+        0.33818133276692475
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#bcf534"
+    },
+    {
+      "id": 23,
+      "position_m": [
+        0.09070312499991838,
+        0.04719771634611124
+      ],
+      "cell_fraction": [
+        0.49999999999999994,
+        0.2602564102564102
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#cbed34"
+    },
+    {
+      "id": 24,
+      "position_m": [
+        0.12260451939726708,
+        0.05845016810256945
+      ],
+      "cell_fraction": [
+        0.6772299688743205,
+        0.32277003112567937
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#d9e436"
+    },
+    {
+      "id": 25,
+      "position_m": [
+        0.13778004807679867,
+        0.09035156249991814
+      ],
+      "cell_fraction": [
+        0.7615384615384616,
+        0.5
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#e7d739"
+    },
+    {
+      "id": 26,
+      "position_m": [
+        0.12537855369268872,
+        0.12502699119268845
+      ],
+      "cell_fraction": [
+        0.6926412705155659,
+        0.6926412705155658
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#f1cb3a"
+    },
+    {
+      "id": 27,
+      "position_m": [
+        0.0907031249999184,
+        0.14135156249987174
+      ],
+      "cell_fraction": [
+        0.5,
+        0.7833333333333331
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#f8be39"
+    },
+    {
+      "id": 28,
+      "position_m": [
+        0.05325366201172646,
+        0.1278010254881101
+      ],
+      "cell_fraction": [
+        0.29194742784318894,
+        0.708052572156811
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#fcb136"
+    },
+    {
+      "id": 29,
+      "position_m": [
+        0.035780048076891426,
+        0.09035156249991814
+      ],
+      "cell_fraction": [
+        0.19487179487179487,
+        0.5
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#fe9e2f"
+    },
+    {
+      "id": 30,
+      "position_m": [
+        0.05047962771630483,
+        0.05012806521630459
+      ],
+      "cell_fraction": [
+        0.2765361262019436,
+        0.2765361262019437
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#fd8d27"
+    },
+    {
+      "id": 31,
+      "position_m": [
+        0.09070312499991838,
+        0.03150540865381782
+      ],
+      "cell_fraction": [
+        0.49999999999999994,
+        0.17307692307692307
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#fa7b1f"
+    },
+    {
+      "id": 32,
+      "position_m": [
+        0.13370065657895358,
+        0.047354030920882945
+      ],
+      "cell_fraction": [
+        0.7388751754393016,
+        0.2611248245606983
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#f56918"
+    },
+    {
+      "id": 33,
+      "position_m": [
+        0.15347235576909207,
+        0.09035156249991814
+      ],
+      "cell_fraction": [
+        0.8487179487179487,
+        0.5
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#ef5811"
+    },
+    {
+      "id": 34,
+      "position_m": [
+        0.13647469087437522,
+        0.13612312837437496
+      ],
+      "cell_fraction": [
+        0.754286477080547,
+        0.7542864770805469
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#e5470b"
+    },
+    {
+      "id": 35,
+      "position_m": [
+        0.0907031249999184,
+        0.15704387019216517
+      ],
+      "cell_fraction": [
+        0.5,
+        0.8705128205128204
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#dc3b07"
+    },
+    {
+      "id": 36,
+      "position_m": [
+        0.04215752483003996,
+        0.13889716266979657
+      ],
+      "cell_fraction": [
+        0.23030222127820787,
+        0.769697778721792
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#d02f05"
+    },
+    {
+      "id": 37,
+      "position_m": [
+        0.020087740384598013,
+        0.09035156249991816
+      ],
+      "cell_fraction": [
+        0.10769230769230775,
+        0.5000000000000001
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#c32503"
+    },
+    {
+      "id": 38,
+      "position_m": [
+        0.03938349053461832,
+        0.03903192803461809
+      ],
+      "cell_fraction": [
+        0.21489091963696252,
+        0.21489091963696258
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#b21a01"
+    },
+    {
+      "id": 39,
+      "position_m": [
+        0.09070312499991838,
+        0.0158131009615244
+      ],
+      "cell_fraction": [
+        0.49999999999999994,
+        0.0858974358974359
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#a11201"
+    },
+    {
+      "id": 40,
+      "position_m": [
+        0.14479679376064006,
+        0.03625789373919645
+      ],
+      "cell_fraction": [
+        0.8005203820042825,
+        0.19947961799571728
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#8e0a01"
+    },
+    {
+      "id": 41,
+      "position_m": [
+        0.08002912499992809,
+        0.10505756249990476
+      ],
+      "cell_fraction": [
+        0.4406999999999999,
+        0.5817
+      ],
+      "parent": 41,
+      "kind": "original",
+      "color": "#111827"
+    },
+    {
+      "id": 42,
+      "position_m": [
+        0.08020912499992794,
+        0.10647956249990348
+      ],
+      "cell_fraction": [
+        0.4417,
+        0.5896
+      ],
+      "parent": 42,
+      "kind": "original",
+      "color": "#7c3aed"
+    },
+    {
+      "id": 43,
+      "position_m": [
+        0.11001712499990082,
+        0.10250156249990709
+      ],
+      "cell_fraction": [
+        0.6073,
+        0.5675
+      ],
+      "parent": 43,
+      "kind": "original",
+      "color": "#e6007e"
+    },
+    {
+      "id": 44,
+      "position_m": [
+        0.10924312499990153,
+        0.10390556249990582
+      ],
+      "cell_fraction": [
+        0.603,
+        0.5753
+      ],
+      "parent": 44,
+      "kind": "original",
+      "color": "#92400e"
+    },
+    {
+      "id": 45,
+      "position_m": [
+        0.07840912499992957,
+        0.06975956249993687
+      ],
+      "cell_fraction": [
+        0.4317,
+        0.38559999999999994
+      ],
+      "parent": 45,
+      "kind": "original",
+      "color": "#0891b2"
+    },
+    {
+      "id": 46,
+      "position_m": [
+        0.0794711249999286,
+        0.06900356249993757
+      ],
+      "cell_fraction": [
+        0.43759999999999993,
+        0.3814
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#0f766e"
+    },
+    {
+      "id": 47,
+      "position_m": [
+        0.10418512499990612,
+        0.07074956249993597
+      ],
+      "cell_fraction": [
+        0.5749,
+        0.3911
+      ],
+      "parent": 47,
+      "kind": "original",
+      "color": "#d97706"
+    },
+    {
+      "id": 48,
+      "position_m": [
+        0.10492312499990546,
+        0.07087556249993586
+      ],
+      "cell_fraction": [
+        0.579,
+        0.3918
+      ],
+      "parent": 48,
+      "kind": "original",
+      "color": "#be123c"
+    }
+  ],
+  "provenance": {
+    "campaign": "main-20261115",
+    "campaign_sha256": "d9506b5f9980be6e811b3a3a80e6d40f2d197eeebdd3a620d9f448a9972dfe96",
+    "original_particle_record_sha256": "03fcdec505ae6a8635488cb9de32c6538fa980f639f4eeacce201dd601df77f0",
+    "historical_particle_ids": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48
+    ]
+  }
+}

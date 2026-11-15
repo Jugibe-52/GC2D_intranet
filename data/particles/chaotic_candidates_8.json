@@ -1,0 +1,164 @@
+{
+  "schema_version": 1,
+  "source_h5": "data/potential/V1/PHI_2.h5",
+  "source_sha256": "4bbd873cd05992e0a615d66ebbf4d96b38c8b3c36be2ca62932e66af7e6d4ced",
+  "coordinate_units": {
+    "position_m": "meters",
+    "cell_fraction": "fraction of the historical base cell width"
+  },
+  "cell_bounds_m": [
+    0.0007031250000002487,
+    0.00035156249999999993,
+    0.1799999999998363
+  ],
+  "display_potential": {
+    "spatial_extension": "reflected",
+    "source_field_indices": [
+      15
+    ],
+    "constant_field_index": 0,
+    "magnetic_field_T": 1.5,
+    "default_rho": 0.3
+  },
+  "dataset_id": "chaotic_candidates_8",
+  "title": "8 candidate chaotic particles",
+  "description": "Historical candidates selected with the former periodic potential; not validated as chaotic for the reflected potential.",
+  "particle_count": 8,
+  "target_particle_count": 8,
+  "status": "candidates",
+  "particles": [
+    {
+      "id": 3,
+      "position_m": [
+        0.0907031249999184,
+        0.0942746394229915
+      ],
+      "cell_fraction": [
+        0.5,
+        0.5217948717948718
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#4146ac"
+    },
+    {
+      "id": 6,
+      "position_m": [
+        0.08376803926136434,
+        0.08341647676136409
+      ],
+      "cell_fraction": [
+        0.46147174589688683,
+        0.46147174589688683
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#4778f0"
+    },
+    {
+      "id": 7,
+      "position_m": [
+        0.0907031249999184,
+        0.07858233173069808
+      ],
+      "cell_fraction": [
+        0.5,
+        0.4346153846153846
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#4687fb"
+    },
+    {
+      "id": 9,
+      "position_m": [
+        0.10639543269221181,
+        0.09035156249991814
+      ],
+      "cell_fraction": [
+        0.5871794871794872,
+        0.5
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#37a8fa"
+    },
+    {
+      "id": 12,
+      "position_m": [
+        0.07544593637509946,
+        0.10560875112473708
+      ],
+      "cell_fraction": [
+        0.41523784097315103,
+        0.5847621590268489
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#1ad2d2"
+    },
+    {
+      "id": 16,
+      "position_m": [
+        0.11150838221558057,
+        0.06954630528425595
+      ],
+      "cell_fraction": [
+        0.6155847623093395,
+        0.3844152376906605
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#3cf58e"
+    },
+    {
+      "id": 21,
+      "position_m": [
+        0.051472355769184845,
+        0.09035156249991814
+      ],
+      "cell_fraction": [
+        0.28205128205128205,
+        0.5
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#acfb38"
+    },
+    {
+      "id": 23,
+      "position_m": [
+        0.09070312499991838,
+        0.04719771634611124
+      ],
+      "cell_fraction": [
+        0.49999999999999994,
+        0.2602564102564102
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#cbed34"
+    }
+  ],
+  "provenance": {
+    "campaign": "main-20261115",
+    "campaign_sha256": "d9506b5f9980be6e811b3a3a80e6d40f2d197eeebdd3a620d9f448a9972dfe96",
+    "original_particle_record_sha256": "03fcdec505ae6a8635488cb9de32c6538fa980f639f4eeacce201dd601df77f0",
+    "historical_particle_ids": [
+      3,
+      6,
+      7,
+      9,
+      12,
+      16,
+      21,
+      23
+    ]
+  },
+  "selection": {
+    "rho": 0.3,
+    "spatial_extension": "periodic",
+    "classification": "historical_candidates",
+    "verified_for_reflected_potential": false
+  }
+}

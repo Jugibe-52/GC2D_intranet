@@ -1,0 +1,28 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern,amsmath,amssymb,geometry}
+\usepackage[hidelinks]{hyperref}
+\geometry{margin=2.5cm}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.6em}
+\begin{document}
+\section*{Explicit midpoint}
+For $z'=f(t,z)$ the two stages and accepted state are
+\[
+k_1=f(t_n,z_n),\qquad k_2=f(t_n+h/2,z_n+hk_1/2),\qquad z_{n+1}=z_n+hk_2.
+\]
+Thus $A_{21}=1/2$, all other entries of $A$ vanish, $b=(0,1)$ and $c=(0,1/2)$.
+The order-two conditions $\sum_i b_i=1$ and $\sum_i b_ic_i=1/2$ hold.
+For sufficiently smooth $f$, the local truncation error is $O(h^3)$ and global error is $O(h^2)$ on bounded time intervals under the usual stability assumptions.
+Each step uses two field evaluations and no algebraic solve.
+
+For the harmonic oscillator $z'=Jz$, $J^2=-I$, the map is
+$M_h=(1-h^2/2)I+hJ$ and $\det M_h=1+h^4/4$.
+Hence this explicit midpoint method is not symplectic and does not preserve the oscillator's quadratic energy for nonzero $h$.
+
+\section*{Implementation boundary}
+The named recipe inherits the shared Runge--Kutta stage algorithm and declares only its fixed tableau and order.
+Methods receive a field and independent initial conditions; physical dynamics and passive energy observation remain outside the step.
+Execution owns fixed-step scheduling, output sampling and NumPy/JAX selection.
+See the adjacent simulation guide for public construction and configuration.
+\end{document}

@@ -102,6 +102,8 @@ def step_statistics(result: ProjectedMapResult, *, include_substeps: bool) -> di
 		"nonlinear_residual_norms": stats.residual_norm,
 		"nonlinear_tolerances": stats.tolerance,
 		"projection_multiplier_norms": multiplier_norm,
+		# Component-major physical coordinates; preserve signs for later analysis.
+		"projection_multipliers": xp.asarray(result.multiplier),
 	}
 	if include_substeps:
 		# Preserve the published one-column histories for ABBA4.
