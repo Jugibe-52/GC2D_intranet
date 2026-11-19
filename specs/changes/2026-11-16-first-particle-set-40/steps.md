@@ -1,0 +1,4 @@
+- [x] Extract IDs 1–40 with their complete original records and document the dataset files.
+- [x] Update the first notebook panel and regenerate its output without trajectory integration.
+- [x] Check particle identity, star geometry, unchanged companion datasets and notebook execution.
+- [x] Run the SDD checker and review the final diff.

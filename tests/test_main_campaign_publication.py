@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from diagnostics.io.persistence import save_solution
+from diagnostics.io.persistence import load_solution, save_solution
 from dynamics.gc import GuidingCenterDynamics
 from states.history import States
 from studies.main_campaign_io import finalize_campaign, publication_cases
@@ -63,6 +63,32 @@ class CampaignPublicationTests(unittest.TestCase):
         xy = np.fromfile(output/item['asset'], dtype='<f8').reshape(item['shape'])
         np.testing.assert_allclose(xy[:, 0, 0], [0., 1.5, 1.])
         self.assertEqual(len(list((output/'assets').glob('*.bin'))), 1)
+        self.assertEqual(data['rhoConvention'], 'legacy_physical_scale')
+        self.assertIn('Historical radius convention', (output/'index.html').read_text())
+        self.assertIn('0.06 / (2π)', (output/'index.html').read_text())
+        self.assertNotIn('ρ is measured in base-cell widths', (output/'index.html').read_text())
+
+    def test_direct_radius_export_uses_the_recorded_base_cell_width(self):
+        from types import SimpleNamespace
+        stored = load_solution(self.directory/'runs/rho-0.00-RK2')
+        metadata = dict(stored.metadata, schema_version=2, spatial_scale_m=.18,
+            rho_runtime=0., rho_m=0., energy_evaluation='physical_hamiltonian_at_saved_states')
+        diagnostics = {key: value for key, value in stored.solution.diagnostics.items()
+            if key not in ('energy_integral', 'energy_balance', 'energy_quadrature_difference')}
+        diagnostics.update(energy_drift=np.zeros((84, 21)),
+            energy_evaluation='physical_hamiltonian_at_saved_states')
+        current = SimpleNamespace(metadata=metadata,
+            solution=stored.solution.with_diagnostics(diagnostics, replace=True))
+        with patch('visualization.main_campaign.load_solution', return_value=current):
+            output = export_campaign(self.directory, allow_partial=True)
+        data = json.loads((output/'data.json').read_text())
+        html = (output/'index.html').read_text()
+        self.assertEqual(data['rhoConvention'], 'base_cell_width')
+        self.assertEqual(data['spatialScaleM'], .18)
+        self.assertIn('ρ is measured in base-cell widths', html)
+        self.assertIn('ρ<sub>m</sub> = ρ × L, L = 0.18 m.', html)
+        self.assertNotIn('0.06 / (2π)', html)
+        self.assertNotIn('__RHO_UNITS__', html)
 
     def test_pending_or_saved_unverified_cases_cannot_be_omitted(self):
         row = self.report['cases']['rho-0.00-ImplicitMidpoint']

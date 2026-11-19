@@ -45,8 +45,8 @@ class CampaignConfig:
 		for value in asdict(self).values():
 			if type(value) is not int or value <= 0:
 				raise ValueError('Campaign counts must be positive integers.')
-		if self.steps_per_cycle % self.samples_per_cycle or self.stride % 2:
-			raise ValueError('Each saved interval must contain an even number of complete steps.')
+		if self.steps_per_cycle % self.samples_per_cycle:
+			raise ValueError('Each saved interval must contain a positive integer number of complete steps.')
 
 	@property
 	def stride(self) -> int:
@@ -101,7 +101,7 @@ def campaign_method(name: str, step: float) -> NumericalMethod:
 
 def prepare_case(config: CampaignConfig, field: Potential, particles: dict[str, Any],
 		rho: float, name: str, *, code_sha256: str) -> tuple[InitialValueProblem, NumericalMethod, dict[str, Any]]:
-	"""Build one jointly integrated set of 84 independent guiding centers."""
+	"""Build 84 independent guiding centers with rho in base-cell widths."""
 	if rho not in RHOS or name not in METHODS:
 		raise ValueError('The case is outside the agreed sweep.')
 	m: Any = field.metadata
@@ -110,15 +110,16 @@ def prepare_case(config: CampaignConfig, field: Potential, particles: dict[str, 
 	physical: np.ndarray = np.array([p['position_m'] for p in particles['particles']])
 	xy: np.ndarray = (physical - np.array((m.source_x[0], m.source_y[0]))) / m.spatial_scale
 	initial: np.ndarray = GuidingCenterDynamics.coordinates.pack_components(xy[:, 0], xy[:, 1])
-	rho_m: float = rho * .06 / (2 * np.pi)
-	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(field, rho=rho_m / m.spatial_scale, B=1.5)
+	# rho already uses runtime coordinates; its physical equivalent is metadata only.
+	rho_m: float = rho * m.spatial_scale
+	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(field, rho=rho, B=1.5)
 	period: float = 1 / float(field.frequencies[0])
 	# Derive outputs from integration indices, so no shadow steps are requested.
 	times: np.ndarray = np.arange(config.cycles * config.samples_per_cycle + 1) * config.stride * (period / config.steps_per_cycle)
 	request: SimulationRequest = SimulationRequest((0., float(times[-1])), times)
 	problem: InitialValueProblem = InitialValueProblem(dynamics, initial,
 		layout=GuidingCenterDynamics.coordinates, request=request)
-	metadata: dict[str, Any] = dict(study='main_reflected_campaign', schema_version=1,
+	metadata: dict[str, Any] = dict(study='main_reflected_campaign', schema_version=2,
 		config=asdict(config), method=name, rho=rho, rho_m=rho_m,
 		rho_runtime=dynamics.rho, magnetic_field=1.5, source_sha256=SOURCE_SHA256,
 		particle_record=particles, code_sha256=code_sha256,
@@ -126,7 +127,7 @@ def prepare_case(config: CampaignConfig, field: Potential, particles: dict[str, 
 		position_wrapping='none', initial_positions=xy.tolist(),
 		spatial_scale_m=m.spatial_scale, time_scale_seconds=m.time_scale,
 		cycle_duration=period, source_field_indices=[15], sigma=None,
-		energy_quadrature='composite_simpson_at_accepted_endpoints',
+		energy_evaluation='physical_hamiltonian_at_saved_states',
 		energy_units='normalized Hamiltonian; time in physical forcing cycles',
 		projection_units='normalized physical coordinates',
 		projection_sample_convention='accepted step ending at saved time; no initial multiplier',
@@ -135,7 +136,7 @@ def prepare_case(config: CampaignConfig, field: Potential, particles: dict[str, 
 
 
 def validate_case(solution: States, metadata: dict[str, Any]) -> None:
-	"""Reject missing samples, backend mismatches and incomplete diagnostics."""
+	"""Validate current direct-energy records and read historical schema-1 archives."""
 	c: CampaignConfig = CampaignConfig(**metadata['config'])
 	d: Any = solution.diagnostics
 	if (solution.states.shape != (c.cycles * c.samples_per_cycle + 1, 168)
@@ -146,10 +147,29 @@ def validate_case(solution: States, metadata: dict[str, Any]) -> None:
 	expected: np.ndarray = np.asarray(metadata['initial_positions']).T.ravel()
 	if not np.array_equal(solution.states[0], expected):
 		raise ValueError('Particle identities or initial states changed.')
-	for key in ('physical_hamiltonian', 'hamiltonian_time_derivative', 'energy_integral', 'energy_balance', 'energy_quadrature_difference'):
-		values: np.ndarray = np.asarray(d[key])
+	expected_times: np.ndarray = np.arange(c.cycles * c.samples_per_cycle + 1) * c.stride * (metadata['cycle_duration'] / c.steps_per_cycle)
+	if not np.allclose(solution.t, expected_times, rtol=1e-13, atol=1e-14):
+		raise ValueError('Campaign samples must use the common requested times.')
+	schema: int = metadata.get('schema_version', 1)
+	keys: tuple[str, ...] = ('physical_hamiltonian', 'hamiltonian_time_derivative')
+	legacy: tuple[str, ...] = ('energy_integral', 'energy_balance', 'energy_quadrature_difference')
+	if schema == 1:
+		# Existing archives remain readable; new preparations always use schema 2.
+		keys += legacy
+	elif schema == 2:
+		if (metadata.get('energy_evaluation') != 'physical_hamiltonian_at_saved_states'
+				or d.get('energy_evaluation') != metadata['energy_evaluation']
+				or any(key in d or key in metadata for key in (*legacy, 'energy_quadrature'))):
+			raise ValueError('Current campaign records require direct energy evaluation without quadrature.')
+		keys += ('energy_drift',)
+	else:
+		raise ValueError('Unsupported campaign diagnostic schema.')
+	for key in keys:
+		values: np.ndarray = np.asarray(d.get(key, []))
 		if values.shape != (84, solution.t.size) or not np.isfinite(values).all():
 			raise ValueError(f'Incomplete diagnostic: {key}.')
+	if schema == 2 and not np.array_equal(d['energy_drift'], d['physical_hamiltonian']-d['physical_hamiltonian'][:, :1]):
+		raise ValueError('Energy variation must be the direct difference from the initial Hamiltonian.')
 	if metadata['method'] in ('ABBA2Implicit', 'BM4Implicit'):
 		for key, shape in (('projection_multipliers_sampled', (solution.t.size-1, 2, 84)),
 				('projection_particle_norms', (solution.t.size-1, 84)),

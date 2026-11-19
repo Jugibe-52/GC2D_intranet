@@ -1,0 +1,3 @@
+The accepted selection is 12, 15, 18, 21, 24, 27 and 30, in that order. Create `chaotic_candidates_7.json` from the exact records in `original_40.json` and use it in the third notebook panel. Keep the former eight-particle JSON as historical data. Record this as a user selection, without transferring the former selection criteria or claiming verified chaos. The user authorized implementation on 2026-11-16.
+
+The user additionally authorized the first-set figure on the left of its explanation in the thesis. Add an individual 40-particle plot to the notebook and an optional export to the existing thesis figures directory. Keep French figure text and the four-panel overview.

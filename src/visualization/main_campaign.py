@@ -35,6 +35,7 @@ def export_campaign(directory: Path, *, allow_partial: bool = False) -> Path:
 	assets: Path = output / 'assets'
 	assets.mkdir(parents=True, exist_ok=True)
 	cases: dict[str, Any] = {}
+	radius_units: tuple[str, float | None] | None = None
 	for rho in record['rhos']:
 		for method in record['methods']:
 			key: str = f'rho-{rho:.2f}-{method}'
@@ -49,6 +50,13 @@ def export_campaign(directory: Path, *, allow_partial: bool = False) -> Path:
 					or stored.metadata['rho'] != rho or stored.metadata['code_sha256'] != record['code_sha256']
 					or stored.metadata['particle_record'] != record['particles']):
 				raise ValueError(f'Campaign provenance mismatch: {key}.')
+			# Preserve the recorded convention when exporting historical campaigns.
+			case_units: tuple[str, float | None] = (
+				('base_cell_width', float(stored.metadata['spatial_scale_m']))
+				if stored.metadata.get('schema_version', 1) == 2 else ('legacy_physical_scale', None))
+			if radius_units is not None and case_units != radius_units:
+				raise ValueError('Campaign cases use incompatible gyro-radius units.')
+			radius_units = case_units
 			xy: np.ndarray = poincare_returns(stored.solution, stored.metadata)
 			payload: bytes = xy.tobytes()
 			digest: str = sha256(payload).hexdigest()
@@ -58,17 +66,24 @@ def export_campaign(directory: Path, *, allow_partial: bool = False) -> Path:
 			(assets / name).write_bytes(payload)
 			cases[key] = dict(status='available', asset=f'assets/{name}', sha256=digest, bytes=len(payload),
 				shape=list(xy.shape), rho=rho, method=method)
+	if radius_units is None:
+		raise ValueError('Publication requires at least one recorded gyro-radius convention.')
+	radius_note: str = (
+		f'ρ is measured in base-cell widths; ρ<sub>m</sub> = ρ × L, L = {radius_units[1]:.12g} m.'
+		if radius_units[0] == 'base_cell_width' else
+		'Historical radius convention: ρ<sub>m</sub> = ρ × 0.06 / (2π) m.')
 	# Compare the four Runge--Kutta recipes above the four palindromic recipes.
 	display_order: tuple[str, ...] = ('RK2', 'ImplicitMidpoint', 'RK4', 'GaussLegendre4',
 		'ABBA2Midpoint', 'ABBA2Implicit', 'BM4Midpoint', 'BM4Implicit')
 	config: dict[str, Any] = dict(cycles=record['config']['cycles'], rhos=record['rhos'],
 		methods=[name for name in display_order if name in record['methods']], particles=record['particles']['particles'],
 		families=record['particles']['families'], cases=cases, spatialPeriod=2,
+		rhoConvention=radius_units[0], spatialScaleM=radius_units[1],
 		samplesPerCycle=1, source_sha256=record['source_sha256'], code_sha256=record['code_sha256'],
 		publicationStatus='partial' if missing else 'complete', availableCases=len(cases)-len(missing),
 		expectedCases=len(cases), missingCases=list(missing))
 	(output / 'data.json').write_text(json.dumps(config, separators=(',', ':'))+'\n')
-	(output / 'index.html').write_text(_HTML, encoding='utf-8')
+	(output / 'index.html').write_text(_HTML.replace('__RHO_UNITS__', radius_note), encoding='utf-8')
 	(output / '_headers').write_text('/assets/*\n  Cache-Control: public, max-age=31536000, immutable\n/data.json\n  Cache-Control: no-cache\n')
 	return output
 
@@ -112,7 +127,7 @@ details{margin:16px 0;padding-top:12px;border-top:1px solid #e2e9ed}summary{curs
 <div class="actions"><button id="reset">Full view</button><span id="status" role="status">Loading Poincaré returns…</span></div>
 <div id="plots"></div>
 <details><summary id="particleSummary">Particles · 84 selected</summary><div class="families"><button id="all">Select all</button><button id="none">Clear</button><span id="families"></span></div><div id="particles"></div></details>
-<footer>Source: PHI_2.h5 · reflected cubic spline · B = 1.5 · ρ<sub>m</sub> = ρ × 0.06 / (2π). <a href="data.json">Viewer metadata</a></footer>
+<footer>Source: PHI_2.h5 · reflected cubic spline · B = 1.5 · __RHO_UNITS__ <a href="data.json">Viewer metadata</a></footer>
 </main>
 <script>
 'use strict';

@@ -1,4 +1,4 @@
-"""Compact campaign observations with JAX reductions on accepted step data."""
+"""Compact direct physical-energy histories and accepted-step projection data."""
 from __future__ import annotations
 
 from typing import Any
@@ -8,36 +8,28 @@ from contracts.states.history import DiagnosticValue
 
 
 def compact_diagnostics(solution: States, stride: int) -> States:
-	"""Retain aligned samples, Simpson energy balance and signed projection data.
+	"""Keep direct H at saved physical states and reduce signed projection data.
 
-	No trajectories are integrated here. Simpson and trapezoid use the analytic
-	partial time derivative at every accepted endpoint. Their difference is a
-	quadrature sensitivity diagnostic, not a certified error bound.
+	EnergyObserver evaluates the same physical Hamiltonian for every method.
+	The reported variation is H(t_n, z_n) - H(t_0, z_0), not a conservation error
+	for time-dependent fields. The analytic time derivative is never integrated.
 	"""
 	import jax
 	import jax.numpy as jnp
-	if stride < 2 or stride % 2:
-		raise ValueError('Simpson blocks require a positive even stride.')
+	if type(stride) is not int or stride <= 0:
+		raise ValueError('Recording stride must be a positive integer.')
 	d: Any = solution.diagnostics
 	count: int = int(d['step_count'])
 	if count % stride or solution.t.size != count // stride + 1 or d['output_interpolation_count']:
 		raise ValueError('Recording must coincide with every stride-th accepted step.')
-	sizes: np.ndarray = np.asarray(d['step_sizes'])
-	if not np.allclose(sizes, sizes[0], rtol=1e-10, atol=1e-14):
-		raise ValueError('Composite Simpson requires uniform accepted steps.')
+	energy: np.ndarray = np.asarray(d['physical_hamiltonian'])
+	derivative: np.ndarray = np.asarray(d['hamiltonian_time_derivative'])
+	expected: tuple[int, int] = (solution.states.shape[1] // 2, solution.t.size)
+	if (energy.shape != expected or derivative.shape != expected
+			or not np.isfinite(energy).all() or not np.isfinite(derivative).all()):
+		raise ValueError('Direct energy histories must contain finite values at every saved state.')
 	with jax.experimental.enable_x64():
-		rates: Any = jnp.concatenate((jnp.asarray(d['energy_time_derivative_start'])[:1],
-			jnp.asarray(d['energy_time_derivative_end'])), axis=0)
-		indices: Any = jnp.arange(count // stride)[:, None] * stride + jnp.arange(stride + 1)
-		weights: Any = jnp.where(jnp.arange(stride + 1) % 2, 4., 2.).at[0].set(1.).at[-1].set(1.)
-		increments: Any = jnp.sum(rates[indices] * weights[None, :, None], axis=1) * sizes[0] / 3
-		trap: Any = ((rates[:-1] + rates[1:]) * sizes[0] / 2).reshape(-1, stride, rates.shape[1]).sum(axis=1)
-		zero: Any = jnp.zeros((1, rates.shape[1]), dtype=rates.dtype)
-		integral: Any = jnp.concatenate((zero, jnp.cumsum(increments, axis=0)), axis=0).T
-		difference: Any = jnp.concatenate((zero, jnp.cumsum(increments - trap, axis=0)), axis=0).T
-		energy: Any = jnp.asarray(d['physical_hamiltonian'])
-		added: dict[str, Any] = dict(energy_integral=integral, energy_balance=energy-energy[:, :1]-integral,
-			energy_quadrature_difference=difference)
+		added: dict[str, Any] = {}
 		if 'projection_multipliers' in d:
 			mu: Any = jnp.asarray(d['projection_multipliers']).reshape(count, 2, -1)
 			norms: Any = jnp.max(jnp.abs(mu), axis=1)
@@ -45,14 +37,16 @@ def compact_diagnostics(solution: States, stride: int) -> States:
 				projection_particle_norms=norms[stride-1::stride],
 				projection_particle_block_max=norms.reshape(-1, stride, norms.shape[1]).max(axis=1))
 		additions: Any = jax.device_get(added)
-	# Endpoint energy arrays and raw multipliers are consumed above. Keep scalar
-	# per-step nonlinear work, but avoid repeating H under multiple aliases.
+	# Endpoint observations are redundant with the sampled physical histories.
+	# Also discard legacy quadrature fields rather than carrying them into new archives.
 	drop: set[str] = {'energy_start', 'energy_end', 'energy_change', 'energy_time_derivative_start',
-		'energy_time_derivative_end', 'projection_multipliers', 'hamiltonian', 'energy_drift'}
+		'energy_time_derivative_end', 'projection_multipliers', 'hamiltonian',
+		'energy_integral', 'energy_balance', 'energy_quadrature_difference', 'energy_quadrature'}
 	kept: dict[str, DiagnosticValue] = {k: v for k, v in d.items() if k not in drop}
 	kept.update(additions)
-	kept.update(diagnostic_backend='jax_float64', diagnostic_stride=stride,
-		energy_quadrature='composite_simpson_accepted_endpoints',
+	kept.update(energy_drift=energy-energy[:, :1],
+		diagnostic_backend='jax_float64', diagnostic_stride=stride,
+		energy_evaluation='physical_hamiltonian_at_saved_states',
 		projection_iteration_scope='joint_particle_batch')
 	return solution.with_diagnostics(kept, replace=True)
 

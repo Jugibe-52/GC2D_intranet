@@ -1,0 +1,1 @@
+The new JSON and the viewing notebook define the active first dataset. A dataset README documents the four active files and the historical 48-particle file. The thesis change is recorded separately in `TFM_redaccion/specs/changes/2026-11-16-primer-conjunto-40/`. Saved simulations, the 84-particle campaign, the measured field and numerical methods are outside this change.

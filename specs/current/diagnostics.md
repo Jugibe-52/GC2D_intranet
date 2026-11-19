@@ -38,7 +38,10 @@ Projected palindromic steps expose signed `projection_multipliers` with shape
 `(d*N,)` in step statistics, in addition to scalar solver diagnostics. Consumers
 must compare these array values elementwise. The main campaign reduces the
 accepted-step history to ten aligned samples/cycle, per-particle projection
-norms/block maxima and Simpson endpoint energy balance using JAX float64.
+norms/block maxima using JAX float64. All methods evaluate the same physical H
+and analytic partial_t H directly at their saved states. Schema-2 archives retain
+H and H-H0 without energy quadrature; H-H0 is not a conservation error. Schema-1
+archives remain readable with their original diagnostics.
 Worker timings, allocated resources and explicitly estimated USD compute costs
 are retained per rho/method case. Actual billing is not inferred from estimates.
 See [the campaign protocol](../../docs/studies/main-reflected-campaign.md).

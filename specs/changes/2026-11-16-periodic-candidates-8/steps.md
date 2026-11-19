@@ -1,0 +1,3 @@
+- [x] Create the selected dataset and update the notebook and permanent documentation.
+- [x] Execute the plotting cells, regenerate outputs, and check exact IDs, records and panel counts.
+- [x] Check unchanged input hashes, Spanish reading copies, diff formatting and SDD records.

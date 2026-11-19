@@ -1,0 +1,98 @@
+{
+  "configuration": {
+    "method": "BM4Implicit",
+    "rho_study": 0.3,
+    "rho_m": 0.002864788975654116,
+    "cycles": 5000,
+    "steps_per_cycle": 40,
+    "step": 0.025,
+    "cycle_duration": 1.0,
+    "magnetic_field_T": 1.5,
+    "dataset": "data/particles/chaotic_candidates.json",
+    "dataset_sha256": "493656ec43af248c63bf0081190fae19c20026c3188e99c648587626d5b29133",
+    "particle_ids": [
+      12,
+      15,
+      18,
+      21,
+      24,
+      27,
+      30,
+      33
+    ],
+    "initial_positions_normalized": [
+      [
+        0.41523784097296224,
+        0.584762159026583
+      ],
+      [
+        0.4999999999997726,
+        0.34743589743573944
+      ],
+      [
+        0.6309960639502978,
+        0.6309960639502977
+      ],
+      [
+        0.2820512820511538,
+        0.4999999999997726
+      ],
+      [
+        0.6772299688740125,
+        0.3227700311255326
+      ],
+      [
+        0.4999999999997726,
+        0.7833333333329769
+      ],
+      [
+        0.2765361262018179,
+        0.27653612620181794
+      ],
+      [
+        0.8487179487175628,
+        0.4999999999997726
+      ]
+    ],
+    "particle_colors": [
+      "#1ad2d2",
+      "#2aefa1",
+      "#6dfe62",
+      "#acfb38",
+      "#d9e436",
+      "#f8be39",
+      "#fd8d27",
+      "#ef5811"
+    ],
+    "potential_sha256": "4bbd873cd05992e0a615d66ebbf4d96b38c8b3c36be2ca62932e66af7e6d4ced",
+    "source_code_sha256": "b4341a51d7884c29a0712bc11126f4bb48d7f0c715b157cf02ea66f55e7dbda8",
+    "spatial_extension": "reflected",
+    "spatial_period": 2.0,
+    "position_wrapping": "none",
+    "source_field_indices": [
+      15
+    ],
+    "constant_field_index": 0,
+    "interpolation_order": 3,
+    "smoothing": null,
+    "newton_absolute_tolerance": 1e-12,
+    "newton_relative_tolerance": 1e-11,
+    "newton_max_iterations": 40,
+    "jacobian": "analytic",
+    "backend": "jax",
+    "device": "cpu",
+    "dtype": "float64",
+    "versions": {
+      "python": "3.12.3",
+      "numpy": "1.26.4",
+      "scipy": "1.17.1",
+      "jax": "0.7.1"
+    }
+  },
+  "created_utc": "2026-11-16T10:18:22.650066+00:00",
+  "elapsed_seconds_including_compilation": 1378.5738462139998,
+  "step_count": 200000,
+  "output_interpolation_count": 0,
+  "execution_backend": "jax",
+  "complete": true
+}

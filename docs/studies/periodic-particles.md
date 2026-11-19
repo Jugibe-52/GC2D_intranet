@@ -1,6 +1,10 @@
 # Periodic particle selection
 
-The fourth dataset, `data/particles/periodic_8.json`, contains independent initial conditions for the reflected measured potential at rho = 0.30. It uses the same `PHI_2.h5` fingerprint, constant field 0, temporal mode 15, B = 1.5 T and physical-cycle normalization as the main campaign. Positions are unwrapped; the spatial period is two base-cell widths. Closed orbits must have zero net displacement, not merely agree after folding.
+The current fourth dataset, `data/particles/periodic_candidates_8.json`, contains the user-selected IDs 1, 2, 60, 64, 65, 72, 76 and 83 from `expanded_84.json`, with unchanged particle records. Its periodicity has not been verified for the reflected potential. The notebook displays this selection; the checks below apply only to the historical IDs 85–92. See [the dataset overview](../../data/particles/README.md).
+
+## Historical verified dataset
+
+The historical dataset, `data/particles/periodic_8.json`, contains independent initial conditions for the reflected measured potential at rho = 0.30. It uses the same `PHI_2.h5` fingerprint, constant field 0, temporal mode 15, B = 1.5 T and physical-cycle normalization as the main campaign. Positions are unwrapped; the spatial period is two base-cell widths. Closed orbits must have zero net displacement, not merely agree after folding.
 
 ## Procedure
 
@@ -27,7 +31,7 @@ Each job saves its Modal call ID before waiting and retains its result under `bu
 
 The finalizer refuses an incomplete or duplicate selection. The final JSON retains coordinates, minimum periods, refinements, cross-method closure, repeated returns, reference fingerprints, call IDs and measured resources. Compute charges are estimates for completed worker intervals; they exclude container startup, idle time, transfer and work lost to preemption, and are not invoices.
 
-The notebook reads the final JSON locally. Neither this dataset nor the viewing notebook is uploaded to B2; both remain under Git. The thesis and the main campaign are unchanged.
+The finalizer writes the historical `periodic_8.json`; it does not replace the active `periodic_candidates_8.json`. The viewing notebook reads the active selection locally. Neither dataset nor the viewing notebook is uploaded to B2; they remain under Git. Reproducing this historical search does not modify the thesis or the main campaign.
 
 ## Selected period-11 candidate
 
