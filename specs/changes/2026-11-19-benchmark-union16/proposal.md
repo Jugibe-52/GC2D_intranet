@@ -1,0 +1,1 @@
+Keep the nine method-duration cases and timing protocol described in [the study](../../../docs/studies/bm4-numpy-jax.md), changing only the selected particle union. Preserve IDs, positions and colors, freeze both source selections and retain earlier runs. Save new trajectories and timings in the configured B2 study prefix.

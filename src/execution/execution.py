@@ -97,13 +97,15 @@ class Execution:
 				from execution._jax_fixed import prepare_integration
 				assert device is not None and plan is not None
 				kernel: CompiledStep = prepare_step(numerical_run, device, initial_conditions=problem.initial_conditions, callbacks=callbacks, progress=execution_options.progress)
-				prepared = prepare_integration(numerical_run, kernel, plan, initial_state=problem.initial_state, energy=energy)
+				prepared = prepare_integration(numerical_run, kernel, plan, initial_state=problem.initial_state, energy=energy,
+					record_step_statistics=execution_options.record_step_statistics)
 			saved: States = States.prepare(request.output_times, problem.initial_state, layout=problem.layout)
 			if prepared is None:
 				assert controller is not None
 				step_diagnostics: dict[str, DiagnosticValue] = run_steps(numerical_run, saved, request,
 					source=problem.dynamics, controller=controller, observers=callbacks, energy=energy,
-					initial_state=problem.initial_state, progress=execution_options.progress)
+					initial_state=problem.initial_state, progress=execution_options.progress,
+					record_step_statistics=execution_options.record_step_statistics)
 			else:
 				from execution._jax_fixed import run_steps as run_compiled_steps
 				step_diagnostics = run_compiled_steps(prepared, saved)

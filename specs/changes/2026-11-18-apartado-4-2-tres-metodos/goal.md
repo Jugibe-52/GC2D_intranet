@@ -1,0 +1,1 @@
+Redo thesis section 4.2 with new BM4Implicit, GaussLegendre4 (two stages, fourth order) and RK2 (explicit midpoint) measurements over 10, 30 and 90 cycles, with one figure. The 2026-11-18 request authorizes rerunning the study and updating the thesis.

@@ -49,3 +49,7 @@ See [the campaign protocol](../../docs/studies/main-reflected-campaign.md).
 ## Periodic particle verification
 
 The separate periodic-particle study retains unwrapped zero-winding closure, step-refined seed positions, independent-method checks, minimum-period separation and phase-duplicate diagnostics. Its accepted JSON includes measured Modal resources and explicitly estimated compute costs. Candidate status is not a verification result. See [the periodic selection protocol](../../docs/studies/periodic-particles.md).
+
+## Midpoint geometric defects
+
+The separate midpoint study differentiates complete physical ABBA2Midpoint and BM4Midpoint steps and records signed determinant defects, correctly timed forward/backward infinity-norm displacements, copy separation and the determinant-identity residual. Symmetric-projection controls retain their nonlinear tolerances. Accumulated log absolute determinants and long-time return displacements are distinct diagnostics; energy variation is not a surrogate for either geometric property. Raw archives, parameters and provenance support saved-data visualization without reintegration. See [the study protocol](../../docs/studies/midpoint-geometry.md).

@@ -5,13 +5,89 @@ from states.initial import InitialConditions
 from methods.runge_kutta.rk2 import RK2
 from methods.runge_kutta.implicit_midpoint import ImplicitMidpoint
 from execution._jax_step import prepare_step
-from studies.main_campaign import CampaignConfig, METHODS, OPTIONS, prepare_case, validate_case
+from studies.main_campaign import (CampaignConfig, METHODS, RHOS, OPTIONS,
+    campaign_case_key, campaign_rho_label, prepare_case, validate_case)
 from diagnostics.studies.main_campaign import compact_diagnostics
 from states.history import States
 from dynamics.gc import GuidingCenterDynamics
 
 
 class MainCampaignTests(unittest.TestCase):
+    def test_radius_keys_preserve_history_and_distinguish_small_radii(self):
+        for rho in RHOS:
+            self.assertEqual(campaign_rho_label(rho), f'{rho:.2f}')
+            self.assertEqual(campaign_case_key(rho, 'RK2'), f'rho-{rho:.2f}-RK2')
+        radii = tuple(i/400 for i in range(11))
+        self.assertEqual([campaign_rho_label(rho) for rho in radii],
+            ['0.00', '0.0025', '0.005', '0.0075', '0.01', '0.0125',
+             '0.015', '0.0175', '0.02', '0.0225', '0.025'])
+        self.assertEqual(len({campaign_case_key(rho, name) for rho in radii for name in METHODS}), 88)
+        adjacent = np.nextafter(.0025, 1.)
+        self.assertNotEqual(campaign_rho_label(adjacent), campaign_rho_label(.0025))
+        self.assertEqual(float(campaign_rho_label(adjacent)), adjacent)
+        self.assertEqual(campaign_rho_label(-0.), '0.00')
+        for invalid in (-.001, np.nan, np.inf, -np.inf, True, np.bool_(False), '.0025'):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                campaign_rho_label(invalid)
+        with self.assertRaisesRegex(ValueError, 'Unknown campaign method'):
+            campaign_case_key(.0025, 'other')
+
+    def test_preparation_records_explicit_radii_without_rescaling(self):
+        import json
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+        from studies.main_campaign_io import prepare_campaign
+
+        radii = tuple(i/400 for i in range(11))
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = root/'small-radii'
+            with patch('studies.main_campaign_io.code_digest', return_value='same'), \
+                 patch('studies.main_campaign_io.load_field'), \
+                 patch('studies.main_campaign_io.read_particles', return_value={'source_sha256': 'source'}) as read, \
+                 patch('studies.main_campaign_io.prepare_case') as prepare:
+                record = prepare_campaign(directory, root, config=CampaignConfig(),
+                    particle_path=root/'particles.json', rhos=radii)
+                self.assertEqual(record['rhos'], list(radii))
+                self.assertEqual(record['methods'], list(METHODS))
+                self.assertEqual(json.loads((directory/'campaign.json').read_text()), record)
+                self.assertEqual(prepare.call_count, 88)
+                self.assertEqual({(call.args[3], call.args[4]) for call in prepare.call_args_list},
+                    {(rho, name) for rho in radii for name in METHODS})
+                for invalid in ((), (0., -0.), (.0025, .0025), (True,), (-.0025,), (np.nan,)):
+                    read.reset_mock()
+                    with self.subTest(radii=invalid), self.assertRaises(ValueError):
+                        prepare_campaign(root/'invalid', root, config=CampaignConfig(),
+                            particle_path=root/'particles.json', rhos=invalid)
+                    read.assert_not_called()
+                    self.assertFalse((root/'invalid').exists())
+
+    def test_cli_selects_radii_only_when_preparing(self):
+        from contextlib import redirect_stderr, redirect_stdout
+        from io import StringIO
+        from pathlib import Path
+        import runpy
+        from unittest.mock import patch
+
+        script = Path(__file__).resolve().parents[1]/'scripts/run_main_campaign.py'
+        for flags, expected in (([], RHOS), (['--pilot'], (.3,)),
+                                (['--rhos', '0', '.0025', '.015', '.025'], (0., .0025, .015, .025))):
+            with self.subTest(flags=flags), patch('sys.argv', [str(script), 'prepare', 'unused', *flags]), \
+                 patch('studies.main_campaign_io.prepare_campaign') as prepare, redirect_stdout(StringIO()):
+                runpy.run_path(str(script), run_name='__main__')
+                self.assertEqual(prepare.call_args.kwargs['rhos'], expected)
+        for arguments in (['prepare', 'unused', '--pilot', '--rhos', '.0025'],
+                          ['run', 'unused', '--rhos', '.0025'], ['view', 'unused', '--pilot']):
+            with self.subTest(arguments=arguments), patch('sys.argv', [str(script), *arguments]), \
+                 patch('studies.main_campaign_io.run_campaign') as run, \
+                 patch('studies.main_campaign_io.prepare_campaign') as prepare, \
+                 redirect_stderr(StringIO()), self.assertRaises(SystemExit) as error:
+                runpy.run_path(str(script), run_name='__main__')
+            self.assertEqual(error.exception.code, 2)
+            run.assert_not_called()
+            prepare.assert_not_called()
+
     def test_requested_rho_reaches_gyroaverage_without_rescaling(self):
         from scipy.special import j0
         from potential.grid import Grid
@@ -29,7 +105,7 @@ class MainCampaignTests(unittest.TestCase):
             field = Potential(grid, mean=mean, modes=np.zeros((1, 16, 16)),
                 frequencies=np.array([1.]), spatial_extension='reflected', metadata=provenance)
             particles = {'particles': [{'position_m': [scale/8, scale/2]} for _ in range(84)]}
-            for rho in (0., .3, .5):
+            for rho in (0., .0025, .0175, .025, .3, .5):
                 with self.subTest(spatial_scale=scale, rho=rho):
                     problem, _, metadata = prepare_case(CampaignConfig(cycles=1), field,
                         particles, rho, 'RK2', code_sha256='test')
@@ -146,7 +222,7 @@ class MainCampaignTests(unittest.TestCase):
         expected_times = np.array([0., .5, 1.])
         for name in METHODS:
             with self.subTest(method=name), jax.experimental.enable_x64():
-                problem, method, metadata = prepare_case(config, field, particles, .3,
+                problem, method, metadata = prepare_case(config, field, particles, .0175,
                     name, code_sha256='test')
                 raw = simulate(problem, method, options=OPTIONS, observers=(EnergyObserver(),))
                 solution = compact_diagnostics(raw, config.stride)
@@ -276,6 +352,69 @@ class MainCampaignTests(unittest.TestCase):
                 executor.assert_not_called()
                 executor.from_record.assert_not_called()
                 self.assertEqual(second['cost_estimated_requested_resources_usd'], .001)
+
+    def test_close_radii_keep_separate_receipts_results_and_resumption(self):
+        from contextlib import redirect_stdout
+        from io import StringIO
+        import json
+        from pathlib import Path
+        import tempfile
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock, patch
+        from studies.main_campaign_io import run_campaign
+
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            radii = [.005, .0075]
+            methods = ['RK2', 'RK4']
+            record = dict(config=dict(cycles=1, steps_per_cycle=40, samples_per_cycle=10),
+                particles={}, rhos=radii, methods=methods, code_sha256='same', app_name='test')
+            (directory/'campaign.json').write_text(json.dumps(record))
+            archives = {}
+            receipt_directories = []
+
+            def prepare(config, field, particles, rho, method, *, code_sha256):
+                metadata = dict(rho=rho, method=method, code_sha256=code_sha256)
+                return metadata, object(), metadata
+
+            def executor(**kwargs):
+                receipt_directories.append(kwargs['record_directory'])
+                result = MagicMock()
+                result.run.side_effect = lambda problem, method, **options: SimpleNamespace(
+                    diagnostics=dict(worker_wall_seconds=2., cost_estimated_requested_resources_usd=.001,
+                        execution_call_id=campaign_case_key(problem['rho'], problem['method'])))
+                return result
+
+            def save(solution, path, *, metadata, potential):
+                path.mkdir(parents=True)
+                (path/'manifest.json').write_text('{}')
+                archives[path] = SimpleNamespace(solution=solution, metadata=metadata)
+
+            with patch('studies.main_campaign_io.code_digest', return_value='same'), \
+                 patch('studies.main_campaign_io.load_field'), \
+                 patch('studies.main_campaign_io.prepare_case', side_effect=prepare), \
+                 patch('studies.main_campaign_io.validate_case'), \
+                 patch('studies.main_campaign_io.save_solution', side_effect=save), \
+                 patch('studies.main_campaign_io.load_solution', side_effect=archives.__getitem__), \
+                 patch('studies.main_campaign_io.Execution_Modal', side_effect=executor) as modal, \
+                 redirect_stdout(StringIO()):
+                report = run_campaign(directory, directory, max_workers=1, publish=False)
+                expected = {campaign_case_key(rho, method) for rho in radii for method in methods}
+                self.assertEqual(report['status'], 'saved_local')
+                self.assertEqual(set(report['cases']), expected)
+                self.assertEqual({path.name for path in receipt_directories}, expected)
+                self.assertEqual({path.name for path in archives}, expected)
+                self.assertEqual(modal.call_count, 4)
+                for rho in radii:
+                    for method in methods:
+                        key = campaign_case_key(rho, method)
+                        self.assertEqual(archives[directory/'runs'/key].metadata['rho'], rho)
+                modal.reset_mock()
+                resumed = run_campaign(directory, directory, max_workers=1, publish=False)
+                modal.assert_not_called()
+                self.assertEqual(set(resumed['cases']), expected)
+                self.assertAlmostEqual(resumed['cost_estimated_requested_resources_usd'], .004)
+                self.assertEqual({row['call_id'] for row in resumed['cases'].values()}, expected)
 
 if __name__ == '__main__':
     unittest.main()

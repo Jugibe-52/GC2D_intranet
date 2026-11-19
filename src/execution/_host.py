@@ -164,6 +164,7 @@ def run_steps(
 	method: IntegrationMethod[Detail], saved: States, request: SimulationRequest, *,
 	source: DynamicalSystem, controller: StepController[Detail], observers: Sequence[Callable[[Any], None]] = (),
 	energy: PreparedEnergyObserver | None = None, initial_state: np.ndarray, progress: bool = False,
+	record_step_statistics: bool = True,
 ) -> dict[str, DiagnosticValue]:
 	"""Record accepted steps and samples in the executor's open result.
 
@@ -185,6 +186,7 @@ def run_steps(
 	output_index = 1
 	interior_sample_count = 0
 	previous_end = t0
+	step_count = 0
 	try:
 		for info, result in selected.steps(method, request, initial_state):
 			if (info.time != previous_end or info.end_time <= info.time
@@ -193,10 +195,12 @@ def run_steps(
 			if result.state.shape != initial_state.shape or not np.all(np.isfinite(result.state)):
 				raise ValueError("A numerical step changed shape or became non-finite.")
 			method._checked_state(result.state)
-			statistics: dict[str, Any] = dict(result.statistics)
+			statistics: dict[str, Any] = dict(result.statistics) if record_step_statistics else {}
 			if energy is not None:
 				statistics.update(energy.accept(info, np.asarray(result.state)))
-			saved.record_step(info, statistics)
+			if record_step_statistics:
+				saved.record_step(info, statistics)
+			step_count += 1
 			if observers:
 				event = _observation(method, info, result, source)
 				for observer in observers:
@@ -233,6 +237,8 @@ def run_steps(
 	if energy is not None:
 		diagnostics.update(energy.diagnose_history(saved.times, saved.values.T))
 	diagnostics["output_interpolation_count"] = interior_sample_count
+	diagnostics["step_count"] = step_count
+	diagnostics["record_step_statistics"] = record_step_statistics
 	return diagnostics
 
 

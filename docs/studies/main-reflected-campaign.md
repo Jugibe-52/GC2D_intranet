@@ -1,5 +1,27 @@
 # Main reflected campaign
 
+## Current thesis reference
+
+The thesis reference is `main-20261117-rho-div20`, published at
+[gc2d-main-reflected-rho-div20.pages.dev](https://gc2d-main-reflected-rho-div20.pages.dev/).
+The sibling thesis's [reference selection](../../../TFM_redaccion/datos/campana_referencia.json)
+is the single selection record for its campaign, website, B2 prefix, radius grid
+and representative radius. Chapter 4 sources read that record and verify it
+against the saved campaign. Use `rho=0.015` for its representative figures and
+planned comparisons; the sweep is `rho_i=i/400`, i=0,...,10.
+This is a choice of smaller input radii, not an additional runtime normalization.
+
+The reference contains 86 verified results out of 88 expected cases. At rho=0,
+ImplicitMidpoint and ABBA2Implicit have recorded nonlinear convergence failures.
+Keep those gaps explicit. `main-20261116-direct-rho`, `main-20261115` and their
+websites remain historical references with their original parameters and data.
+Do not relabel their archives, change the generic campaign defaults or change
+unrelated study protocols when updating the thesis reference. The particle JSON
+files preserve the historical selection of the initial positions; their provenance
+radii do not select the current simulation radius.
+
+## Shared protocol
+
 The campaign compares ABBA2Midpoint, ABBA2Implicit, BM4Midpoint, BM4Implicit,
 ImplicitMidpoint, RK2 (explicit midpoint), RK4 and GaussLegendre4. This explicitly
 chosen fixed-step protocol supersedes the general fourth-order comparison defaults
@@ -9,11 +31,11 @@ PHI_2.h5 supplies constant field 0 and variable field 15, without smoothing.
 Both loader rescalings are enabled: time is measured in physical forcing cycles,
 and space in base-cell widths. Guiding-center dynamics applies B=1.5 exactly once.
 Cubic clamped reflected splines give a spatial period of two base widths; see
-[spatial extension](../dynamics/spatial-extension.md). Requested rho ranges from
-0 to 0.50 in increments of 0.05, in base-cell widths. The campaign passes this
+[spatial extension](../dynamics/spatial-extension.md). The reference rho ranges from
+0 to 0.025 in increments of 0.0025, in base-cell widths. The campaign passes this
 value directly to the gyroaverage: `rho_runtime == rho`. The physical equivalent
 `rho_m = rho * spatial_scale_m` is recorded only as metadata; for a base width
-of 0.18 metres, rho=0.30 means a radius of 0.054 metres.
+of 0.18 metres, rho=0.015 means a radius of 0.0027 metres.
 The exact physical positions, IDs and colors of the existing 84 particles are
 read from the sibling thesis's `datos/conjuntos_particulas_rho030.json`. Their
 selection is historical, not recomputed for the new reflected field.
@@ -46,13 +68,18 @@ the joint particle batch, not independent per-particle Newton counts.
 
 ```bash
 .venv/bin/modal deploy examples/modal_main_campaign_app.py
-.venv/bin/python scripts/run_main_campaign.py prepare notebooks/developements/main_reflected_campaign/main-20261116-direct-rho
-.venv/bin/python scripts/run_main_campaign.py run notebooks/developements/main_reflected_campaign/main-20261116-direct-rho --workers 16
-.venv/bin/python scripts/run_main_campaign.py view notebooks/developements/main_reflected_campaign/main-20261116-direct-rho
+.venv/bin/python scripts/run_main_campaign.py prepare notebooks/developements/main_reflected_campaign/main-20261117-rho-div20 --rhos 0 0.0025 0.005 0.0075 0.01 0.0125 0.015 0.0175 0.02 0.0225 0.025
+.venv/bin/python scripts/run_main_campaign.py run notebooks/developements/main_reflected_campaign/main-20261117-rho-div20 --workers 16
+.venv/bin/python scripts/run_main_campaign.py view notebooks/developements/main_reflected_campaign/main-20261117-rho-div20 --allow-partial
 ```
 
-Use a separate directory with `prepare --cycles 100 --pilot` for the eight-method
-rho=0.30 pilot. Preparation fingerprints the numerical source tree and scientific
+These commands document campaign preparation, recovery and return-only export;
+the saved reference results already exist. For thesis figures, extract them
+without integration. For the reference website's field backgrounds, use the
+visualization notebook or the source-aware export described below after `view`.
+The older eight-method rho=0.30 pilot uses a separate directory prepared with
+`prepare --cycles 100 --pilot`; it does not select the thesis reference.
+Preparation fingerprints the numerical source tree and scientific
 inputs. With unchanged code and inputs, reuse the original directory and `run` to recover confirmed Modal receipts;
 never delete receipts to force resubmission. An unconfirmed submission requires
 inspection. Local result collection is serialized to bound RAM, while up to 16
@@ -191,6 +218,20 @@ also used on initial load. Returns outside this viewport are clipped; stored
 period-two coordinates and the numerical trajectories are unchanged. The website retains
 rho/particle/family selection, animation and synchronized zoom/pan. It excludes
 intermediate trajectory samples, energy/projection plots and horizontal transport Qx.
+
+Each method panel provides **Télécharger l’image** for a direct PNG download of
+the current frame, with no preview, export settings or auxiliary files. The
+existing **Copier l’image** control remains available. Both use a 1200-by-1320 PNG
+with a white background, the method name, exact rho label, cycle interval and
+selected-particle count. The image retains the current particle selection and
+colors, viewport and zoom, normalized axes, tick values and scale, accumulated
+returns, start circles and current positions. Export margins keep long tick
+labels clear of the vertical-axis title. It captures the view at the click
+and pauses cycle playback. Both controls are disabled for loading, unavailable or failed
+results. If the browser lacks image clipboard support or denies the write, the
+panel explicitly reports that copying is unavailable and offers **Télécharger
+l’image** for the same PNG; it does not claim clipboard success.
+
 For a partial campaign, an availability notice gives the available/expected counts
 and identifies the missing combinations. Missing cases retain their panels with
 an explanatory message. A missing result or a failed network request does not
@@ -201,9 +242,9 @@ of schema-2 results from the historical schema-1 conversion. For current results
 `spatialScaleM` supplies the recorded cell width in `rho_m = rho * L`; exports
 reject cases with incompatible radius conventions.
 
-Deploy the generated `site/` to the `gc2d-main-reflected` Cloudflare Pages project.
-Updating the production alias retains the historical immutable deployment URLs
-and the separate pilot alias. No single binary asset
+Deploy the reference campaign's generated `site/` only to the
+`gc2d-main-reflected-rho-div20` Cloudflare Pages project. Preserve the separate
+`gc2d-main-reflected`, historical and pilot publications. No single binary asset
 exceeds the Pages per-file limit; the complete 5000-cycle asset is 6,721,344 bytes.
 
 After every case is complete and verified in B2, run the CLI's `finalize`
@@ -214,10 +255,10 @@ the complete website. Neither aggregate duration includes local transfers.
 Campaign inputs and numerical-source snapshots have their own SHA256 fingerprints
 and are archived separately; `finalize` does not upload those files.
 
-For the current 86-case publication, use:
+For the reference campaign's 86-case publication, use:
 
 ```bash
-.venv/bin/python scripts/run_main_campaign.py finalize notebooks/developements/main_reflected_campaign/main-20261116-direct-rho --allow-partial
+.venv/bin/python scripts/run_main_campaign.py finalize notebooks/developements/main_reflected_campaign/main-20261117-rho-div20 --allow-partial
 ```
 
 The campaign progress remains 86 complete and two failed. Website metadata records
@@ -227,7 +268,31 @@ only available cases and retain unknown actual billing. Their immutable snapshot
 is `execution-metrics-partial-86.json`, leaving `execution-metrics.json` available
 for a later complete campaign. `view --allow-partial` uses the same availability
 checks but only exports the local website. Neither operation repeats integrations.
+Both CLI exports contain returns only. Before publication, regenerate the field
+backgrounds with `export_campaign(directory, source=field_path, allow_partial=True)`;
+the reference campaign's `visualisation.ipynb` performs that export.
 
+For changes only to viewer controls or presentation, refresh the existing HTML:
+
+```python
+from pathlib import Path
+from visualization.main_campaign import refresh_campaign_html
+
+refresh_campaign_html(Path(
+    "notebooks/developements/main_reflected_campaign/main-20261117-rho-div20/site"
+))
+```
+
+`refresh_campaign_html(site_path)` reads the recorded radius convention and cell
+width from `data.json`, then rewrites only `index.html`. It preserves `data.json`,
+`_headers` and all 97 existing binary assets (86 return arrays and 11 field
+backgrounds) byte for byte, without reading trajectory archives or resampling
+fields. Do not use `view` or `finalize` for this operation: those commands export
+returns without a field source and replace the background metadata. Keep the
+original publication manifests and receipts as historical evidence, and record
+verification of the changed HTML separately before deploying the reference site.
+
+### Historical publication and chapter 4 products of 2026-11-16
 
 The historical 86-case viewer remains available at immutable deployment
 [8f6d7942](https://8f6d7942.gc2d-main-reflected.pages.dev/); the
@@ -243,13 +308,144 @@ records `verified` and the deployment URL. At 15:42:49 UTC,
 `artifacts-archive-verification.json` confirmed 24 archived derived files totaling
 5,583,897 bytes, including their manifest, with complete SHA256 read-back in the
 new prefix. These include energy, resource, publication and zero-radius reports
-and current chapter 4 data/figures; code, notebooks and source inputs are excluded.
+and that campaign's chapter 4 data/figures; code, notebooks and source inputs are excluded.
 
 The five canonical chapter 4 notebook/figure sources were updated and executed
-without additional integrations. Their current products retain the source archive
+without additional integrations. Their products from that date retain the source archive
 hashes and French figure labels; copied thesis products are identical. The third
 set contains 19,623 of 40,000 unwrapped returns inside its displayed viewport;
 the fourth has 29,784 of 40,000 inside its original zoom. The website uses modulo-two
 coordinates, so its third-set viewport membership differs intentionally from the
 unwrapped figure. Historical chapter 4 products remain backed up separately.
 A partial publication never marks all 88 numerical cases complete.
+
+## Independent historical replica
+
+The saved `main-20261115/site/` is also published at
+[gc2d-main-reflected-legacy.pages.dev](https://gc2d-main-reflected-legacy.pages.dev/)
+in its own Cloudflare Pages project, with immutable deployment
+[c0a67d40](https://c0a67d40.gc2d-main-reflected-legacy.pages.dev/) from 2026-11-17.
+It retains the old physical radius `rho*0.06/(2*pi)` metres and the original
+5000-cycle, 84-particle results: 86 available cases and the two recorded rho=0
+convergence failures. It is separate from the corrected production and pilot.
+
+This is a faithful archive republication. Preserve its original eight-panel
+layout and controls as a bounded exception to the current two-panel viewer
+standard; do not add potential/vector backgrounds or regenerate its data.
+The complete historical local inventory stayed unchanged: 89 files totaling
+578,087,941 bytes. All 88 public files (HTML, metadata and 86 data assets), totaling
+578,087,841 bytes, passed complete download and SHA256/size comparison at
+07:11:13 UTC. The remaining 100 bytes are `_headers`, submitted separately by
+Wrangler as configuration. Corrected-production and pilot HTML/metadata hashes
+matched their pre-deployment baselines.
+
+The separate `legacy-website-20261117/source-manifest.json` and
+`publication-verification.json` under the campaign development directory preserve
+the inventory and verification evidence. No integration or B2 write was performed.
+Browser control failed with a `timeoutMs` TypeError, so no new visual or interaction
+check was completed; verification covers the published bytes and metadata.
+
+## Radius-divided reference campaign
+
+The `main-20261117-rho-div20` campaign uses `rho_i = i/400`, i=0,...,10:
+the original requested radii divided by exactly 20. This changes the input radii,
+with no conversion inside the dynamics. In particular, the original rho=0.30
+case supplies the input value 0.30/20=0.015 for the new case; this does not imply
+identical trajectories. The 84 initial positions, eight
+methods, 5000/40/10 cycle/step/sample protocol, field, solver controls and
+direct-energy evaluation remain the same as the corrected campaign.
+
+The CLI accepts `prepare --rhos` followed by explicit finite non-negative radii;
+later operations use the saved campaign record. Canonical decimal keys retain
+the historical minimum of two fractional digits and enough further digits to
+distinguish every radius. For example, `rho-0.00-RK4` stays unchanged while
+`rho-0.0025-RK4` and `rho-0.005-RK4` identify distinct results.
+
+```bash
+.venv/bin/python scripts/run_main_campaign.py prepare notebooks/developements/main_reflected_campaign/main-20261117-rho-div20 --rhos 0 0.0025 0.005 0.0075 0.01 0.0125 0.015 0.0175 0.02 0.0225 0.025
+.venv/bin/python scripts/run_main_campaign.py run notebooks/developements/main_reflected_campaign/main-20261117-rho-div20 --workers 16
+```
+
+The calculation and visualization notebooks share this run directory and the
+explicit B2 prefix `developements/main_reflected_campaign/main-20261117-rho-div20`.
+Scientific results and derived reports belong there; the numerical source and
+input snapshot remains local. The independent Cloudflare project is
+`gc2d-main-reflected-rho-div20`; the corrected, historical and pilot sites retain
+their own destinations. Execution and publication outcomes are recorded in the
+[change results](../../specs/changes/2026-11-17-rho-div20-campaign/results.md).
+
+Before production, all eight methods completed two real-field cycles at
+rho=0.015 with the full 84-particle batch and the same fixed-step and output
+schedule. Independent evaluation of all saved samples passed, with maximum
+absolute differences 5.56e-17 for H, 1.05e-17 for partial_t H and 8.33e-17 for
+H-H0, rounded upward. The preflight contains no energy quadrature; it verifies
+the execution path and diagnostics, not long-time convergence.
+
+For the new viewer, call `export_campaign(directory, source=field_path)` after
+the result checks; pass `allow_partial=True` only when terminal numerical
+failures are retained explicitly. The optional source adds a shared left panel
+of the actual gyroaveraged Hamiltonian and GC velocity field to the eight-method
+grid. It reconstructs no trajectories. The 128-by-128 potential grid and
+33-by-33 velocity grid cover `[0,2]²` at 51 forcing phases; H=Phi_rho/B and the
+velocity use the existing normalized coordinates and clock without extra factors.
+Independent endpoint evaluations must agree before exact display closure is
+applied. Each radius keeps its color and arrow scales fixed across phases.
+
+The phase controls are independent of the common start/current-cycle controls.
+The initial viewport is `[0,1]²`, and a separate button shows `[0,2]²`.
+Hollow circles follow the selected particles' saved positions at the start cycle.
+Potential and vector layers can be toggled independently. French labels identify
+the phase and normalized units. Field assets contain float64 values and separate
+SHA256/size checks, with 7,573,296 bytes per radius at the default grid sizes.
+Omitting `source` still permits a return-only export; archived published sites
+are not regenerated automatically.
+
+### Radius-divided collection outcome
+
+The `main-20261117-rho-div20` collector finished on 2026-11-17 with 86 complete
+results, each verified against its full B2 bytes and SHA256. Only
+`rho-0.00-ImplicitMidpoint` and `rho-0.00-ABBA2Implicit` failed nonlinear
+convergence and have no saved archives. The campaign retains status `failed`;
+publication must show those two unavailable combinations explicitly. The earlier
+campaigns and their B2 prefixes remain separate.
+
+The final direct-energy audit verified all 86 available archives with zero
+failed comparisons, checking 21 saved times for each of the 84 particles. The
+maximum absolute differences for H, partial_t H and H-H0 are 5.56e-17, 1.39e-17
+and 9.72e-17, rounded upward. Its `partial` status reflects only the two missing
+numerical cases. The final resource report records `complete_with_failures`,
+`final_snapshot=true`, 86 B2-verified cases, zero pending cases and no data errors.
+The 86 resource records sum to 68815.513930861 worker-seconds (19.12 hours) and
+span 6314.1570773124695 seconds (105.24 minutes). Estimated costs are USD
+2.414048229 for requested 4 GiB and USD 3.025129992 at the 8 GiB limit, using two
+physical cores. These estimates cover returned records only; actual billing and
+the two failed calls' costs remain unknown. Summed worker times overlap and the
+observed worker span is not elapsed launch-to-publication time.
+
+The final local export passed `verify_publication.py local`: 100 files totaling
+661417826 bytes include 86 return assets, 11 field assets, HTML, metadata and
+`_headers`. The frozen source manifest binds all files to this campaign.
+The independent [production website](https://gc2d-main-reflected-rho-div20.pages.dev/)
+is published through immutable deployment
+[6115ea3b](https://6115ea3b.gc2d-main-reflected-rho-div20.pages.dev/).
+At 10:46:04 UTC, `publication-verification.json` confirmed full size/SHA256
+comparisons of 99 public files totaling 661417726 bytes: HTML, metadata,
+86 return assets and 11 field assets. `_headers` contributes the remaining
+100 local bytes as deployment configuration. The HTML and metadata of the
+corrected, historical and pilot websites still match their frozen baselines.
+
+The public in-app-browser checks at 10:47:25 UTC confirmed explicit failure
+panels at rho=0, all eight methods at rho=0.0025 and rho=0.0175, independent phase
+and cycle controls, start-cycle updates, potential visibility, period/base-cell
+views and French labels, with no console errors. `browser-verification.json`
+binds this sampled interaction evidence to the same source manifest as the
+complete asset checks; it does not claim exhaustive browser testing of every
+radius/control combination.
+
+At 10:48:00 UTC, `reports-archive-verification.json` confirmed six immutable files
+and 438356 bytes read back with SHA256 below the new prefix's `reports/` path.
+The five reports cover direct energy, resources, public files, the source manifest
+and browser checks; their manifest was uploaded last. The source/input snapshot,
+code and notebooks remain local and excluded from that archive. Numerical
+collection, final audits, independent publication and report archival are
+complete, while the two convergence failures remain recorded without retries.

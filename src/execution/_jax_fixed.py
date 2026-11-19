@@ -41,12 +41,14 @@ class PreparedIntegration:
     method_name: str
     finite_difference: bool
     energy: PreparedEnergyObserver | None
+    record_step_statistics: bool
 
 
 def _integrate(
     initial: Any, starts: Any, steps: Any, times: Any,
     offsets: Any, modes: Any, durations: Any, *,
     kernel: CompiledStep, hamiltonian: EnergyFunction | None, time_derivative: EnergyFunction | None,
+    record_step_statistics: bool = True,
 ) -> tuple[Any, Any, Any, Any, Any, Any]:
     """Advance physical states and observe only accepted physical endpoints."""
     history: jax.Array = jnp.zeros((initial.size, times.size), dtype=initial.dtype).at[:, 0].set(initial)
@@ -96,7 +98,9 @@ def _integrate(
 
         saved, valid, converged = jax.lax.fori_loop(
             offsets[index], offsets[index + 1], sample, (saved, valid, converged))
-        return (after, saved, valid, converged), statistics
+        # An empty scan output avoids allocating or transferring step histories.
+        # Convergence and finite-state checks remain in the carry in both modes.
+        return (after, saved, valid, converged), statistics if record_step_statistics else {}
 
     valid: jax.Array
     converged: jax.Array
@@ -112,16 +116,19 @@ def _integrate(
 def _compiled_integrator(
     kernel: CompiledStep, hamiltonian: EnergyFunction | None,
     time_derivative: EnergyFunction | None, signature: tuple[jax.ShapeDtypeStruct, ...],
+    record_step_statistics: bool = True,
 ) -> "Compiled":
     """Cache executables by physics, controls and input types/placement, not values."""
     return jax.jit(partial(
         _integrate, kernel=kernel, hamiltonian=hamiltonian, time_derivative=time_derivative,
+        record_step_statistics=record_step_statistics,
     )).lower(*signature).compile()
 
 
 def prepare_integration(
     method: "IntegrationMethod[Any]", kernel: CompiledStep, plan: FixedStepPlan,
     *, initial_state: np.ndarray, energy: PreparedEnergyObserver | None = None,
+    record_step_statistics: bool = True,
 ) -> PreparedIntegration:
     """Place a shared temporal plan and compile without advancing the solution."""
     host_inputs = (initial_state,
@@ -136,11 +143,11 @@ def prepare_integration(
     )
     executable: Compiled = _compiled_integrator(
         kernel, energy.hamiltonian if energy is not None else None,
-        energy.time_derivative if energy is not None else None, signature,
+        energy.time_derivative if energy is not None else None, signature, record_step_statistics,
     )
     return PreparedIntegration(
         executable, inputs, plan.step_starts, plan.step_ends, plan.step_sizes, plan.output_times, plan.interior_sample_count,
-        method.method_name, kernel.finite_difference, energy,
+        method.method_name, kernel.finite_difference, energy, record_step_statistics,
     )
 
 
@@ -165,10 +172,13 @@ def run_steps(prepared: PreparedIntegration, saved: States) -> dict[str, Diagnos
     )
     diagnostics: dict[str, DiagnosticValue] = {}
     diagnostics.update({
-        "step_count": prepared.step_sizes.size, "step_start_times": prepared.step_starts,
-        "step_times": prepared.step_times, "step_sizes": prepared.step_sizes,
+        "step_count": prepared.step_sizes.size,
+        "record_step_statistics": prepared.record_step_statistics,
         "output_interpolation_count": prepared.interior_sample_count,
     })
+    if prepared.record_step_statistics:
+        diagnostics.update(step_start_times=prepared.step_starts,
+                           step_times=prepared.step_times, step_sizes=prepared.step_sizes)
     diagnostics.update(statistics)
     diagnostics.update(auxiliary)
     if prepared.finite_difference:

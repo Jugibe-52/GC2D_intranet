@@ -222,3 +222,17 @@ or fixed-step base with ImplicitIntegrationMethod. This shares preparation
 without duplicating stages, projection equations or solver defaults. JAX cache
 signatures include derivative identity and strategy only for implicit runs;
 explicit signatures depend on method configuration and physical size.
+
+## Optional step-statistic histories
+
+`ExecutionOptions(record_step_statistics=False)` keeps the physical trajectory,
+requested sample times, scalar `step_count` and output-interpolation count, but
+omits per-step time arrays and numerical-statistic histories. The default remains
+`True`. Host execution skips recorder collection; JAX compiles a loop without
+stacked statistic outputs and includes this choice in its executable cache key.
+The numerical method still computes information needed by its algebraic solve;
+this option does not change tolerances, convergence decisions or finite-state
+checks. Explicit energy observers still evaluate their requested observations
+and retain physical energy at saved times, even when step histories are disabled.
+See the [section 4.2 study](../studies/bm4-numpy-jax.md) for a benchmark with no
+observers and no step histories.

@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from hashlib import file_digest, sha256
 import json
+from numbers import Real
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +33,33 @@ METHODS = ('ABBA2Midpoint', 'ABBA2Implicit', 'BM4Midpoint', 'BM4Implicit',
 RHOS = tuple(i / 20 for i in range(11))
 SOURCE_SHA256 = '4bbd873cd05992e0a615d66ebbf4d96b38c8b3c36be2ca62932e66af7e6d4ced'
 OPTIONS = ExecutionOptions(backend='jax', device='cpu')
+
+
+def _validated_rho(rho: float) -> float:
+	"""Keep the requested runtime radius, rejecting invalid numeric values."""
+	if isinstance(rho, (bool, np.bool_)) or not isinstance(rho, Real):
+		raise ValueError('A campaign gyro-radius must be a finite non-negative real number.')
+	value: float = float(rho)
+	if not np.isfinite(value) or value < 0:
+		raise ValueError('A campaign gyro-radius must be a finite non-negative real number.')
+	return 0. if value == 0 else value
+
+
+def campaign_rho_label(rho: float) -> str:
+	"""Use a unique decimal float representation with historical two-digit padding."""
+	value: float = _validated_rho(rho)
+	label: str = str(np.format_float_positional(value, unique=True, trim='-'))
+	whole: str
+	fraction: str
+	whole, _, fraction = label.partition('.')
+	return f'{whole}.{fraction.ljust(2, "0")}'
+
+
+def campaign_case_key(rho: float, method: str) -> str:
+	"""Identify one radius/method pair without rounding neighboring radii together."""
+	if method not in METHODS:
+		raise ValueError(f'Unknown campaign method: {method}.')
+	return f'rho-{campaign_rho_label(rho)}-{method}'
 
 
 @dataclass(frozen=True)
@@ -102,8 +130,9 @@ def campaign_method(name: str, step: float) -> NumericalMethod:
 def prepare_case(config: CampaignConfig, field: Potential, particles: dict[str, Any],
 		rho: float, name: str, *, code_sha256: str) -> tuple[InitialValueProblem, NumericalMethod, dict[str, Any]]:
 	"""Build 84 independent guiding centers with rho in base-cell widths."""
-	if rho not in RHOS or name not in METHODS:
-		raise ValueError('The case is outside the agreed sweep.')
+	rho = _validated_rho(rho)
+	if name not in METHODS:
+		raise ValueError(f'Unknown campaign method: {name}.')
 	m: Any = field.metadata
 	if not isinstance(m, GC2DH5Metadata) or field.spatial_extension != 'reflected':
 		raise ValueError('Expected the reflected measured potential.')
@@ -178,5 +207,5 @@ def validate_case(solution: States, metadata: dict[str, Any]) -> None:
 				raise ValueError(f'Incomplete projection diagnostic: {key}.')
 
 
-__all__ = ['CampaignConfig', 'METHODS', 'RHOS', 'OPTIONS', 'read_particles',
+__all__ = ['CampaignConfig', 'METHODS', 'RHOS', 'OPTIONS', 'campaign_rho_label', 'campaign_case_key', 'read_particles',
 	'load_field', 'campaign_method', 'prepare_case', 'validate_case']

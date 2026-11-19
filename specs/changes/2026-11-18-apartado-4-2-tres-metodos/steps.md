@@ -1,0 +1,5 @@
+- [x] Adapt the study and notebooks to the three methods and durations.
+- [x] Check NumPy/SciPy and JAX with one reduced case per method.
+- [x] Run nine cases and verify archives retrieved from B2.
+- [x] Generate one figure and rewrite section 4.2 from measured results.
+- [x] Compile affected editions and record actual checks.

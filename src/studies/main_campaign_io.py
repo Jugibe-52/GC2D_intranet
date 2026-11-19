@@ -15,7 +15,7 @@ from diagnostics.io.storage import ArtifactStore
 from diagnostics.methods.energy import EnergyObserver
 from execution.execution_modal import Execution_Modal, _write_record
 from studies.main_campaign import (CampaignConfig, METHODS, RHOS, OPTIONS, read_particles,
-	load_field, prepare_case, validate_case)
+	load_field, prepare_case, validate_case, campaign_case_key, campaign_rho_label)
 
 
 def code_digest(root: Path) -> str:
@@ -33,8 +33,11 @@ def code_digest(root: Path) -> str:
 def prepare_campaign(directory: Path, root: Path, *, config: CampaignConfig,
 		particle_path: Path, rhos: tuple[float, ...] = RHOS, methods: tuple[str, ...] = METHODS) -> dict[str, Any]:
 	"""Resolve all inputs before submission; existing incompatible records are errors."""
-	if not rhos or len(set(rhos)) != len(rhos) or any(r not in RHOS for r in rhos):
+	labels: tuple[str, ...] = tuple(campaign_rho_label(rho) for rho in rhos)
+	if not labels or len(set(labels)) != len(labels):
 		raise ValueError('Select distinct campaign gyro-radii.')
+	# Labels round-trip exactly, including normalizing negative zero to zero.
+	rhos = tuple(float(label) for label in labels)
 	if not methods or len(set(methods)) != len(methods) or any(m not in METHODS for m in methods):
 		raise ValueError('Select distinct campaign methods.')
 	particles: dict[str, Any] = read_particles(particle_path)
@@ -63,13 +66,16 @@ def run_campaign(directory: Path, root: Path, *, max_workers: int = 4, publish: 
 	record: dict[str, Any] = json.loads((directory / 'campaign.json').read_text())
 	if code_digest(root) != record['code_sha256']:
 		raise ValueError('Code fingerprint changed since preparation; do not mix implementations.')
+	keys: set[str] = {campaign_case_key(rho, method) for rho in record['rhos'] for method in record['methods']}
+	if not keys or len(keys) != len(record['rhos'])*len(record['methods']):
+		raise ValueError('Campaign radius/method pairs must have distinct case keys.')
 	config: CampaignConfig = CampaignConfig(**record['config'])
 	field: Any = load_field(root / 'data/potential/V1/PHI_2.h5')
 	collection = BoundedSemaphore(1)  # Bound local RAM while remote cases run concurrently.
 	report: dict[str, Any] = dict(status='running', cases={}, expected=len(record['rhos'])*len(record['methods']))
 
 	def run_one(rho: float, name: str) -> tuple[str, dict[str, Any]]:
-		key: str = f'rho-{rho:.2f}-{name}'
+		key: str = campaign_case_key(rho, name)
 		local: Path = directory / 'runs' / key
 		row: dict[str, Any] = dict(rho=rho, method=name, local=str(local), status='running')
 		try:
@@ -155,7 +161,9 @@ def publication_cases(directory: Path, record: dict[str, Any], *,
 		allow_partial: bool = False) -> tuple[dict[str, Any], dict[str, Any]]:
 	"""Separate verified results from explicit failures; never hide pending uploads."""
 	report: dict[str, Any] = json.loads((directory / 'progress.json').read_text())
-	expected: set[str] = {f'rho-{rho:.2f}-{method}' for rho in record['rhos'] for method in record['methods']}
+	expected: set[str] = {campaign_case_key(rho, method) for rho in record['rhos'] for method in record['methods']}
+	if len(expected) != len(record['rhos'])*len(record['methods']):
+		raise ValueError('Campaign radius/method pairs must have distinct case keys.')
 	cases: dict[str, Any] = report['cases']
 	if (set(cases) != expected or report['status'] not in ('complete', 'failed')
 			or (not allow_partial and (report['status'] != 'complete'

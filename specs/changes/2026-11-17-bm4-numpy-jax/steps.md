@@ -1,0 +1,6 @@
+- [x] Implement optional step-statistic recording and check unchanged trajectories and failure detection.
+- [x] Build the paired benchmark with explicit provenance and recoverable Modal receipts.
+- [x] Validate a small representative run, then execute the four selected scientific cases.
+- [x] Save and verify B2 archives; render one figure from saved data.
+- [x] Complete section 4.2 from measured results and compile main.pdf.
+- [x] Check the notebooks and documentation; record actual outcomes.

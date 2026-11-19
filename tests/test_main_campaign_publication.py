@@ -11,10 +11,26 @@ from diagnostics.io.persistence import load_solution, save_solution
 from dynamics.gc import GuidingCenterDynamics
 from states.history import States
 from studies.main_campaign_io import finalize_campaign, publication_cases
-from visualization.main_campaign import export_campaign
+from visualization.main_campaign import export_campaign, refresh_campaign_html
 
 
 class CampaignPublicationTests(unittest.TestCase):
+    def test_publication_accounts_for_all_eighty_eight_small_radius_pairs(self):
+        from studies.main_campaign import METHODS, campaign_case_key
+
+        radii = [i/400 for i in range(11)]
+        record = dict(self.record, rhos=radii, methods=list(METHODS))
+        cases = {campaign_case_key(rho, method): dict(status='complete', rho=rho, method=method)
+            for rho in radii for method in METHODS}
+        (self.directory/'progress.json').write_text(json.dumps(dict(status='complete', cases=cases)))
+        available, missing = publication_cases(self.directory, record)
+        self.assertEqual(len(available), 88)
+        self.assertEqual(missing, {})
+        del cases['rho-0.0075-RK4']
+        (self.directory/'progress.json').write_text(json.dumps(dict(status='complete', cases=cases)))
+        with self.assertRaises(ValueError):
+            publication_cases(self.directory, record)
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
@@ -143,6 +159,46 @@ class CampaignPublicationTests(unittest.TestCase):
         self.write_records()
         with self.assertRaisesRegex(ValueError, 'at least one'):
             publication_cases(self.directory, self.record, allow_partial=True)
+
+
+class CampaignHtmlRefreshTests(unittest.TestCase):
+    def test_refresh_preserves_published_metadata_and_assets_without_run_archives(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)/'site'
+            (output/'assets').mkdir(parents=True)
+            data = dict(rhoConvention='base_cell_width', spatialScaleM=.18,
+                rhos=[i/400 for i in range(11)],
+                fields={'0.015': {'asset': 'assets/field-rho-0.015.bin', 'rhoRuntime': .015}},
+                cases={'rho-0.015-RK4': {'status': 'available', 'rho': .015,
+                    'asset': 'assets/rho-0.015-RK4.bin'}},
+                source_sha256='frozen-field', code_sha256='frozen-numerical-code')
+            (output/'data.json').write_text(json.dumps(data, indent=2)+'\n')
+            (output/'assets/field-rho-0.015.bin').write_bytes(b'\x00\xffsaved background\x00')
+            (output/'assets/rho-0.015-RK4.bin').write_bytes(b'\x01\xfesaved returns\x00')
+            (output/'_headers').write_text('/data.json\n  Cache-Control: no-cache\n')
+            (output/'index.html').write_text('Previous viewer')
+            preserved = {p.relative_to(output): p.read_bytes() for p in output.rglob('*')
+                if p.is_file() and p.name != 'index.html'}
+            self.assertFalse((output.parent/'campaign.json').exists())
+            self.assertFalse((output.parent/'runs').exists())
+
+            with patch('visualization.main_campaign.load_solution',
+                    side_effect=AssertionError('HTML refresh must not read trajectories')), \
+                 patch('visualization.main_campaign.load_field',
+                    side_effect=AssertionError('HTML refresh must not load the source field')), \
+                 patch('visualization.main_campaign.sample_campaign_background',
+                    side_effect=AssertionError('HTML refresh must not resample fields')):
+                page = refresh_campaign_html(output)
+
+            self.assertEqual(page, output/'index.html')
+            self.assertEqual({p.relative_to(output): p.read_bytes() for p in output.rglob('*')
+                if p.is_file() and p.name != 'index.html'}, preserved)
+            html = page.read_text()
+            self.assertIn('ρ est exprimé en largeurs de cellule', html)
+            self.assertIn('ρ<sub>m</sub> = ρ × L, L = 0.18 m.', html)
+            self.assertIn('Copier l’image', html)
+            self.assertNotIn('0.06 / (2π)', html)
+            self.assertNotIn('__RHO_UNITS__', html)
 
 
 if __name__ == '__main__':
