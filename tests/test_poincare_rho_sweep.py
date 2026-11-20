@@ -32,7 +32,7 @@ def field():
     xx, yy = np.meshgrid(np.arange(n) * 2*np.pi/n, np.arange(n) * 2*np.pi/n, indexing='ij')
     raw = Potential(grid, mean=1e-5*np.cos(xx)*np.cos(yy),
                     modes=np.asarray([1e-6*np.exp(1j*xx)]), frequencies=np.array([1.]),
-                    interpolation_order=3)
+                    interpolation_order=3, spatial_extension="periodic")
     return DimensionalH5Field(raw, raw, 1., 1.5, (15,))
 
 

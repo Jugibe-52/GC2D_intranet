@@ -57,7 +57,7 @@ def _mean_periodic_distance_matrix(
 	"""Return the symmetric mean minimum-image distance matrix."""
 	labels: tuple[str, ...]
 	labels, _, _ = _validated_solutions(solutions, expected_count=7)
-	period: float = float(potential.grid.period)
+	period: float = float(potential.spatial_period)
 	positions = {label: solutions[label].positions() for label in labels}
 	matrix: np.ndarray = np.zeros((len(labels), len(labels)), dtype=float)
 	for first_index, first_label in enumerate(labels):
@@ -86,7 +86,7 @@ def plot_ten_method_trajectory_differences(
 	labels: tuple[str, ...]
 	distance_matrix: np.ndarray
 	labels, distance_matrix = _mean_periodic_distance_matrix(potential, solutions)
-	plot_floor: float = float(np.finfo(float).eps * max(potential.grid.period, 1.0))
+	plot_floor: float = float(np.finfo(float).eps * max(potential.spatial_period, 1.0))
 	positive = distance_matrix[distance_matrix > 0.0]
 	vmin: float = max(plot_floor, float(np.min(positive))) if positive.size else plot_floor
 	vmax: float = max(float(np.max(distance_matrix)), 10.0 * vmin)
@@ -256,7 +256,7 @@ def animate_trajectory_points(
 	fields: np.ndarray = np.asarray(potential.evaluate_grid(frame_times), dtype=float)
 	if fields.shape != (*potential.grid.shape, indices.size):
 		raise ValueError("Potential evaluation returned an unexpected animation shape.")
-	positions = {label: solutions[label].positions() for label in labels}
+	positions = {label: potential.display_coordinates(*solutions[label].positions()) for label in labels}
 
 	grid = potential.grid
 	figure: Figure

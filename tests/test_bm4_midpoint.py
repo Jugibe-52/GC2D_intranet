@@ -31,7 +31,7 @@ class _Rotation:
 def _gc_problem(state: np.ndarray | None = None) -> InitialValueProblem:
 	"""Return a reproducible smooth time-dependent GC problem."""
 	dynamics = GuidingCenterDynamics(Potential.random(
-		A=0.08, M=3, nx=16, ny=16, seed=27, interpolation_order=5,
+		A=0.08, M=3, nx=16, ny=16, seed=27, spatial_extension="periodic", interpolation_order=5,
 	), rho=0.05)
 	return InitialValueProblem(dynamics, np.array(np.asarray([1.0, 1.2]) if state is None else state, dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 

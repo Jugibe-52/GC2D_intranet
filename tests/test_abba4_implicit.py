@@ -288,6 +288,7 @@ class ABBA4ImplicitStudyTests(unittest.TestCase):
 			ny=16,
 			seed=27,
 			interpolation_order=5,
+			spatial_extension="periodic",
 		)
 		potential = potential_config.build()
 		configuration = random_gc_configuration(

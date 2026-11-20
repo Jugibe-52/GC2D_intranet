@@ -26,7 +26,7 @@ from studies.bm4_parallel_recurrence import (
 )
 
 
-def _potential(source_path: Path) -> Potential:
+def _potential(source_path: Path, *, spatial_extension: str = "periodic") -> Potential:
 	"""Create a small processed complex field whose source need not exist."""
 	grid = Grid.periodic(8, 10)
 	x, y = np.meshgrid(grid.x, grid.y, indexing="ij")
@@ -35,7 +35,8 @@ def _potential(source_path: Path) -> Potential:
 		mean=0.01 * np.cos(x) * np.sin(y),
 		modes=(0.002 * np.exp(1j * (x + y)))[None],
 		frequencies=np.asarray([0.7]),
-		interpolation_order=4,
+		interpolation_order=3 if spatial_extension == "reflected" else 4,
+		spatial_extension=spatial_extension,
 		metadata=GC2DH5Metadata(
 			source_field_indices=np.asarray([3]),
 			source_x=grid.x,
@@ -62,6 +63,7 @@ class PotentialSnapshotTests(unittest.TestCase):
 			self.assertFalse(source.exists())
 		self.assertEqual(restored.grid, original.grid)
 		self.assertEqual(restored.interpolation_order, original.interpolation_order)
+		self.assertEqual(restored.spatial_extension, original.spatial_extension)
 		for name in ("mean", "modes", "frequencies"):
 			actual = getattr(restored, name)
 			np.testing.assert_array_equal(actual, getattr(original, name))
@@ -86,6 +88,27 @@ class PotentialSnapshotTests(unittest.TestCase):
 	def test_snapshot_rejects_a_potential_without_hdf5_provenance(self) -> None:
 		with self.assertRaisesRegex(TypeError, "GC2D HDF5 metadata"):
 			_H5PotentialSnapshot.from_potential(Potential(Grid.periodic(4, 4)))
+
+	def test_reflected_gyroaverage_preserves_independent_endpoint_samples(self) -> None:
+		original = _potential(Path("absent.h5"), spatial_extension="reflected").gyroaverage(0.37)
+		restored = pickle.loads(pickle.dumps(_H5PotentialSnapshot.from_potential(original))).restore()
+		self.assertEqual(restored.spatial_extension, "reflected")
+		self.assertEqual(restored.spatial_period, 2 * original.grid.period)
+		np.testing.assert_array_equal(restored.reflected_samples, original.reflected_samples)
+		x = np.array([-0.1, 0.5, original.grid.period, 1.4 * original.grid.period])
+		y = np.array([0.4, -0.2, 0.9, original.grid.period])
+		for dx, dy in ((0, 0), (1, 0), (0, 1), (2, 0), (1, 1)):
+			np.testing.assert_array_equal(restored.evaluate(.37, x, y, dx=dx, dy=dy),
+				original.evaluate(.37, x, y, dx=dx, dy=dy))
+
+	def test_untagged_snapshot_retains_historical_periodic_interpretation(self) -> None:
+		original = _potential(Path("absent.h5"))
+		snapshot = _H5PotentialSnapshot.from_potential(original)
+		object.__delattr__(snapshot, "spatial_extension")
+		object.__delattr__(snapshot, "reflected_samples")
+		restored = snapshot.restore()
+		self.assertEqual(restored.spatial_extension, "periodic")
+		np.testing.assert_array_equal(restored.evaluate_grid(.2), original.evaluate_grid(.2))
 
 	def test_bm4_spawned_workers_match_direct_trajectories(self) -> None:
 		with tempfile.TemporaryDirectory() as directory:

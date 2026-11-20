@@ -82,7 +82,7 @@ def load_dimensional_h5_field(
     if not selectors:
         raise ValueError("A positive-frequency H5 mode is required to normalize time.")
     raw_seconds: Potential = Potential.load(resolved, indx=selectors,
-                                 interpolation_order=interpolation_order)
+                                 interpolation_order=interpolation_order, spatial_extension="periodic")
     metadata = raw_seconds.metadata
     if not isinstance(metadata, GC2DH5Metadata):
         raise ValueError("The field requires HDF5 provenance.")
@@ -92,11 +92,12 @@ def load_dimensional_h5_field(
     legacy_metadata: GC2DH5Metadata = replace(metadata, characteristic_period=period, time_scale=period,
                               temporal_rescaling=True, time_convention="legacy_cycles")
     raw: Potential = Potential(raw_seconds.grid, mean=raw_seconds.mean, modes=raw_seconds.modes,
-                    frequencies=cyclic_rates, metadata=legacy_metadata, interpolation_order=interpolation_order)
+                    frequencies=cyclic_rates, metadata=legacy_metadata, interpolation_order=interpolation_order,
+                    spatial_extension="periodic")
     cycle_potential: Potential = Potential(raw.grid, mean=raw.mean * period,
                                modes=raw.modes * period, frequencies=raw.frequencies,
                                metadata=replace(legacy_metadata, normalization_factor=1.0/period),
-                               interpolation_order=interpolation_order)
+                               interpolation_order=interpolation_order, spatial_extension="periodic")
     stream = GuidingCenterDynamics(cycle_potential, B=magnetic_field).hamiltonian_potential
     return DimensionalH5Field(raw, stream, period,
                               magnetic_field, tuple(int(v) for v in metadata.source_field_indices))

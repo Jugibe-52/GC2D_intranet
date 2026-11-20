@@ -31,14 +31,14 @@ Systems Manager, dispatches the notebook, downloads the executed notebook and
 log, and stops the instance in a `finally` block. The worker also has an
 independent 60-minute stop guard that starts on every boot.
 
-## One-time AWS setup
+## Existing AWS workers
 
-The reusable worker is defined by
-`infra/aws/gc2d-reusable-worker.yaml`. Provisioning it is a separate,
-cost-incurring action and is intentionally not performed by the notebook
-launcher. The instance prepares the project and environment during its first
-boot and then stops itself. Its encrypted EBS volume persists so later runs do
-not reinstall dependencies or download the input data again.
+AWS is no longer used for this project, and its provisioning template has been
+removed. The AWS route remains in `scripts/run_notebook.py` and requires an
+existing `gc2d-worker` instance with Systems Manager available and
+`/usr/local/bin/gc2d-run-notebook` installed. The launcher does not create the
+worker. Removing the template from the repository does not stop or delete
+existing AWS resources.
 
 The local machine needs AWS CLI v2 version 2.32.0 or later. Use the browser-based
 `aws login` flow with temporary console credentials; do not create or store

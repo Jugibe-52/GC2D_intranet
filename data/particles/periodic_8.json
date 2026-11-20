@@ -1,0 +1,3603 @@
+{
+  "schema_version": 1,
+  "source_h5": "data/potential/V1/PHI_2.h5",
+  "source_sha256": "4bbd873cd05992e0a615d66ebbf4d96b38c8b3c36be2ca62932e66af7e6d4ced",
+  "coordinate_units": {
+    "position_m": "meters",
+    "cell_fraction": "fraction of the historical base cell width"
+  },
+  "cell_bounds_m": [
+    0.0007031250000002487,
+    0.00035156249999999993,
+    0.1799999999998363
+  ],
+  "display_potential": {
+    "spatial_extension": "reflected",
+    "source_field_indices": [
+      15
+    ],
+    "constant_field_index": 0,
+    "magnetic_field_T": 1.5,
+    "default_rho": 0.3
+  },
+  "dataset_id": "periodic_8",
+  "title": "8 periodic initial conditions",
+  "description": "Eight distinct nonstationary zero-winding periodic orbits, numerically verified at rho=0.30 for the reflected potential.",
+  "particle_count": 8,
+  "target_particle_count": 8,
+  "status": "verified_numerically",
+  "particles": [
+    {
+      "id": 85,
+      "kind": "periodic",
+      "parent": null,
+      "color": "#1f77b4",
+      "position_m": [
+        0.10468935764011383,
+        0.07038351339690561
+      ],
+      "cell_fraction": [
+        0.5777012924456009,
+        0.3890663938720517
+      ],
+      "period_cycles": 5,
+      "period_seconds": 0.0020797746005898937,
+      "selection_rho": 0.3,
+      "runtime_initial_position": [
+        0.5777012924453382,
+        0.3890663938718748
+      ],
+      "provenance": {
+        "reference_particle_id": 84,
+        "reference_cycle": 10,
+        "reference_return_distance": 0.0003546520007891179,
+        "initial_position_refined": true
+      },
+      "verification": {
+        "method": "GaussLegendre4",
+        "steps_per_cycle": 320,
+        "refinement": [
+          {
+            "method": "GaussLegendre4",
+            "steps_per_cycle": 80,
+            "xy": [
+              0.5777013016733146,
+              0.3890663950442133
+            ],
+            "initial_position_change": 1.6995817278527856e-08,
+            "closure": 1.074690870030259e-13
+          },
+          {
+            "method": "GaussLegendre4",
+            "steps_per_cycle": 160,
+            "xy": [
+              0.5777012920544358,
+              0.3890663936677641
+            ],
+            "initial_position_change": 9.716863791695924e-09,
+            "closure": 3.22101033422997e-14
+          },
+          {
+            "method": "GaussLegendre4",
+            "steps_per_cycle": 320,
+            "xy": [
+              0.5777012924453382,
+              0.3890663938718748
+            ],
+            "initial_position_change": 4.4098287107691603e-10,
+            "closure": 1.2225062931717345e-15
+          }
+        ],
+        "check_steps_per_cycle": 640,
+        "fine_gauss_closure": 3.1558489243958975e-10,
+        "independent_rk4_closure": 3.5268848759224096e-10,
+        "repetition_count": 5,
+        "repetition_closures": [
+          3.1558489243958975e-10,
+          1.3219416629089794e-09,
+          4.527863140525035e-09,
+          1.4739902069234422e-08,
+          4.726875627553559e-08
+        ],
+        "earlier_return_min": 0.004187677058250332,
+        "cycle_excursion": 0.006695675696869512,
+        "cycle_returns": [
+          [
+            0.5777012924453382,
+            0.3890663938718748
+          ],
+          [
+            0.5729327484830501,
+            0.3885730161354987
+          ],
+          [
+            0.5715010258501001,
+            0.39159399494515035
+          ],
+          [
+            0.5757104577725968,
+            0.3946234565479799
+          ],
+          [
+            0.5795395089480999,
+            0.39282905240450444
+          ],
+          [
+            0.5777012927606273,
+            0.3890663938855346
+          ]
+        ]
+      }
+    },
+    {
+      "id": 86,
+      "kind": "periodic",
+      "parent": null,
+      "color": "#ff7f0e",
+      "position_m": [
+        0.07918933647554116,
+        0.06803948458363988
+      ],
+      "cell_fraction": [
+        0.43603450819784606,
+        0.37604401157611916
+      ],
+      "period_cycles": 6,
+      "period_seconds": 0.0024957295207078726,
+      "selection_rho": 0.3,
+      "runtime_initial_position": [
+        0.43603450819764783,
+        0.37604401157594813
+      ],
+      "provenance": {
+        "reference_particle_id": 46,
+        "reference_cycle": 1987,
+        "reference_return_distance": 0.00014137528252980907,
+        "initial_position_refined": true
+      },
+      "verification": {
+        "method": "GaussLegendre4",
+        "steps_per_cycle": 640,
+        "refinement": [
+          {
+            "method": "GaussLegendre4",
+            "steps_per_cycle": 80,
+            "xy": [
+              0.43603435766602266,
+              0.3760440496786636
+            ],
+            "initial_position_change": 3.7892750682208123e-07,
+            "closure": 2.3133348347824284e-13
+          },
+          {
+            "method": "GaussLegendre4",
+            "steps_per_cycle": 160,
+            "xy": [
+              0.436034503683334,
+              0.37604401247897307
+            ],
+            "initial_position_change": 1.5068135980223523e-07,
+            "closure": 8.815618249216203e-15
+          },
+          {
+            "method": "GaussLegendre4",
+            "steps_per_cycle": 320,
+            "xy": [
+              0.436034510268251,
+              0.37604401094867607
+            ],
+            "initial_position_change": 6.760395019021577e-09,
+            "closure": 3.311746153886193e-14
+          },
+          {
+            "method": "GaussLegendre4",
+            "steps_per_cycle": 640,
+            "xy": [
+              0.43603450819764783,
+              0.37604401157594813
+            ],
+            "initial_position_change": 2.163531329270674e-09,
+            "closure": 1.874683163235278e-14
+          }
+        ],
+        "check_steps_per_cycle": 1280,
+        "fine_gauss_closure": 7.121416499358334e-10,
+        "independent_rk4_closure": 4.916336763983619e-10,
+        "repetition_count": 5,
+        "repetition_closures": [
+          7.121415964531766e-10,
+          1.3523918680105158e-09,
+          6.451180586975907e-09,
+          2.3682356095588986e-08,
+          9.284672651505192e-08
+        ],
+        "earlier_return_min": 0.0074545749233274824,
+        "cycle_excursion": 0.021857450660266946,
+        "cycle_returns": [
+          [
+            0.43603450819764783,
+            0.37604401157594813
+          ],
+          [
+            0.42034041679873796,
+            0.38579115566876926
+          ],
+          [
+            0.42315308709579097,
+            0.39370235633876893
+          ],
+          [
+            0.43548348352442395,
+            0.3915528744085618
+          ],
+          [
+            0.44369632253148933,
+            0.3818202890463927
+          ],
+          [
+            0.44345204121092785,
+            0.3767862320852336
+          ],
+          [
+            0.4360345088837663,
+            0.376044011385194
+          ]
+        ]
+      }
+    },
+    {
+      "id": 87,
+      "kind": "periodic",
+      "parent": null,
+      "color": "#2ca02c",
+      "position_m": [
+        0.11261758528454464,
+        0.08468796468329977
+      ],
+      "cell_fraction": [
+        0.6217470015813676,
+        0.46853556768542487
+      ],
+      "period_cycles": 7,
+      "period_seconds": 0.0029116844408258514,
+      "selection_rho": 0.3,
+      "runtime_initial_position": [
+        0.621747001581085,
+        0.4685355676852118
+      ],
+      "provenance": {
+        "reference_particle_id": 28,
+        "reference_cycle": 1264,
+        "reference_return_distance": 0.0001844604363389981,
+        "initial_position_refined": true
+      },
+      "verification": {
+        "method": "GaussLegendre4",
+        "steps_per_cycle": 320,
+        "refinement": [
+          {
+            "method": "GaussLegendre4",
+            "steps_per_cycle": 80,
+            "xy": [
+              0.6217470015427077,
+              0.4685355786795088
+            ],
+            "initial_position_change": 3.0830547903052746e-08,
+            "closure": 1.1976642190671124e-11
+          },
+          {
+            "method": "GaussLegendre4",
+            "steps_per_cycle": 160,
+            "xy": [
+              0.621747001234794,
+              0.46853556580692574
+            ],
+            "initial_position_change": 1.2876265194237745e-08,
+            "closure": 3.2067199778229363e-12
+          },
+          {
+            "method": "GaussLegendre4",
+            "steps_per_cycle": 320,
+            "xy": [
+              0.621747001581085,
+              0.4685355676852118
+            ],
+            "initial_position_change": 1.9099413761954974e-09,
+            "closure": 7.73649417174517e-14
+          }
+        ],
+        "check_steps_per_cycle": 640,
+        "fine_gauss_closure": 1.381380329261958e-09,
+        "independent_rk4_closure": 7.328217431642118e-10,
+        "repetition_count": 5,
+        "repetition_closures": [
+          1.3813803824002702e-09,
+          3.0384975770459194e-09,
+          1.2374955258906943e-08,
+          4.177584084066887e-08,
+          1.4859380002875762e-07
+        ],
+        "earlier_return_min": 0.0052428861352216485,
+        "cycle_excursion": 0.010585245409910439,
+        "cycle_returns": [
+          [
+            0.621747001581085,
+            0.4685355676852118
+          ],
+          [
+            0.6248172696172047,
+            0.4728385782566969
+          ],
+          [
+            0.6267611585154548,
+            0.47006726127872545
+          ],
+          [
+            0.6263733966317528,
+            0.46086982457313586
+          ],
+          [
+            0.6231995582680618,
+            0.45805045922324783
+          ],
+          [
+            0.621354189029211,
+            0.4583831539968681
+          ],
+          [
+            0.6207333208073029,
+            0.4614865568749123
+          ],
+          [
+            0.6217470011815259,
+            0.46853556636287896
+          ]
+        ]
+      }
+    },
+    {
+      "id": 88,
+      "kind": "periodic",
+      "parent": null,
+      "color": "#d62728",
+      "position_m": [
+        0.07800255836429854,
+        0.07131215206660299
+      ],
+      "cell_fraction": [
+        0.4294412964687144,
+        0.3942254975925974
+      ],
+      "period_cycles": 8,
+      "period_seconds": 0.0033276393609438302,
+      "selection_rho": 0.3,
+      "runtime_initial_position": [
+        0.42944129646851914,
+        0.3942254975924181
+      ],
+      "provenance": {
+        "reference_particle_id": 8,
+        "reference_cycle": 4668,
+        "reference_return_distance": 0.0001663435458867996,
+        "initial_position_refined": true
+      },
+      "verification": {
+        "method": "GaussLegendre4",
+        "steps_per_cycle": 640,
+        "refinement": [
+          {
+            "method": "GaussLegendre4",
+            "steps_per_cycle": 80,
+            "xy": [
+              0.4294414121596263,
+              0.39422547456300716
+            ],
+            "initial_position_change": 2.3180144169034097e-07,
+            "closure": 7.128764302602515e-13
+          },
+          {
+            "method": "GaussLegendre4",
+            "steps_per_cycle": 160,
+            "xy": [
+              0.42944129745316495,
+              0.3942254965825254
+            ],
+            "initial_position_change": 1.1680081958317506e-07,
+            "closure": 2.2046756164502977e-12
+          },
+          {
+            "method": "GaussLegendre4",
+            "steps_per_cycle": 320,
+            "xy": [
+              0.4294412965099419,
+              0.39422549756000064
+            ],
+            "initial_position_change": 1.3583547113097767e-09,
+            "closure": 9.429402623010466e-12
+          },
+          {
+            "method": "GaussLegendre4",
+            "steps_per_cycle": 640,
+            "xy": [
+              0.42944129646851914,
+              0.3942254975924181
+            ],
+            "initial_position_change": 5.259977296757856e-11,
+            "closure": 3.2968532579788836e-13
+          }
+        ],
+        "check_steps_per_cycle": 1280,
+        "fine_gauss_closure": 1.4657135126065733e-10,
+        "independent_rk4_closure": 1.5430154799590922e-10,
+        "repetition_count": 5,
+        "repetition_closures": [
+          1.4657135126065733e-10,
+          6.09132794379848e-10,
+          4.5751246381355976e-09,
+          3.127040539524747e-08,
+          2.1665218599406594e-07
+        ],
+        "earlier_return_min": 0.009997420499870293,
+        "cycle_excursion": 0.026504482197733787,
+        "cycle_returns": [
+          [
+            0.42944129646851914,
+            0.3942254975924181
+          ],
+          [
+            0.4419144015353168,
+            0.38685694638358914
+          ],
+          [
+            0.4469238172562649,
+            0.37892078883908503
+          ],
+          [
+            0.4480897726073538,
+            0.3753914349858188
+          ],
+          [
+            0.44651205866342725,
+            0.3739898051298597
+          ],
+          [
+            0.44164387505349106,
+            0.37408811493957433
+          ],
+          [
+            0.42657462897565346,
+            0.37862110131987525
+          ],
+          [
+            0.41992263119453693,
+            0.39116879543926153
+          ],
+          [
+            0.4294412963220942,
+            0.39422549758586817
+          ]
+        ]
+      }
+    },
+    {
+      "id": 89,
+      "kind": "periodic",
+      "parent": null,
+      "color": "#9467bd",
+      "position_m": [
+        0.08123709688877495,
+        0.0666859401830361
+      ],
+      "cell_fraction": [
+        0.44741095493804417,
+        0.36852432046164685
+      ],
+      "period_cycles": 9,
+      "period_seconds": 0.003743594281061809,
+      "selection_rho": 0.3,
+      "runtime_initial_position": [
+        0.44741095493784067,
+        0.36852432046147926
+      ],
+      "provenance": {
+        "reference_particle_id": 46,
+        "reference_cycle": 3186,
+        "reference_return_distance": 0.00010892259193673612,
+        "initial_position_refined": true
+      },
+      "verification": {
+        "method": "GaussLegendre4",
+        "steps_per_cycle": 640,
+        "refinement": [
+          {
+            "method": "GaussLegendre4",
+            "steps_per_cycle": 80,
+            "xy": [
+              0.4474108995003074,
+              0.36852433249021493
+            ],
+            "initial_position_change": 1.0662417232903186e-07,
+            "closure": 6.486258894705814e-15
+          },
+          {
+            "method": "GaussLegendre4",
+            "steps_per_cycle": 160,
+            "xy": [
+              0.4474109689795147,
+              0.36852431227836796
+            ],
+            "initial_position_change": 7.235937402690927e-08,
+            "closure": 5.890359967117076e-12
+          },
+          {
+            "method": "GaussLegendre4",
+            "steps_per_cycle": 320,
+            "xy": [
+              0.44741095444017986,
+              0.36852432066567115
+            ],
+            "initial_position_change": 1.6785086014699978e-08,
+            "closure": 7.121748342208207e-13
+          },
+          {
+            "method": "GaussLegendre4",
+            "steps_per_cycle": 640,
+            "xy": [
+              0.44741095493784067,
+              0.36852432046147926
+            ],
+            "initial_position_change": 5.379224846212065e-10,
+            "closure": 1.4280614532966942e-14
+          }
+        ],
+        "check_steps_per_cycle": 1280,
+        "fine_gauss_closure": 1.438296383900004e-10,
+        "independent_rk4_closure": 3.5138698107262474e-11,
+        "repetition_count": 5,
+        "repetition_closures": [
+          1.438296383900004e-10,
+          9.135364724934159e-10,
+          5.11550703247705e-09,
+          2.8069915532793182e-08,
+          1.534663375551541e-07
+        ],
+        "earlier_return_min": 0.010163244600247241,
+        "cycle_excursion": 0.04078013434354931,
+        "cycle_returns": [
+          [
+            0.44741095493784067,
+            0.36852432046147926
+          ],
+          [
+            0.4327095598955256,
+            0.3744009375964592
+          ],
+          [
+            0.4154962896700747,
+            0.3895290760834039
+          ],
+          [
+            0.4182259342898692,
+            0.3970068401332957
+          ],
+          [
+            0.4323981355252741,
+            0.3962540011563559
+          ],
+          [
+            0.4466314005264786,
+            0.38610637350690274
+          ],
+          [
+            0.45425504785678494,
+            0.3775096961924046
+          ],
+          [
+            0.45949829876407355,
+            0.3723375694521985
+          ],
+          [
+            0.45755136165730587,
+            0.3692052700692181
+          ],
+          [
+            0.4474109548089891,
+            0.36852432052538736
+          ]
+        ]
+      }
+    },
+    {
+      "id": 90,
+      "kind": "periodic",
+      "parent": null,
+      "color": "#8c564b",
+      "position_m": [
+        0.11495288042933074,
+        0.14967220906726827
+      ],
+      "cell_fraction": [
+        0.6347208634968579,
+        0.8295591475966893
+      ],
+      "period_cycles": 10,
+      "period_seconds": 0.0041595492011797875,
+      "selection_rho": 0.3,
+      "runtime_initial_position": [
+        0.6347208634965692,
+        0.8295591475963121
+      ],
+      "provenance": {
+        "reference_particle_id": 25,
+        "reference_cycle": 3714,
+        "reference_return_distance": 0.00026620880063877293,
+        "initial_position_refined": true
+      },
+      "verification": {
+        "method": "GaussLegendre4",
+        "steps_per_cycle": 1280,
+        "refinement": [
+          {
+            "method": "GaussLegendre4",
+            "steps_per_cycle": 80,
+            "xy": [
+              0.6347332095117884,
+              0.8295550639051367
+            ],
+            "initial_position_change": 3.129989517655058e-05,
+            "closure": 1.008530274307063e-12
+          },
+          {
+            "method": "GaussLegendre4",
+            "steps_per_cycle": 160,
+            "xy": [
+              0.6347184554270616,
+              0.8295600153256473
+            ],
+            "initial_position_change": 1.556276264666313e-05,
+            "closure": 1.994381879386234e-12
+          },
+          {
+            "method": "GaussLegendre4",
+            "steps_per_cycle": 320,
+            "xy": [
+              0.6347207082150419,
+              0.8295592347504527
+            ],
+            "initial_position_change": 2.3841877691308013e-06,
+            "closure": 8.619543052124551e-14
+          },
+          {
+            "method": "GaussLegendre4",
+            "steps_per_cycle": 640,
+            "xy": [
+              0.6347208966502518,
+              0.8295591349031068
+            ],
+            "initial_position_change": 2.1325412256988422e-07,
+            "closure": 4.315469886239263e-14
+          },
+          {
+            "method": "GaussLegendre4",
+            "steps_per_cycle": 1280,
+            "xy": [
+              0.6347208634965692,
+              0.8295591475963121
+            ],
+            "initial_position_change": 3.550048067717959e-08,
+            "closure": 4.158823845282711e-12
+          }
+        ],
+        "check_steps_per_cycle": 2560,
+        "fine_gauss_closure": 2.74417817993896e-10,
+        "independent_rk4_closure": 2.68811438001552e-09,
+        "repetition_count": 5,
+        "repetition_closures": [
+          2.744178617352437e-10,
+          4.028477843241967e-09,
+          6.770294173676568e-09,
+          1.7679357526590017e-08,
+          3.620883726319018e-08
+        ],
+        "earlier_return_min": 0.22892560968589107,
+        "cycle_excursion": 0.7172100518775314,
+        "cycle_returns": [
+          [
+            0.6347208634965692,
+            0.8295591475963121
+          ],
+          [
+            0.8091866027731954,
+            0.673393450285728
+          ],
+          [
+            0.8588748451799761,
+            0.4750380233880739
+          ],
+          [
+            0.7737903144978283,
+            0.2693762914307807
+          ],
+          [
+            0.5763586953858929,
+            0.1414540798883648
+          ],
+          [
+            0.37575123358866575,
+            0.16073556151435073
+          ],
+          [
+            0.19656814753935553,
+            0.2898260370717235
+          ],
+          [
+            0.14138946672211075,
+            0.5108201138633087
+          ],
+          [
+            0.22195956248525625,
+            0.7356102095452539
+          ],
+          [
+            0.4064313161254217,
+            0.8466125147457507
+          ],
+          [
+            0.6347208633642671,
+            0.8295591473558931
+          ]
+        ]
+      }
+    },
+    {
+      "id": 91,
+      "kind": "periodic",
+      "parent": null,
+      "color": "#e377c2",
+      "position_m": [
+        0.08640968012984188,
+        0.07572897883417025
+      ],
+      "cell_fraction": [
+        0.4761475284995532,
+        0.4187634240791045
+      ],
+      "period_cycles": 11,
+      "period_seconds": 0.004575504121297766,
+      "selection_rho": 0.3,
+      "runtime_initial_position": [
+        0.4761475284993367,
+        0.41876342407891404
+      ],
+      "provenance": {
+        "reference_particle_id": 4,
+        "reference_cycle": 496,
+        "reference_return_distance": 0.00025505473421628765,
+        "initial_position_refined": true
+      },
+      "verification": {
+        "method": "GaussLegendre4",
+        "steps_per_cycle": 320,
+        "refinement": [
+          {
+            "method": "GaussLegendre4",
+            "steps_per_cycle": 80,
+            "xy": [
+              0.4761475160190332,
+              0.4187634273603063
+            ],
+            "initial_position_change": 2.7358681114113034e-08,
+            "closure": 2.1292431091670564e-12
+          },
+          {
+            "method": "GaussLegendre4",
+            "steps_per_cycle": 160,
+            "xy": [
+              0.476147535356884,
+              0.4187634226076694
+            ],
+            "initial_position_change": 1.9913312875351758e-08,
+            "closure": 9.031089386659468e-14
+          },
+          {
+            "method": "GaussLegendre4",
+            "steps_per_cycle": 320,
+            "xy": [
+              0.4761475284993367,
+              0.41876342407891404
+            ],
+            "initial_position_change": 7.013595017323825e-09,
+            "closure": 5.316986032299818e-14
+          }
+        ],
+        "check_steps_per_cycle": 640,
+        "fine_gauss_closure": 7.550484869374084e-10,
+        "independent_rk4_closure": 6.358657253949072e-10,
+        "repetition_count": 5,
+        "repetition_closures": [
+          7.550485394298881e-10,
+          5.188247662480751e-09,
+          2.696293951844809e-08,
+          1.330967846232405e-07,
+          6.502270873095821e-07
+        ],
+        "earlier_return_min": 0.030278960463979716,
+        "cycle_excursion": 0.15960772811309457,
+        "cycle_returns": [
+          [
+            0.4761475284993367,
+            0.41876342407891404
+          ],
+          [
+            0.5154680519421159,
+            0.43062147890647073
+          ],
+          [
+            0.5470810397190007,
+            0.46134542067732476
+          ],
+          [
+            0.5792111878942632,
+            0.47594543258315974
+          ],
+          [
+            0.5834169114764837,
+            0.5201132384793973
+          ],
+          [
+            0.5575784821034586,
+            0.5560355139899621
+          ],
+          [
+            0.5195750447315745,
+            0.564609694293033
+          ],
+          [
+            0.47787177949244863,
+            0.5183622313785275
+          ],
+          [
+            0.4534503510263407,
+            0.472373395113371
+          ],
+          [
+            0.4404912009638943,
+            0.4517116108820919
+          ],
+          [
+            0.44907764666837674,
+            0.4323294457668338
+          ],
+          [
+            0.476147529253325,
+            0.41876342411891304
+          ]
+        ]
+      }
+    },
+    {
+      "id": 92,
+      "kind": "periodic",
+      "parent": null,
+      "color": "#17becf",
+      "position_m": [
+        0.10191423933767738,
+        0.08344610392835895
+      ],
+      "cell_fraction": [
+        0.5622839685431621,
+        0.4616363412690807
+      ],
+      "period_cycles": 12,
+      "period_seconds": 0.004991459041415745,
+      "selection_rho": 0.3,
+      "runtime_initial_position": [
+        0.5622839685429064,
+        0.4616363412688708
+      ],
+      "provenance": {
+        "reference_particle_id": 9,
+        "reference_cycle": 84,
+        "reference_return_distance": 0.00034673663477290004,
+        "initial_position_refined": true
+      },
+      "verification": {
+        "method": "GaussLegendre4",
+        "steps_per_cycle": 320,
+        "refinement": [
+          {
+            "method": "GaussLegendre4",
+            "steps_per_cycle": 80,
+            "xy": [
+              0.5622840081135206,
+              0.4616363382745556
+            ],
+            "initial_position_change": 8.596480063472782e-08,
+            "closure": 1.4150989078421594e-14
+          },
+          {
+            "method": "GaussLegendre4",
+            "steps_per_cycle": 160,
+            "xy": [
+              0.5622839652347399,
+              0.4616363405174212
+            ],
+            "initial_position_change": 4.293739960252606e-08,
+            "closure": 1.1458471471770867e-11
+          },
+          {
+            "method": "GaussLegendre4",
+            "steps_per_cycle": 320,
+            "xy": [
+              0.5622839685429064,
+              0.4616363412688708
+            ],
+            "initial_position_change": 3.3924389828946143e-09,
+            "closure": 2.04896584603274e-13
+          }
+        ],
+        "check_steps_per_cycle": 640,
+        "fine_gauss_closure": 1.873309804483749e-09,
+        "independent_rk4_closure": 1.8214692941266207e-09,
+        "repetition_count": 5,
+        "repetition_closures": [
+          1.8733096853759165e-09,
+          5.4987955720019715e-09,
+          2.3190616086534933e-08,
+          8.897472572182979e-08,
+          3.4976060180029614e-07
+        ],
+        "earlier_return_min": 0.03696360834489353,
+        "cycle_excursion": 0.12893991383200964,
+        "cycle_returns": [
+          [
+            0.5622839685429064,
+            0.4616363412688708
+          ],
+          [
+            0.5901202034299879,
+            0.4859561350423778
+          ],
+          [
+            0.5803595131004111,
+            0.5328673755209832
+          ],
+          [
+            0.5506363828889258,
+            0.5606360941871289
+          ],
+          [
+            0.5086871537848413,
+            0.5622022353108524
+          ],
+          [
+            0.47330964989650764,
+            0.5096053068181401
+          ],
+          [
+            0.4459795338243028,
+            0.4703051554629758
+          ],
+          [
+            0.4335770433754058,
+            0.4538885162235131
+          ],
+          [
+            0.4377970098956763,
+            0.43675290127508026
+          ],
+          [
+            0.4593299487324259,
+            0.41797576472598474
+          ],
+          [
+            0.49058685875016916,
+            0.41367405940288715
+          ],
+          [
+            0.5316031596490064,
+            0.4339996203144226
+          ],
+          [
+            0.562283966699298,
+            0.4616363409366092
+          ]
+        ]
+      }
+    }
+  ],
+  "provenance": {
+    "reference": {
+      "path": "notebooks/developements/main_reflected_campaign/main-20261115/runs/rho-0.30-GaussLegendre4",
+      "manifest": {
+        "artifact_kind": "gc2d_solution",
+        "files": {
+          "metadata.json": {
+            "bytes": 61997,
+            "sha256": "4b9a4854885d203af08e40423405d1e9a0e0b95c420ac7eb0b9fb8c8a2d083fe"
+          },
+          "potential.npz": {
+            "bytes": 3014394,
+            "sha256": "2402f018ddac6c7b3b7efb5bc5b19a0b5573b16a63c48f3dc933980400319828"
+          },
+          "solution.npz": {
+            "bytes": 218315456,
+            "sha256": "464e57fe176c237e05263aa4a208f1973de2b963b1a275d538792c9945554955"
+          }
+        },
+        "schema_version": 3
+      }
+    },
+    "modal_tasks": [
+      {
+        "task": "search-10",
+        "call_id": "fc-01M7GB4Z713T6G82DZJGWRHZSB",
+        "inputs": {
+          "search_seeds": [
+            {
+              "period": 10,
+              "xy": [
+                0.5422232723814785,
+                0.4594337792664452
+              ],
+              "distance": 0.00021319377179298968,
+              "particle": 4,
+              "cycle": 2396
+            },
+            {
+              "period": 10,
+              "xy": [
+                0.509296030238351,
+                0.4311154175182074
+              ],
+              "distance": 0.00021493984382982335,
+              "particle": 4,
+              "cycle": 2395
+            },
+            {
+              "period": 10,
+              "xy": [
+                0.5810583538690212,
+                0.5157719002827671
+              ],
+              "distance": 0.0002196468937017127,
+              "particle": 4,
+              "cycle": 2398
+            },
+            {
+              "period": 10,
+              "xy": [
+                0.6355651965074731,
+                0.8293037710385432
+              ],
+              "distance": 0.00026620880063877293,
+              "particle": 25,
+              "cycle": 3714
+            },
+            {
+              "period": 10,
+              "xy": [
+                0.5553275845313852,
+                0.551645423074877
+              ],
+              "distance": 0.0002896687258959917,
+              "particle": 4,
+              "cycle": 2399
+            },
+            {
+              "period": 10,
+              "xy": [
+                0.4292217817736818,
+                0.5696145178445893
+              ],
+              "distance": 0.000312289300005066,
+              "particle": 8,
+              "cycle": 2381
+            },
+            {
+              "period": 10,
+              "xy": [
+                0.4070513132230147,
+                0.847072435080938
+              ],
+              "distance": 0.0003155659083576766,
+              "particle": 25,
+              "cycle": 3713
+            },
+            {
+              "period": 10,
+              "xy": [
+                0.5737447635117418,
+                0.47708256159099294
+              ],
+              "distance": 0.00032757220051994894,
+              "particle": 4,
+              "cycle": 2397
+            }
+          ]
+        },
+        "result_sha256": "53f8f4ecdd6b18c10a8c7c9a33194447440d2ba9fe65f46909a95a605966b515"
+      },
+      {
+        "task": "search-11",
+        "call_id": "fc-01M7GB4ZCYPRPAHJPV38DM1Y0Q",
+        "inputs": {
+          "search_seeds": [
+            {
+              "period": 11,
+              "xy": [
+                0.4305342501017445,
+                0.39238698008989314
+              ],
+              "distance": 9.041035445324267e-05,
+              "particle": 46,
+              "cycle": 2947
+            },
+            {
+              "period": 11,
+              "xy": [
+                0.441290859811693,
+                0.3853797082623725
+              ],
+              "distance": 0.00011332327652909808,
+              "particle": 46,
+              "cycle": 2948
+            },
+            {
+              "period": 11,
+              "xy": [
+                0.42826342706067166,
+                0.3786844764561921
+              ],
+              "distance": 0.0002254687326717823,
+              "particle": 46,
+              "cycle": 2945
+            },
+            {
+              "period": 11,
+              "xy": [
+                0.47759995364109425,
+                0.41830717076953716
+              ],
+              "distance": 0.00025505473421628765,
+              "particle": 4,
+              "cycle": 496
+            },
+            {
+              "period": 11,
+              "xy": [
+                0.5174772606012492,
+                0.43162591985592913
+              ],
+              "distance": 0.00027547933893109095,
+              "particle": 4,
+              "cycle": 497
+            },
+            {
+              "period": 11,
+              "xy": [
+                0.5802938362994989,
+                0.47736801877031587
+              ],
+              "distance": 0.0002975894889094997,
+              "particle": 4,
+              "cycle": 499
+            },
+            {
+              "period": 11,
+              "xy": [
+                0.4499894712060745,
+                0.43107422029372205
+              ],
+              "distance": 0.0002990069300419015,
+              "particle": 4,
+              "cycle": 495
+            },
+            {
+              "period": 11,
+              "xy": [
+                0.5484261995281282,
+                0.46302147955850015
+              ],
+              "distance": 0.00030009706047881926,
+              "particle": 4,
+              "cycle": 498
+            }
+          ]
+        },
+        "result_sha256": "7ccb72b717e3cce3addb834b06afb0afd9f57fcc567a6f142192de3b076fdba3"
+      },
+      {
+        "task": "search-12",
+        "call_id": "fc-01M7GB4ZJH1NTVVHZ6EZJG9CZS",
+        "inputs": {
+          "search_seeds": [
+            {
+              "period": 12,
+              "xy": [
+                0.41997972855113846,
+                0.38614015997064616
+              ],
+              "distance": 0.00027126643308456397,
+              "particle": 46,
+              "cycle": 2530
+            },
+            {
+              "period": 12,
+              "xy": [
+                0.5620690304185775,
+                0.4613908882807199
+              ],
+              "distance": 0.00034673663477290004,
+              "particle": 9,
+              "cycle": 84
+            },
+            {
+              "period": 12,
+              "xy": [
+                0.49040361836881513,
+                0.4133619688448483
+              ],
+              "distance": 0.00035622547628113855,
+              "particle": 9,
+              "cycle": 82
+            },
+            {
+              "period": 12,
+              "xy": [
+                0.44095010662564144,
+                0.37585392018414165
+              ],
+              "distance": 0.0003643650300999918,
+              "particle": 46,
+              "cycle": 2581
+            },
+            {
+              "period": 12,
+              "xy": [
+                0.4306517101667962,
+                0.39288875246005783
+              ],
+              "distance": 0.00036942478865614823,
+              "particle": 46,
+              "cycle": 2584
+            },
+            {
+              "period": 12,
+              "xy": [
+                0.5313949228867405,
+                0.43361340811526466
+              ],
+              "distance": 0.0003696057594443709,
+              "particle": 9,
+              "cycle": 83
+            },
+            {
+              "period": 12,
+              "xy": [
+                0.5901929263696508,
+                0.48538985302564547
+              ],
+              "distance": 0.00042427003902310194,
+              "particle": 9,
+              "cycle": 85
+            },
+            {
+              "period": 12,
+              "xy": [
+                0.5776419010808191,
+                0.40069046623806076
+              ],
+              "distance": 0.0004410049090656653,
+              "particle": 15,
+              "cycle": 1952
+            }
+          ]
+        },
+        "result_sha256": "0bcb3d8ea365e42e98025cc85d420a4e6f2c02aff435c1813a00d511156b1150"
+      },
+      {
+        "task": "search-13",
+        "call_id": "fc-01M7GB4ZSYRV2WZ1KFYTDE9969",
+        "inputs": {
+          "search_seeds": [
+            {
+              "period": 13,
+              "xy": [
+                0.44545677602612715,
+                0.37852714510120367
+              ],
+              "distance": 0.00014409202998575516,
+              "particle": 46,
+              "cycle": 3047
+            },
+            {
+              "period": 13,
+              "xy": [
+                0.42068466073997496,
+                0.39050010855291556
+              ],
+              "distance": 0.0001685126907165903,
+              "particle": 46,
+              "cycle": 3044
+            },
+            {
+              "period": 13,
+              "xy": [
+                0.510416730242838,
+                0.616626966983644
+              ],
+              "distance": 0.00019004731731800558,
+              "particle": 20,
+              "cycle": 1217
+            },
+            {
+              "period": 13,
+              "xy": [
+                0.4298305098500406,
+                0.37758852250443936
+              ],
+              "distance": 0.00023547634858258473,
+              "particle": 46,
+              "cycle": 710
+            },
+            {
+              "period": 13,
+              "xy": [
+                0.46973940453753643,
+                0.6312597770514559
+              ],
+              "distance": 0.0003016327286491719,
+              "particle": 20,
+              "cycle": 1216
+            },
+            {
+              "period": 13,
+              "xy": [
+                0.5272200483357841,
+                0.6036486890926137
+              ],
+              "distance": 0.0004807846235163236,
+              "particle": 20,
+              "cycle": 1218
+            },
+            {
+              "period": 13,
+              "xy": [
+                0.4142727896273016,
+                0.6189889487891644
+              ],
+              "distance": 0.0005229311341923853,
+              "particle": 20,
+              "cycle": 1215
+            },
+            {
+              "period": 13,
+              "xy": [
+                0.434835300009056,
+                0.3921581648149862
+              ],
+              "distance": 0.0005325368300738882,
+              "particle": 46,
+              "cycle": 3052
+            }
+          ]
+        },
+        "result_sha256": "cc8a33a0d7516415d3500abbbdaa057cf71ade580bf722d77c09b8f73034cca7"
+      },
+      {
+        "task": "search-14",
+        "call_id": "fc-01M7GB500MQGX4WZ9FJ7K4JSHA",
+        "inputs": {
+          "search_seeds": [
+            {
+              "period": 14,
+              "xy": [
+                0.5723965469127266,
+                0.3912328567868225
+              ],
+              "distance": 3.6538561952089024e-05,
+              "particle": 81,
+              "cycle": 1321
+            }
+          ]
+        },
+        "result_sha256": "763f976dd53cd0d4fda6111d499ec473a21b1762599cd47ba27eb2a9201feaff"
+      },
+      {
+        "task": "search-15",
+        "call_id": "fc-01M7GB506BPA715Z4BR9RR14X1",
+        "inputs": {
+          "search_seeds": [
+            {
+              "period": 15,
+              "xy": [
+                0.6079193923548295,
+                0.5704281515459284
+              ],
+              "distance": 3.3234170688884146e-06,
+              "particle": 70,
+              "cycle": 557
+            }
+          ]
+        },
+        "result_sha256": "f699a32cae01f730abeadfdb35cf1a581d9c0a5406f627af52b8dc5e4e07d912"
+      },
+      {
+        "task": "search-17",
+        "call_id": "fc-01M7GB50D5WKK4AFJCTWYT6D18",
+        "inputs": {
+          "search_seeds": [
+            {
+              "period": 17,
+              "xy": [
+                0.49756040817385677,
+                0.5222016521183707
+              ],
+              "distance": 0.00014920051931478027,
+              "particle": 3,
+              "cycle": 955
+            },
+            {
+              "period": 17,
+              "xy": [
+                0.4424498960028828,
+                0.5439315847201603
+              ],
+              "distance": 0.00019750088087911626,
+              "particle": 12,
+              "cycle": 405
+            },
+            {
+              "period": 17,
+              "xy": [
+                0.4512238532381814,
+                0.5601322856682032
+              ],
+              "distance": 0.000215814173993254,
+              "particle": 12,
+              "cycle": 664
+            },
+            {
+              "period": 17,
+              "xy": [
+                0.4283424463475078,
+                0.535452859812392
+              ],
+              "distance": 0.00021740874464388574,
+              "particle": 12,
+              "cycle": 406
+            },
+            {
+              "period": 17,
+              "xy": [
+                0.525192174346023,
+                0.5370286298880874
+              ],
+              "distance": 0.00021808045100718386,
+              "particle": 3,
+              "cycle": 954
+            },
+            {
+              "period": 17,
+              "xy": [
+                0.41460583922220395,
+                0.5698572180157698
+              ],
+              "distance": 0.0002331047895077049,
+              "particle": 12,
+              "cycle": 659
+            },
+            {
+              "period": 17,
+              "xy": [
+                0.46253106437233577,
+                0.595576311270757
+              ],
+              "distance": 0.00024171234032123803,
+              "particle": 12,
+              "cycle": 662
+            },
+            {
+              "period": 17,
+              "xy": [
+                0.48272417825008174,
+                0.4773035841538146
+              ],
+              "distance": 0.0002593088266597718,
+              "particle": 3,
+              "cycle": 956
+            }
+          ]
+        },
+        "result_sha256": "aa52684d05562a729ed096914729944a3d208202e79b38f0b19211a1f867238f"
+      },
+      {
+        "task": "search-5",
+        "call_id": "fc-01M7GB4XZWK95M3PNNJJ48GM62",
+        "inputs": {
+          "search_seeds": [
+            {
+              "period": 5,
+              "xy": [
+                0.4256870480955137,
+                0.38057858801294747
+              ],
+              "distance": 0.00035298338993698767,
+              "particle": 46,
+              "cycle": 2832
+            },
+            {
+              "period": 5,
+              "xy": [
+                0.5780986221309762,
+                0.38958792437158674
+              ],
+              "distance": 0.0003546520007891179,
+              "particle": 84,
+              "cycle": 10
+            },
+            {
+              "period": 5,
+              "xy": [
+                0.4399822387790525,
+                0.37855641635794895
+              ],
+              "distance": 0.0005212097529765598,
+              "particle": 46,
+              "cycle": 582
+            }
+          ]
+        },
+        "result_sha256": "d4c7c215878bbd21afd6dcfc6e1757f02a503c4575002906af4b9aed5940b065"
+      },
+      {
+        "task": "search-6",
+        "call_id": "fc-01M7GB4Y6J4HRDRQVN5GS2B0BS",
+        "inputs": {
+          "search_seeds": [
+            {
+              "period": 6,
+              "xy": [
+                0.4211104435000552,
+                0.390415588289872
+              ],
+              "distance": 0.00010490379588036153,
+              "particle": 46,
+              "cycle": 2024
+            },
+            {
+              "period": 6,
+              "xy": [
+                0.43626311831292064,
+                0.3759266579927303
+              ],
+              "distance": 0.00014137528252980907,
+              "particle": 46,
+              "cycle": 1987
+            },
+            {
+              "period": 6,
+              "xy": [
+                0.4352967804082177,
+                0.39164792778153407
+              ],
+              "distance": 0.00015522853859723619,
+              "particle": 46,
+              "cycle": 1990
+            },
+            {
+              "period": 6,
+              "xy": [
+                0.5600064122469904,
+                0.38489067812711963
+              ],
+              "distance": 0.0005868443164622347,
+              "particle": 8,
+              "cycle": 912
+            },
+            {
+              "period": 6,
+              "xy": [
+                0.5848545758366481,
+                0.38572939041175697
+              ],
+              "distance": 0.0008316245910450778,
+              "particle": 84,
+              "cycle": 268
+            },
+            {
+              "period": 6,
+              "xy": [
+                0.5684125791811876,
+                0.3985316564265496
+              ],
+              "distance": 0.0008631998202577373,
+              "particle": 84,
+              "cycle": 265
+            },
+            {
+              "period": 6,
+              "xy": [
+                0.5830157356067206,
+                0.4032711990778833
+              ],
+              "distance": 0.0009780670657562297,
+              "particle": 84,
+              "cycle": 266
+            },
+            {
+              "period": 6,
+              "xy": [
+                0.5946438782346218,
+                0.3996410089230445
+              ],
+              "distance": 0.0015220690788850673,
+              "particle": 84,
+              "cycle": 601
+            }
+          ]
+        },
+        "result_sha256": "88a230d9a24199a56d7e41d1c884c7ca879d947b65be7ba0bcfd9f516c673478"
+      },
+      {
+        "task": "search-7",
+        "call_id": "fc-01M7GB4YD4TDC0G5E3RDACPB6M",
+        "inputs": {
+          "search_seeds": [
+            {
+              "period": 7,
+              "xy": [
+                0.43351955823556404,
+                0.37626139998580854
+              ],
+              "distance": 0.000158478515695371,
+              "particle": 46,
+              "cycle": 2633
+            },
+            {
+              "period": 7,
+              "xy": [
+                0.6214675524342594,
+                0.46784959100932755
+              ],
+              "distance": 0.0001844604363389981,
+              "particle": 28,
+              "cycle": 1264
+            },
+            {
+              "period": 7,
+              "xy": [
+                0.504733515184484,
+                0.49722126868646355
+              ],
+              "distance": 0.00021671154514454506,
+              "particle": 56,
+              "cycle": 3367
+            },
+            {
+              "period": 7,
+              "xy": [
+                0.5076450057006004,
+                0.508922423705159
+              ],
+              "distance": 0.00025794727166584,
+              "particle": 56,
+              "cycle": 700
+            },
+            {
+              "period": 7,
+              "xy": [
+                0.5228017920889001,
+                0.49973028531687425
+              ],
+              "distance": 0.00026288496369905167,
+              "particle": 56,
+              "cycle": 2642
+            },
+            {
+              "period": 7,
+              "xy": [
+                0.41912278288264293,
+                0.3878382313887414
+              ],
+              "distance": 0.00029429553890515734,
+              "particle": 46,
+              "cycle": 2634
+            },
+            {
+              "period": 7,
+              "xy": [
+                0.4448819215887875,
+                0.3812826119353709
+              ],
+              "distance": 0.0003099373629589788,
+              "particle": 46,
+              "cycle": 2637
+            },
+            {
+              "period": 7,
+              "xy": [
+                0.520556152981146,
+                0.516283339573439
+              ],
+              "distance": 0.00035758065805325764,
+              "particle": 56,
+              "cycle": 635
+            }
+          ]
+        },
+        "result_sha256": "53e59b4c5ce7592f3017f59d840aa42836bbc83d00046103603776c38455ff79"
+      },
+      {
+        "task": "search-8",
+        "call_id": "fc-01M7GB4YM147N7EQX3TAC51P1P",
+        "inputs": {
+          "search_seeds": [
+            {
+              "period": 8,
+              "xy": [
+                0.42897339374898324,
+                0.3943473637067069
+              ],
+              "distance": 0.0001663435458867996,
+              "particle": 8,
+              "cycle": 4668
+            },
+            {
+              "period": 8,
+              "xy": [
+                0.44197170218391496,
+                0.37383125800164546
+              ],
+              "distance": 0.00021708670959219475,
+              "particle": 8,
+              "cycle": 4665
+            },
+            {
+              "period": 8,
+              "xy": [
+                0.4415757208619192,
+                0.38727597109969164
+              ],
+              "distance": 0.0002198840391779518,
+              "particle": 8,
+              "cycle": 4669
+            },
+            {
+              "period": 8,
+              "xy": [
+                0.42975937089676225,
+                0.37688532003347514
+              ],
+              "distance": 0.0002607143380658631,
+              "particle": 46,
+              "cycle": 1903
+            },
+            {
+              "period": 8,
+              "xy": [
+                0.6201923454835032,
+                0.4607694932869415
+              ],
+              "distance": 0.00031402400814812615,
+              "particle": 28,
+              "cycle": 1255
+            },
+            {
+              "period": 8,
+              "xy": [
+                0.6029501137566441,
+                0.5761929942141737
+              ],
+              "distance": 0.0003398104597634773,
+              "particle": 72,
+              "cycle": 3696
+            }
+          ]
+        },
+        "result_sha256": "8fd0a8607253013befac75beb0133c9cc78ff553f7a0a40a7bc8c5130285969a"
+      },
+      {
+        "task": "search-9",
+        "call_id": "fc-01M7GB4YSZ6PXM9J9EDNM990TE",
+        "inputs": {
+          "search_seeds": [
+            {
+              "period": 9,
+              "xy": [
+                0.4472379312508188,
+                0.36872383660278735
+              ],
+              "distance": 0.00010892259193673612,
+              "particle": 46,
+              "cycle": 3186
+            },
+            {
+              "period": 9,
+              "xy": [
+                0.4321380212890514,
+                0.3795680471920872
+              ],
+              "distance": 0.0001264167545614023,
+              "particle": 46,
+              "cycle": 337
+            },
+            {
+              "period": 9,
+              "xy": [
+                0.4191161617233659,
+                0.6066576418183064
+              ],
+              "distance": 0.0001510271278020181,
+              "particle": 12,
+              "cycle": 3205
+            },
+            {
+              "period": 9,
+              "xy": [
+                0.4415579438545166,
+                0.38834177357185806
+              ],
+              "distance": 0.0001537422479943324,
+              "particle": 46,
+              "cycle": 960
+            },
+            {
+              "period": 9,
+              "xy": [
+                0.42796287713054093,
+                0.39533323336693144
+              ],
+              "distance": 0.0001539419985713461,
+              "particle": 46,
+              "cycle": 959
+            },
+            {
+              "period": 9,
+              "xy": [
+                0.4197847211604764,
+                0.3830353938238872
+              ],
+              "distance": 0.0001696090891191054,
+              "particle": 46,
+              "cycle": 1191
+            },
+            {
+              "period": 9,
+              "xy": [
+                0.45513046780983385,
+                0.6222736034776343
+              ],
+              "distance": 0.0002418502171510968,
+              "particle": 12,
+              "cycle": 3206
+            },
+            {
+              "period": 9,
+              "xy": [
+                0.4922418936172619,
+                0.588770367377029
+              ],
+              "distance": 0.00027391503254347384,
+              "particle": 12,
+              "cycle": 3199
+            }
+          ]
+        },
+        "result_sha256": "81b7f75695b78ddedc55050a92e3c94ca9d4312b06e0829144dbaeb3d9e7ebea"
+      },
+      {
+        "task": "verify-10-0",
+        "call_id": "fc-01M7GB8XCS3HM2F0B68ERQ9HH5",
+        "inputs": {
+          "candidate": {
+            "period_cycles": 10,
+            "xy": [
+              0.6347036279275748,
+              0.8295652919701287
+            ],
+            "returns": [
+              [
+                0.6347036279275748,
+                0.8295652919701287
+              ],
+              [
+                0.8091844567506867,
+                0.6734031827968614
+              ],
+              [
+                0.8588778609511831,
+                0.47505128147177383
+              ],
+              [
+                0.7737986610875506,
+                0.2693867883887716
+              ],
+              [
+                0.5763638997227069,
+                0.14146250542211636
+              ],
+              [
+                0.37576456148814985,
+                0.1607476047507185
+              ],
+              [
+                0.1965772196348616,
+                0.28982588495553624
+              ],
+              [
+                0.14139175476318855,
+                0.5108115678614491
+              ],
+              [
+                0.22195090877695786,
+                0.7356030585914519
+              ],
+              [
+                0.4064224926978579,
+                0.846598941929852
+              ],
+              [
+                0.6347036279278169,
+                0.8295652919699105
+              ]
+            ],
+            "metrics": {
+              "closure": 3.2591345253937723e-13,
+              "earlier_return_min": 0.22891575291516897,
+              "cycle_excursion": 0.7171935156330137
+            },
+            "candidate": {
+              "period": 10,
+              "xy": [
+                0.6355651965074731,
+                0.8293037710385432
+              ],
+              "distance": 0.00026620880063877293,
+              "particle": 25,
+              "cycle": 3714
+            }
+          },
+          "continued_attempt": false
+        },
+        "result_sha256": "eb9d00a55f046e0002f82fb26231b7d1499c8d82c8c4df9112569fe59cb38b15"
+      },
+      {
+        "task": "verify-11-0-attempt2",
+        "call_id": "fc-01M7GBKQHS33RBWN0F3A9Y619R",
+        "inputs": {
+          "candidate": {
+            "period_cycles": 11,
+            "xy": [
+              0.43068748276614266,
+              0.392396125918566
+            ],
+            "returns": [
+              [
+                0.43068748276614266,
+                0.392396125918566
+              ],
+              [
+                0.4414148016067066,
+                0.38525104997710585
+              ],
+              [
+                0.44298432352172346,
+                0.3780142308919371
+              ],
+              [
+                0.4360739228044793,
+                0.3764406946491999
+              ],
+              [
+                0.4210237403277211,
+                0.3854466357211781
+              ],
+              [
+                0.42392285740985436,
+                0.39327122254846364
+              ],
+              [
+                0.4357959860608571,
+                0.39087681069730523
+              ],
+              [
+                0.4430358614435527,
+                0.38135671135782045
+              ],
+              [
+                0.4407887800706575,
+                0.376738492967638
+              ],
+              [
+                0.42794334435436154,
+                0.3787912220075032
+              ],
+              [
+                0.4217177320540007,
+                0.3900807847393938
+              ],
+              [
+                0.43068748276643054,
+                0.3923961259196264
+              ]
+            ],
+            "metrics": {
+              "closure": 1.098811241075009e-12,
+              "earlier_return_min": 0.005329645828163736,
+              "cycle_excursion": 0.018922240806127744
+            },
+            "candidate": {
+              "period": 11,
+              "xy": [
+                0.4305342501017445,
+                0.39238698008989314
+              ],
+              "distance": 9.041035445324267e-05,
+              "particle": 46,
+              "cycle": 2947
+            }
+          },
+          "continued_attempt": true
+        },
+        "result_sha256": "bbf5cda39028d23539f39db974cbe5ded81915a404accd9792fd96d4fcd30912"
+      },
+      {
+        "task": "verify-11-0",
+        "call_id": "fc-01M7GB8XK11P1THZWWHV7EA32J",
+        "inputs": {
+          "candidate": {
+            "period_cycles": 11,
+            "xy": [
+              0.43068748276614266,
+              0.392396125918566
+            ],
+            "returns": [
+              [
+                0.43068748276614266,
+                0.392396125918566
+              ],
+              [
+                0.4414148016067066,
+                0.38525104997710585
+              ],
+              [
+                0.44298432352172346,
+                0.3780142308919371
+              ],
+              [
+                0.4360739228044793,
+                0.3764406946491999
+              ],
+              [
+                0.4210237403277211,
+                0.3854466357211781
+              ],
+              [
+                0.42392285740985436,
+                0.39327122254846364
+              ],
+              [
+                0.4357959860608571,
+                0.39087681069730523
+              ],
+              [
+                0.4430358614435527,
+                0.38135671135782045
+              ],
+              [
+                0.4407887800706575,
+                0.376738492967638
+              ],
+              [
+                0.42794334435436154,
+                0.3787912220075032
+              ],
+              [
+                0.4217177320540007,
+                0.3900807847393938
+              ],
+              [
+                0.43068748276643054,
+                0.3923961259196264
+              ]
+            ],
+            "metrics": {
+              "closure": 1.098811241075009e-12,
+              "earlier_return_min": 0.005329645828163736,
+              "cycle_excursion": 0.018922240806127744
+            },
+            "candidate": {
+              "period": 11,
+              "xy": [
+                0.4305342501017445,
+                0.39238698008989314
+              ],
+              "distance": 9.041035445324267e-05,
+              "particle": 46,
+              "cycle": 2947
+            }
+          },
+          "continued_attempt": false
+        },
+        "result_sha256": "9a806992a79fb3d9ccd711ba4fdc3d595a3d9b17db5703d78fdcfb58bb17fef2"
+      },
+      {
+        "task": "verify-11-1",
+        "call_id": "fc-01M7GBXVKBRWM8FEKBX5YDDJPR",
+        "inputs": {
+          "candidate": {
+            "period_cycles": 11,
+            "xy": [
+              0.47614754260125947,
+              0.4187634208886234
+            ],
+            "returns": [
+              [
+                0.47614754260125947,
+                0.4187634208886234
+              ],
+              [
+                0.5154680704050272,
+                0.43062148579425585
+              ],
+              [
+                0.547081051095248,
+                0.46134543451136706
+              ],
+              [
+                0.5792111975666203,
+                0.4759454401464356
+              ],
+              [
+                0.5834168901474227,
+                0.5201132829094411
+              ],
+              [
+                0.5575784517193447,
+                0.556035546499116
+              ],
+              [
+                0.5195749959670264,
+                0.5646096833287898
+              ],
+              [
+                0.4778717568255212,
+                0.5183621775999131
+              ],
+              [
+                0.4534503240660781,
+                0.4723733723870221
+              ],
+              [
+                0.4404911928279494,
+                0.45171159739637196
+              ],
+              [
+                0.44907765489999607,
+                0.43232943255249734
+              ],
+              [
+                0.47614754259972525,
+                0.4187634208887103
+              ]
+            ],
+            "metrics": {
+              "closure": 1.5366780128499555e-12,
+              "earlier_return_min": 0.030278961221009138,
+              "cycle_excursion": 0.1596077361202167
+            },
+            "candidate": {
+              "period": 11,
+              "xy": [
+                0.47759995364109425,
+                0.41830717076953716
+              ],
+              "distance": 0.00025505473421628765,
+              "particle": 4,
+              "cycle": 496
+            }
+          },
+          "continued_attempt": false
+        },
+        "result_sha256": "8fe1fc2e0bcf7bdb9d13de3fdc5b1abcdfc17792359638e05f1930db622aa5f1"
+      },
+      {
+        "task": "verify-12-0",
+        "call_id": "fc-01M7GB8XQREDY1ZZZCYKPK4GPX",
+        "inputs": {
+          "candidate": {
+            "period_cycles": 12,
+            "xy": [
+              0.5622839225814344,
+              0.4616363468890306
+            ],
+            "returns": [
+              [
+                0.5622839225814344,
+                0.4616363468890306
+              ],
+              [
+                0.5901201860218596,
+                0.48595608278600605
+              ],
+              [
+                0.5803595659704829,
+                0.5328673258720389
+              ],
+              [
+                0.5506365068901038,
+                0.5606361441596734
+              ],
+              [
+                0.5086873353924732,
+                0.5622023393257896
+              ],
+              [
+                0.4733097003543764,
+                0.5096054796325312
+              ],
+              [
+                0.4459796270120959,
+                0.4703052133917215
+              ],
+              [
+                0.4335770689122668,
+                0.4538885508093878
+              ],
+              [
+                0.4377969997693457,
+                0.43675293163678375
+              ],
+              [
+                0.45932992487123736,
+                0.4179757908176681
+              ],
+              [
+                0.49058681894010564,
+                0.4136740503175717
+              ],
+              [
+                0.5316031170179949,
+                0.4339996001529906
+              ],
+              [
+                0.5622839225799572,
+                0.4616363468900794
+              ]
+            ],
+            "metrics": {
+              "closure": 1.8116921200702456e-12,
+              "earlier_return_min": 0.03696359176843322,
+              "cycle_excursion": 0.12893984072236267
+            },
+            "candidate": {
+              "period": 12,
+              "xy": [
+                0.5620690304185775,
+                0.4613908882807199
+              ],
+              "distance": 0.00034673663477290004,
+              "particle": 9,
+              "cycle": 84
+            }
+          },
+          "continued_attempt": false
+        },
+        "result_sha256": "4ad8e819aa703247727d70ee5b5ab57a8b5ab47671e697691a56de601fadcd3c"
+      },
+      {
+        "task": "verify-5-0",
+        "call_id": "fc-01M7GB8W6H83VESGGC1STZAX23",
+        "inputs": {
+          "candidate": {
+            "period_cycles": 5,
+            "xy": [
+              0.577701285207248,
+              0.38906639083393363
+            ],
+            "returns": [
+              [
+                0.577701285207248,
+                0.38906639083393363
+              ],
+              [
+                0.5729327470994595,
+                0.38857301749248263
+              ],
+              [
+                0.5715010296903584,
+                0.3915940020113817
+              ],
+              [
+                0.5757104714276109,
+                0.39462345869696025
+              ],
+              [
+                0.579539512576323,
+                0.3928290513170801
+              ],
+              [
+                0.5777012852072485,
+                0.38906639083393413
+              ]
+            ],
+            "metrics": {
+              "closure": 7.468261590855957e-16,
+              "earlier_return_min": 0.004187683580674248,
+              "cycle_excursion": 0.00669566925251535
+            },
+            "candidate": {
+              "period": 5,
+              "xy": [
+                0.5780986221309762,
+                0.38958792437158674
+              ],
+              "distance": 0.0003546520007891179,
+              "particle": 84,
+              "cycle": 10
+            }
+          },
+          "continued_attempt": false
+        },
+        "result_sha256": "8600e8b13cfc1e6c093d3b3a2521ea010c66f9b0c10d6e3a9a9d24ebf4759ca4"
+      },
+      {
+        "task": "verify-6-0-attempt2",
+        "call_id": "fc-01M7GBG6WC6XR2Y2ET2EZVWTKY",
+        "inputs": {
+          "candidate": {
+            "period_cycles": 6,
+            "xy": [
+              0.43603472492506673,
+              0.37604395636816057
+            ],
+            "returns": [
+              [
+                0.43603472492506673,
+                0.37604395636816057
+              ],
+              [
+                0.4203405066826263,
+                0.38579096603720986
+              ],
+              [
+                0.4231529498253138,
+                0.39370230388162053
+              ],
+              [
+                0.43548329985425466,
+                0.39155295931875256
+              ],
+              [
+                0.44369627963158653,
+                0.3818204037146094
+              ],
+              [
+                0.44345210148717595,
+                0.3767862683058583
+              ],
+              [
+                0.43603472492421913,
+                0.3760439563818302
+              ]
+            ],
+            "metrics": {
+              "closure": 1.369587395518368e-11,
+              "earlier_return_min": 0.007454428353467208,
+              "cycle_excursion": 0.02185766150865027
+            },
+            "candidate": {
+              "period": 6,
+              "xy": [
+                0.43626311831292064,
+                0.3759266579927303
+              ],
+              "distance": 0.00014137528252980907,
+              "particle": 46,
+              "cycle": 1987
+            }
+          },
+          "continued_attempt": true
+        },
+        "result_sha256": "d4257e7815945442766e87bfddf57d3845f0187991b08a3225b5021811830d73"
+      },
+      {
+        "task": "verify-6-0",
+        "call_id": "fc-01M7GB8WCKYPXRR6M931C4JNTS",
+        "inputs": {
+          "candidate": {
+            "period_cycles": 6,
+            "xy": [
+              0.43603472492506673,
+              0.37604395636816057
+            ],
+            "returns": [
+              [
+                0.43603472492506673,
+                0.37604395636816057
+              ],
+              [
+                0.4203405066826263,
+                0.38579096603720986
+              ],
+              [
+                0.4231529498253138,
+                0.39370230388162053
+              ],
+              [
+                0.43548329985425466,
+                0.39155295931875256
+              ],
+              [
+                0.44369627963158653,
+                0.3818204037146094
+              ],
+              [
+                0.44345210148717595,
+                0.3767862683058583
+              ],
+              [
+                0.43603472492421913,
+                0.3760439563818302
+              ]
+            ],
+            "metrics": {
+              "closure": 1.369587395518368e-11,
+              "earlier_return_min": 0.007454428353467208,
+              "cycle_excursion": 0.02185766150865027
+            },
+            "candidate": {
+              "period": 6,
+              "xy": [
+                0.43626311831292064,
+                0.3759266579927303
+              ],
+              "distance": 0.00014137528252980907,
+              "particle": 46,
+              "cycle": 1987
+            }
+          },
+          "continued_attempt": false
+        },
+        "result_sha256": "139b8f50cce2d528862514e8aebc802edda77059d122362f4d1b33b12cf4a86c"
+      },
+      {
+        "task": "verify-7-0",
+        "call_id": "fc-01M7GB8WJZV30HYQJKW5HJ1Q1A",
+        "inputs": {
+          "candidate": {
+            "period_cycles": 7,
+            "xy": [
+              0.621747000833038,
+              0.4685355478571297
+            ],
+            "returns": [
+              [
+                0.621747000833038,
+                0.4685355478571297
+              ],
+              [
+                0.6248172637840819,
+                0.4728385687139063
+              ],
+              [
+                0.6267611599064385,
+                0.4700672680628266
+              ],
+              [
+                0.6263733970723292,
+                0.46086986489115156
+              ],
+              [
+                0.6231995719217287,
+                0.45805046636201
+              ],
+              [
+                0.6213541945564748,
+                0.4583831530509438
+              ],
+              [
+                0.6207333214335097,
+                0.461486539147596
+              ],
+              [
+                0.6217470008330417,
+                0.46853554785713974
+              ]
+            ],
+            "metrics": {
+              "closure": 1.0694652252098413e-14,
+              "earlier_return_min": 0.005242895955662769,
+              "cycle_excursion": 0.010585220674459321
+            },
+            "candidate": {
+              "period": 7,
+              "xy": [
+                0.6214675524342594,
+                0.46784959100932755
+              ],
+              "distance": 0.0001844604363389981,
+              "particle": 28,
+              "cycle": 1264
+            }
+          },
+          "continued_attempt": false
+        },
+        "result_sha256": "d4f1011437da3905901e0195773f1515808e40a24725c996c6e2750a4810ac96"
+      },
+      {
+        "task": "verify-8-0-attempt2",
+        "call_id": "fc-01M7GBG76FD486BK4MHY5WFD2J",
+        "inputs": {
+          "candidate": {
+            "period_cycles": 8,
+            "xy": [
+              0.42944118441012136,
+              0.39422551771473224
+            ],
+            "returns": [
+              [
+                0.42944118441012136,
+                0.39422551771473224
+              ],
+              [
+                0.4419143205411574,
+                0.3868570385859728
+              ],
+              [
+                0.44692380329999576,
+                0.37892082740995964
+              ],
+              [
+                0.4480897891078579,
+                0.3753914511705145
+              ],
+              [
+                0.44651209019012367,
+                0.3739897835615747
+              ],
+              [
+                0.44164392939652225,
+                0.37408810240623575
+              ],
+              [
+                0.42657482464277036,
+                0.3786210003683357
+              ],
+              [
+                0.4199226060849953,
+                0.3911687231985178
+              ],
+              [
+                0.42944118441039814,
+                0.3942255177145583
+              ]
+            ],
+            "metrics": {
+              "closure": 3.268842615229511e-13,
+              "earlier_return_min": 0.00999736595538634,
+              "cycle_excursion": 0.02650457544961746
+            },
+            "candidate": {
+              "period": 8,
+              "xy": [
+                0.42897339374898324,
+                0.3943473637067069
+              ],
+              "distance": 0.0001663435458867996,
+              "particle": 8,
+              "cycle": 4668
+            }
+          },
+          "continued_attempt": true
+        },
+        "result_sha256": "1c666361939b45bbf5bd8c806b89dc9e22f8e452c703edb4be7e4c89805a8fb0"
+      },
+      {
+        "task": "verify-8-0",
+        "call_id": "fc-01M7GB8WW62JJKSHNYTTPT39T5",
+        "inputs": {
+          "candidate": {
+            "period_cycles": 8,
+            "xy": [
+              0.42944118441012136,
+              0.39422551771473224
+            ],
+            "returns": [
+              [
+                0.42944118441012136,
+                0.39422551771473224
+              ],
+              [
+                0.4419143205411574,
+                0.3868570385859728
+              ],
+              [
+                0.44692380329999576,
+                0.37892082740995964
+              ],
+              [
+                0.4480897891078579,
+                0.3753914511705145
+              ],
+              [
+                0.44651209019012367,
+                0.3739897835615747
+              ],
+              [
+                0.44164392939652225,
+                0.37408810240623575
+              ],
+              [
+                0.42657482464277036,
+                0.3786210003683357
+              ],
+              [
+                0.4199226060849953,
+                0.3911687231985178
+              ],
+              [
+                0.42944118441039814,
+                0.3942255177145583
+              ]
+            ],
+            "metrics": {
+              "closure": 3.268842615229511e-13,
+              "earlier_return_min": 0.00999736595538634,
+              "cycle_excursion": 0.02650457544961746
+            },
+            "candidate": {
+              "period": 8,
+              "xy": [
+                0.42897339374898324,
+                0.3943473637067069
+              ],
+              "distance": 0.0001663435458867996,
+              "particle": 8,
+              "cycle": 4668
+            }
+          },
+          "continued_attempt": false
+        },
+        "result_sha256": "6b262222dc10788b52359e2b948742c59510c669bd4c8dba04bf8786d3d8c5eb"
+      },
+      {
+        "task": "verify-9-0-attempt2",
+        "call_id": "fc-01M7GBG7D2F0FF4H8MZW8SWGCD",
+        "inputs": {
+          "candidate": {
+            "period_cycles": 9,
+            "xy": [
+              0.4474110052490636,
+              0.3685243188551613
+            ],
+            "returns": [
+              [
+                0.4474110052490636,
+                0.3685243188551613
+              ],
+              [
+                0.4327096970292267,
+                0.3744008704373055
+              ],
+              [
+                0.41549632916934637,
+                0.3895289969281558
+              ],
+              [
+                0.41822592868034664,
+                0.3970068032742176
+              ],
+              [
+                0.43239807893143983,
+                0.3962540137885273
+              ],
+              [
+                0.44663136814350896,
+                0.38610640151083786
+              ],
+              [
+                0.45425502061222567,
+                0.3775097113315746
+              ],
+              [
+                0.4594982881285811,
+                0.37233758648529486
+              ],
+              [
+                0.45755137166789306,
+                0.3692052709798812
+              ],
+              [
+                0.4474110052490334,
+                0.3685243188551079
+              ]
+            ],
+            "metrics": {
+              "closure": 6.134873841213927e-14,
+              "earlier_return_min": 0.010163204558813388,
+              "cycle_excursion": 0.04078014974229075
+            },
+            "candidate": {
+              "period": 9,
+              "xy": [
+                0.4472379312508188,
+                0.36872383660278735
+              ],
+              "distance": 0.00010892259193673612,
+              "particle": 46,
+              "cycle": 3186
+            }
+          },
+          "continued_attempt": true
+        },
+        "result_sha256": "081bb40829e95ee1fceae8b2187657d9fc537b9ff136b5d73ec5a1542706769d"
+      },
+      {
+        "task": "verify-9-0",
+        "call_id": "fc-01M7GB8X6303KKY9Z2RPAG1TH4",
+        "inputs": {
+          "candidate": {
+            "period_cycles": 9,
+            "xy": [
+              0.4474110052490636,
+              0.3685243188551613
+            ],
+            "returns": [
+              [
+                0.4474110052490636,
+                0.3685243188551613
+              ],
+              [
+                0.4327096970292267,
+                0.3744008704373055
+              ],
+              [
+                0.41549632916934637,
+                0.3895289969281558
+              ],
+              [
+                0.41822592868034664,
+                0.3970068032742176
+              ],
+              [
+                0.43239807893143983,
+                0.3962540137885273
+              ],
+              [
+                0.44663136814350896,
+                0.38610640151083786
+              ],
+              [
+                0.45425502061222567,
+                0.3775097113315746
+              ],
+              [
+                0.4594982881285811,
+                0.37233758648529486
+              ],
+              [
+                0.45755137166789306,
+                0.3692052709798812
+              ],
+              [
+                0.4474110052490334,
+                0.3685243188551079
+              ]
+            ],
+            "metrics": {
+              "closure": 6.134873841213927e-14,
+              "earlier_return_min": 0.010163204558813388,
+              "cycle_excursion": 0.04078014974229075
+            },
+            "candidate": {
+              "period": 9,
+              "xy": [
+                0.4472379312508188,
+                0.36872383660278735
+              ],
+              "distance": 0.00010892259193673612,
+              "particle": 46,
+              "cycle": 3186
+            }
+          },
+          "continued_attempt": false
+        },
+        "result_sha256": "f34a93ee17245aa00f42c9ae58f4c32f8a8308c47cdbcd11e43a6319fc7a0f80"
+      }
+    ],
+    "reproduction_source_sha256": {
+      "src/studies/periodic_particles.py": "4ed4cfd6eeb26f86f74235ffbc76794c6f1785e2415f4e8bc4ee1f54c4ff3192",
+      "src/diagnostics/studies/periodic_particles.py": "719f933444a84b796fdc383503c865f182040ce1f6e12b59dc4ef8298518ffd3",
+      "examples/modal_periodic_particles_app.py": "e191be725b9fac566aecd686d7ba786194d782c5a20c969b9d41a26da6043bee",
+      "scripts/select_periodic_particles.py": "a8928c8002cd74715b27ab3b94044676542fc8561e65cb3b418042c2cbd4743b"
+    },
+    "created_utc": "2026-11-15T19:48:29.618149+00:00"
+  },
+  "verification": {
+    "status": "passed",
+    "rho": 0.3,
+    "spatial_extension": "reflected",
+    "spatial_period": 2.0,
+    "distance_convention": "Unwrapped Euclidean closure in normalized base-cell coordinates; zero winding.",
+    "temporal_phase": 0.0,
+    "minimum_period_test": "All integer forcing-cycle returns before the claimed period.",
+    "distinctness_test": "All pairs of cycle returns, allowing phase shifts and period-two spatial copies; separation > 1e-4.",
+    "closure_tolerance": 1e-07,
+    "initial_position_refinement_tolerance": 1e-07,
+    "repeated_closure_tolerance": 1e-06,
+    "minimum_earlier_return_distance": 0.0001,
+    "finite_difference_step": 2e-06,
+    "shooting_tolerance": 2e-11,
+    "gauss_solver_absolute_tolerance": 1e-12,
+    "gauss_solver_relative_tolerance": 1e-11,
+    "gauss_solver_max_iterations": 40,
+    "backend": "jax",
+    "precision": "float64",
+    "executor": "modal",
+    "qualification": "Numerical verification at the stated finite resolutions; not a rigorous existence proof."
+  },
+  "execution": {
+    "tasks": [
+      {
+        "task": "search-10",
+        "worker_wall_seconds": 20.223561848,
+        "worker_process_cpu_seconds": 24.33,
+        "worker_started_unix_seconds": 1794771165.9330845,
+        "worker_finished_unix_seconds": 1794771186.157163,
+        "worker_timing_scope": "decode, preparation, JAX compilation, integration and diagnostics; excludes container startup and transfer",
+        "worker_cpu_requested_physical_cores": 2.0,
+        "worker_cpu_limit_physical_cores": 2.0,
+        "worker_visible_logical_cpus": 2,
+        "worker_memory_requested_mib": 4096,
+        "worker_memory_limit_mib": 8192,
+        "worker_process_lifetime_peak_rss_mib": 796.14453125,
+        "worker_cpu_model": "unknown",
+        "worker_python": "3.12.10",
+        "worker_jax": "0.7.1",
+        "worker_numpy": "1.26.4",
+        "worker_scipy": "1.17.1",
+        "cost_currency": "USD",
+        "cost_tariff_date": "2026-11-15",
+        "cost_tariff_source": "https://modal.com/pricing",
+        "cost_cpu_usd_per_core_second": 1.31e-05,
+        "cost_memory_usd_per_gib_second": 2.22e-06,
+        "cost_estimated_requested_resources_usd": 0.0007094425496278399,
+        "cost_estimated_limit_resources_usd": 0.00088902777883808,
+        "cost_estimate_scope": "measured worker interval only; resource-request and resource-limit scenarios; not an invoice",
+        "cost_billed_usd_status": "unavailable in worker result; reconcile with Modal billing separately",
+        "worker_cgroup_cpu_max": "unavailable",
+        "worker_cgroup_memory_max": "unavailable"
+      },
+      {
+        "task": "search-11",
+        "worker_wall_seconds": 11.688607805,
+        "worker_process_cpu_seconds": 14.75,
+        "worker_started_unix_seconds": 1794771174.2948675,
+        "worker_finished_unix_seconds": 1794771185.9837134,
+        "worker_timing_scope": "decode, preparation, JAX compilation, integration and diagnostics; excludes container startup and transfer",
+        "worker_cpu_requested_physical_cores": 2.0,
+        "worker_cpu_limit_physical_cores": 2.0,
+        "worker_visible_logical_cpus": 2,
+        "worker_memory_requested_mib": 4096,
+        "worker_memory_limit_mib": 8192,
+        "worker_process_lifetime_peak_rss_mib": 946.01171875,
+        "worker_cpu_model": "unknown",
+        "worker_python": "3.12.10",
+        "worker_jax": "0.7.1",
+        "worker_numpy": "1.26.4",
+        "worker_scipy": "1.17.1",
+        "cost_currency": "USD",
+        "cost_tariff_date": "2026-11-15",
+        "cost_tariff_source": "https://modal.com/pricing",
+        "cost_cpu_usd_per_core_second": 1.31e-05,
+        "cost_memory_usd_per_gib_second": 2.22e-06,
+        "cost_estimated_requested_resources_usd": 0.00041003636179939997,
+        "cost_estimated_limit_resources_usd": 0.0005138311991078,
+        "cost_estimate_scope": "measured worker interval only; resource-request and resource-limit scenarios; not an invoice",
+        "cost_billed_usd_status": "unavailable in worker result; reconcile with Modal billing separately",
+        "worker_cgroup_cpu_max": "unavailable",
+        "worker_cgroup_memory_max": "unavailable"
+      },
+      {
+        "task": "search-12",
+        "worker_wall_seconds": 18.474182458,
+        "worker_process_cpu_seconds": 23.840000000000003,
+        "worker_started_unix_seconds": 1794771177.5130353,
+        "worker_finished_unix_seconds": 1794771195.987527,
+        "worker_timing_scope": "decode, preparation, JAX compilation, integration and diagnostics; excludes container startup and transfer",
+        "worker_cpu_requested_physical_cores": 2.0,
+        "worker_cpu_limit_physical_cores": 2.0,
+        "worker_visible_logical_cpus": 2,
+        "worker_memory_requested_mib": 4096,
+        "worker_memory_limit_mib": 8192,
+        "worker_process_lifetime_peak_rss_mib": 966.3125,
+        "worker_cpu_model": "unknown",
+        "worker_python": "3.12.10",
+        "worker_jax": "0.7.1",
+        "worker_numpy": "1.26.4",
+        "worker_scipy": "1.17.1",
+        "cost_currency": "USD",
+        "cost_tariff_date": "2026-11-15",
+        "cost_tariff_source": "https://modal.com/pricing",
+        "cost_cpu_usd_per_core_second": 1.31e-05,
+        "cost_memory_usd_per_gib_second": 2.22e-06,
+        "cost_estimated_requested_resources_usd": 0.0006480743206266399,
+        "cost_estimated_limit_resources_usd": 0.0008121250608536801,
+        "cost_estimate_scope": "measured worker interval only; resource-request and resource-limit scenarios; not an invoice",
+        "cost_billed_usd_status": "unavailable in worker result; reconcile with Modal billing separately",
+        "worker_cgroup_cpu_max": "unavailable",
+        "worker_cgroup_memory_max": "unavailable"
+      },
+      {
+        "task": "search-13",
+        "worker_wall_seconds": 21.015205639,
+        "worker_process_cpu_seconds": 28.249999999999996,
+        "worker_started_unix_seconds": 1794771182.6026464,
+        "worker_finished_unix_seconds": 1794771203.6183758,
+        "worker_timing_scope": "decode, preparation, JAX compilation, integration and diagnostics; excludes container startup and transfer",
+        "worker_cpu_requested_physical_cores": 2.0,
+        "worker_cpu_limit_physical_cores": 2.0,
+        "worker_visible_logical_cpus": 2,
+        "worker_memory_requested_mib": 4096,
+        "worker_memory_limit_mib": 8192,
+        "worker_process_lifetime_peak_rss_mib": 960.375,
+        "worker_cpu_model": "unknown",
+        "worker_python": "3.12.10",
+        "worker_jax": "0.7.1",
+        "worker_numpy": "1.26.4",
+        "worker_scipy": "1.17.1",
+        "cost_currency": "USD",
+        "cost_tariff_date": "2026-11-15",
+        "cost_tariff_source": "https://modal.com/pricing",
+        "cost_cpu_usd_per_core_second": 1.31e-05,
+        "cost_memory_usd_per_gib_second": 2.22e-06,
+        "cost_estimated_requested_resources_usd": 0.00073721341381612,
+        "cost_estimated_limit_resources_usd": 0.0009238284398904401,
+        "cost_estimate_scope": "measured worker interval only; resource-request and resource-limit scenarios; not an invoice",
+        "cost_billed_usd_status": "unavailable in worker result; reconcile with Modal billing separately",
+        "worker_cgroup_cpu_max": "unavailable",
+        "worker_cgroup_memory_max": "unavailable"
+      },
+      {
+        "task": "search-14",
+        "worker_wall_seconds": 15.950826281000001,
+        "worker_process_cpu_seconds": 18.55,
+        "worker_started_unix_seconds": 1794771183.7428067,
+        "worker_finished_unix_seconds": 1794771199.6940563,
+        "worker_timing_scope": "decode, preparation, JAX compilation, integration and diagnostics; excludes container startup and transfer",
+        "worker_cpu_requested_physical_cores": 2.0,
+        "worker_cpu_limit_physical_cores": 2.0,
+        "worker_visible_logical_cpus": 2,
+        "worker_memory_requested_mib": 4096,
+        "worker_memory_limit_mib": 8192,
+        "worker_process_lifetime_peak_rss_mib": 986.234375,
+        "worker_cpu_model": "unknown",
+        "worker_python": "3.12.10",
+        "worker_jax": "0.7.1",
+        "worker_numpy": "1.26.4",
+        "worker_scipy": "1.17.1",
+        "cost_currency": "USD",
+        "cost_tariff_date": "2026-11-15",
+        "cost_tariff_source": "https://modal.com/pricing",
+        "cost_cpu_usd_per_core_second": 1.31e-05,
+        "cost_memory_usd_per_gib_second": 2.22e-06,
+        "cost_estimated_requested_resources_usd": 0.00055955498593748,
+        "cost_estimated_limit_resources_usd": 0.00070119832331276,
+        "cost_estimate_scope": "measured worker interval only; resource-request and resource-limit scenarios; not an invoice",
+        "cost_billed_usd_status": "unavailable in worker result; reconcile with Modal billing separately",
+        "worker_cgroup_cpu_max": "unavailable",
+        "worker_cgroup_memory_max": "unavailable"
+      },
+      {
+        "task": "search-15",
+        "worker_wall_seconds": 17.485031103999997,
+        "worker_process_cpu_seconds": 20.609999999999996,
+        "worker_started_unix_seconds": 1794771185.5366158,
+        "worker_finished_unix_seconds": 1794771203.0220737,
+        "worker_timing_scope": "decode, preparation, JAX compilation, integration and diagnostics; excludes container startup and transfer",
+        "worker_cpu_requested_physical_cores": 2.0,
+        "worker_cpu_limit_physical_cores": 2.0,
+        "worker_visible_logical_cpus": 2,
+        "worker_memory_requested_mib": 4096,
+        "worker_memory_limit_mib": 8192,
+        "worker_process_lifetime_peak_rss_mib": 1001.1171875,
+        "worker_cpu_model": "unknown",
+        "worker_python": "3.12.10",
+        "worker_jax": "0.7.1",
+        "worker_numpy": "1.26.4",
+        "worker_scipy": "1.17.1",
+        "cost_currency": "USD",
+        "cost_tariff_date": "2026-11-15",
+        "cost_tariff_source": "https://modal.com/pricing",
+        "cost_cpu_usd_per_core_second": 1.31e-05,
+        "cost_memory_usd_per_gib_second": 2.22e-06,
+        "cost_estimated_requested_resources_usd": 0.0006133748911283199,
+        "cost_estimated_limit_resources_usd": 0.0007686419673318399,
+        "cost_estimate_scope": "measured worker interval only; resource-request and resource-limit scenarios; not an invoice",
+        "cost_billed_usd_status": "unavailable in worker result; reconcile with Modal billing separately",
+        "worker_cgroup_cpu_max": "unavailable",
+        "worker_cgroup_memory_max": "unavailable"
+      },
+      {
+        "task": "search-17",
+        "worker_wall_seconds": 11.528024416000001,
+        "worker_process_cpu_seconds": 14.89,
+        "worker_started_unix_seconds": 1794771186.029015,
+        "worker_finished_unix_seconds": 1794771197.5573437,
+        "worker_timing_scope": "decode, preparation, JAX compilation, integration and diagnostics; excludes container startup and transfer",
+        "worker_cpu_requested_physical_cores": 2.0,
+        "worker_cpu_limit_physical_cores": 2.0,
+        "worker_visible_logical_cpus": 2,
+        "worker_memory_requested_mib": 4096,
+        "worker_memory_limit_mib": 8192,
+        "worker_process_lifetime_peak_rss_mib": 1115.58203125,
+        "worker_cpu_model": "unknown",
+        "worker_python": "3.12.10",
+        "worker_jax": "0.7.1",
+        "worker_numpy": "1.26.4",
+        "worker_scipy": "1.17.1",
+        "cost_currency": "USD",
+        "cost_tariff_date": "2026-11-15",
+        "cost_tariff_source": "https://modal.com/pricing",
+        "cost_cpu_usd_per_core_second": 1.31e-05,
+        "cost_memory_usd_per_gib_second": 2.22e-06,
+        "cost_estimated_requested_resources_usd": 0.00040440309651327996,
+        "cost_estimated_limit_resources_usd": 0.00050677195332736,
+        "cost_estimate_scope": "measured worker interval only; resource-request and resource-limit scenarios; not an invoice",
+        "cost_billed_usd_status": "unavailable in worker result; reconcile with Modal billing separately",
+        "worker_cgroup_cpu_max": "unavailable",
+        "worker_cgroup_memory_max": "unavailable"
+      },
+      {
+        "task": "search-5",
+        "worker_wall_seconds": 17.647873104,
+        "worker_process_cpu_seconds": 20.619999999999997,
+        "worker_started_unix_seconds": 1794771159.844964,
+        "worker_finished_unix_seconds": 1794771177.4931762,
+        "worker_timing_scope": "decode, preparation, JAX compilation, integration and diagnostics; excludes container startup and transfer",
+        "worker_cpu_requested_physical_cores": 2.0,
+        "worker_cpu_limit_physical_cores": 2.0,
+        "worker_visible_logical_cpus": 2,
+        "worker_memory_requested_mib": 4096,
+        "worker_memory_limit_mib": 8192,
+        "worker_process_lifetime_peak_rss_mib": 794.33984375,
+        "worker_cpu_model": "unknown",
+        "worker_python": "3.12.10",
+        "worker_jax": "0.7.1",
+        "worker_numpy": "1.26.4",
+        "worker_scipy": "1.17.1",
+        "cost_currency": "USD",
+        "cost_tariff_date": "2026-11-15",
+        "cost_tariff_source": "https://modal.com/pricing",
+        "cost_cpu_usd_per_core_second": 1.31e-05,
+        "cost_memory_usd_per_gib_second": 2.22e-06,
+        "cost_estimated_requested_resources_usd": 0.0006190873884883199,
+        "cost_estimated_limit_resources_usd": 0.00077580050165184,
+        "cost_estimate_scope": "measured worker interval only; resource-request and resource-limit scenarios; not an invoice",
+        "cost_billed_usd_status": "unavailable in worker result; reconcile with Modal billing separately",
+        "worker_cgroup_cpu_max": "unavailable",
+        "worker_cgroup_memory_max": "unavailable"
+      },
+      {
+        "task": "search-6",
+        "worker_wall_seconds": 22.82468626,
+        "worker_process_cpu_seconds": 24.729999999999997,
+        "worker_started_unix_seconds": 1794771160.8966417,
+        "worker_finished_unix_seconds": 1794771183.7217607,
+        "worker_timing_scope": "decode, preparation, JAX compilation, integration and diagnostics; excludes container startup and transfer",
+        "worker_cpu_requested_physical_cores": 2.0,
+        "worker_cpu_limit_physical_cores": 2.0,
+        "worker_visible_logical_cpus": 2,
+        "worker_memory_requested_mib": 4096,
+        "worker_memory_limit_mib": 8192,
+        "worker_process_lifetime_peak_rss_mib": 786.4453125,
+        "worker_cpu_model": "unknown",
+        "worker_python": "3.12.10",
+        "worker_jax": "0.7.1",
+        "worker_numpy": "1.26.4",
+        "worker_scipy": "1.17.1",
+        "cost_currency": "USD",
+        "cost_tariff_date": "2026-11-15",
+        "cost_tariff_source": "https://modal.com/pricing",
+        "cost_cpu_usd_per_core_second": 1.31e-05,
+        "cost_memory_usd_per_gib_second": 2.22e-06,
+        "cost_estimated_requested_resources_usd": 0.0008006899940007999,
+        "cost_estimated_limit_resources_usd": 0.0010033732079896,
+        "cost_estimate_scope": "measured worker interval only; resource-request and resource-limit scenarios; not an invoice",
+        "cost_billed_usd_status": "unavailable in worker result; reconcile with Modal billing separately",
+        "worker_cgroup_cpu_max": "unavailable",
+        "worker_cgroup_memory_max": "unavailable"
+      },
+      {
+        "task": "search-7",
+        "worker_wall_seconds": 13.80128385,
+        "worker_process_cpu_seconds": 17.200000000000003,
+        "worker_started_unix_seconds": 1794771160.483519,
+        "worker_finished_unix_seconds": 1794771174.2851527,
+        "worker_timing_scope": "decode, preparation, JAX compilation, integration and diagnostics; excludes container startup and transfer",
+        "worker_cpu_requested_physical_cores": 2.0,
+        "worker_cpu_limit_physical_cores": 2.0,
+        "worker_visible_logical_cpus": 2,
+        "worker_memory_requested_mib": 4096,
+        "worker_memory_limit_mib": 8192,
+        "worker_process_lifetime_peak_rss_mib": 789.5,
+        "worker_cpu_model": "unknown",
+        "worker_python": "3.12.10",
+        "worker_jax": "0.7.1",
+        "worker_numpy": "1.26.4",
+        "worker_scipy": "1.17.1",
+        "cost_currency": "USD",
+        "cost_tariff_date": "2026-11-15",
+        "cost_tariff_source": "https://modal.com/pricing",
+        "cost_cpu_usd_per_core_second": 1.31e-05,
+        "cost_memory_usd_per_gib_second": 2.22e-06,
+        "cost_estimated_requested_resources_usd": 0.000484149037458,
+        "cost_estimated_limit_resources_usd": 0.000606704438046,
+        "cost_estimate_scope": "measured worker interval only; resource-request and resource-limit scenarios; not an invoice",
+        "cost_billed_usd_status": "unavailable in worker result; reconcile with Modal billing separately",
+        "worker_cgroup_cpu_max": "unavailable",
+        "worker_cgroup_memory_max": "unavailable"
+      },
+      {
+        "task": "search-8",
+        "worker_wall_seconds": 23.462366290000002,
+        "worker_process_cpu_seconds": 27.46,
+        "worker_started_unix_seconds": 1794771162.0022204,
+        "worker_finished_unix_seconds": 1794771185.4650097,
+        "worker_timing_scope": "decode, preparation, JAX compilation, integration and diagnostics; excludes container startup and transfer",
+        "worker_cpu_requested_physical_cores": 2.0,
+        "worker_cpu_limit_physical_cores": 2.0,
+        "worker_visible_logical_cpus": 2,
+        "worker_memory_requested_mib": 4096,
+        "worker_memory_limit_mib": 8192,
+        "worker_process_lifetime_peak_rss_mib": 804.8203125,
+        "worker_cpu_model": "unknown",
+        "worker_python": "3.12.10",
+        "worker_jax": "0.7.1",
+        "worker_numpy": "1.26.4",
+        "worker_scipy": "1.17.1",
+        "cost_currency": "USD",
+        "cost_tariff_date": "2026-11-15",
+        "cost_tariff_source": "https://modal.com/pricing",
+        "cost_cpu_usd_per_core_second": 1.31e-05,
+        "cost_memory_usd_per_gib_second": 2.22e-06,
+        "cost_estimated_requested_resources_usd": 0.0008230598094532,
+        "cost_estimated_limit_resources_usd": 0.0010314056221084002,
+        "cost_estimate_scope": "measured worker interval only; resource-request and resource-limit scenarios; not an invoice",
+        "cost_billed_usd_status": "unavailable in worker result; reconcile with Modal billing separately",
+        "worker_cgroup_cpu_max": "unavailable",
+        "worker_cgroup_memory_max": "unavailable"
+      },
+      {
+        "task": "search-9",
+        "worker_wall_seconds": 21.263571577,
+        "worker_process_cpu_seconds": 25.05,
+        "worker_started_unix_seconds": 1794771161.2413163,
+        "worker_finished_unix_seconds": 1794771182.506341,
+        "worker_timing_scope": "decode, preparation, JAX compilation, integration and diagnostics; excludes container startup and transfer",
+        "worker_cpu_requested_physical_cores": 2.0,
+        "worker_cpu_limit_physical_cores": 2.0,
+        "worker_visible_logical_cpus": 2,
+        "worker_memory_requested_mib": 4096,
+        "worker_memory_limit_mib": 8192,
+        "worker_process_lifetime_peak_rss_mib": 796.25390625,
+        "worker_cpu_model": "unknown",
+        "worker_python": "3.12.10",
+        "worker_jax": "0.7.1",
+        "worker_numpy": "1.26.4",
+        "worker_scipy": "1.17.1",
+        "cost_currency": "USD",
+        "cost_tariff_date": "2026-11-15",
+        "cost_tariff_source": "https://modal.com/pricing",
+        "cost_cpu_usd_per_core_second": 1.31e-05,
+        "cost_memory_usd_per_gib_second": 2.22e-06,
+        "cost_estimated_requested_resources_usd": 0.00074592609092116,
+        "cost_estimated_limit_resources_usd": 0.00093474660652492,
+        "cost_estimate_scope": "measured worker interval only; resource-request and resource-limit scenarios; not an invoice",
+        "cost_billed_usd_status": "unavailable in worker result; reconcile with Modal billing separately",
+        "worker_cgroup_cpu_max": "unavailable",
+        "worker_cgroup_memory_max": "unavailable"
+      },
+      {
+        "task": "verify-10-0",
+        "worker_wall_seconds": 219.61816208800002,
+        "worker_process_cpu_seconds": 273.96000000000004,
+        "worker_started_unix_seconds": 1794771415.8375585,
+        "worker_finished_unix_seconds": 1794771635.4562206,
+        "worker_timing_scope": "decode, preparation, JAX compilation, integration and diagnostics; excludes container startup and transfer",
+        "worker_cpu_requested_physical_cores": 2.0,
+        "worker_cpu_limit_physical_cores": 2.0,
+        "worker_visible_logical_cpus": 2,
+        "worker_memory_requested_mib": 4096,
+        "worker_memory_limit_mib": 8192,
+        "worker_process_lifetime_peak_rss_mib": 2001.9375,
+        "worker_cpu_model": "unknown",
+        "worker_python": "3.12.10",
+        "worker_jax": "0.7.1",
+        "worker_numpy": "1.26.4",
+        "worker_scipy": "1.17.1",
+        "cost_currency": "USD",
+        "cost_tariff_date": "2026-11-15",
+        "cost_tariff_source": "https://modal.com/pricing",
+        "cost_cpu_usd_per_core_second": 1.31e-05,
+        "cost_memory_usd_per_gib_second": 2.22e-06,
+        "cost_estimated_requested_resources_usd": 0.0077042051260470396,
+        "cost_estimated_limit_resources_usd": 0.009654414405388482,
+        "cost_estimate_scope": "measured worker interval only; resource-request and resource-limit scenarios; not an invoice",
+        "cost_billed_usd_status": "unavailable in worker result; reconcile with Modal billing separately",
+        "worker_cgroup_cpu_max": "unavailable",
+        "worker_cgroup_memory_max": "unavailable"
+      },
+      {
+        "task": "verify-11-0-attempt2",
+        "worker_wall_seconds": 203.31242491100002,
+        "worker_process_cpu_seconds": 243.26,
+        "worker_started_unix_seconds": 1794771646.0527065,
+        "worker_finished_unix_seconds": 1794771849.3656337,
+        "worker_timing_scope": "decode, preparation, JAX compilation, integration and diagnostics; excludes container startup and transfer",
+        "worker_cpu_requested_physical_cores": 2.0,
+        "worker_cpu_limit_physical_cores": 2.0,
+        "worker_visible_logical_cpus": 2,
+        "worker_memory_requested_mib": 4096,
+        "worker_memory_limit_mib": 8192,
+        "worker_process_lifetime_peak_rss_mib": 1543.97265625,
+        "worker_cpu_model": "unknown",
+        "worker_python": "3.12.10",
+        "worker_jax": "0.7.1",
+        "worker_numpy": "1.26.4",
+        "worker_scipy": "1.17.1",
+        "cost_currency": "USD",
+        "cost_tariff_date": "2026-11-15",
+        "cost_tariff_source": "https://modal.com/pricing",
+        "cost_cpu_usd_per_core_second": 1.31e-05,
+        "cost_memory_usd_per_gib_second": 2.22e-06,
+        "cost_estimated_requested_resources_usd": 0.00713219986587788,
+        "cost_estimated_limit_resources_usd": 0.00893761419908756,
+        "cost_estimate_scope": "measured worker interval only; resource-request and resource-limit scenarios; not an invoice",
+        "cost_billed_usd_status": "unavailable in worker result; reconcile with Modal billing separately",
+        "worker_cgroup_cpu_max": "unavailable",
+        "worker_cgroup_memory_max": "unavailable"
+      },
+      {
+        "task": "verify-11-0",
+        "worker_wall_seconds": 100.01972835699999,
+        "worker_process_cpu_seconds": 130.92,
+        "worker_started_unix_seconds": 1794771390.3790672,
+        "worker_finished_unix_seconds": 1794771490.3991892,
+        "worker_timing_scope": "decode, preparation, JAX compilation, integration and diagnostics; excludes container startup and transfer",
+        "worker_cpu_requested_physical_cores": 2.0,
+        "worker_cpu_limit_physical_cores": 2.0,
+        "worker_visible_logical_cpus": 2,
+        "worker_memory_requested_mib": 4096,
+        "worker_memory_limit_mib": 8192,
+        "worker_process_lifetime_peak_rss_mib": 1989.546875,
+        "worker_cpu_model": "unknown",
+        "worker_python": "3.12.10",
+        "worker_jax": "0.7.1",
+        "worker_numpy": "1.26.4",
+        "worker_scipy": "1.17.1",
+        "cost_currency": "USD",
+        "cost_tariff_date": "2026-11-15",
+        "cost_tariff_source": "https://modal.com/pricing",
+        "cost_cpu_usd_per_core_second": 1.31e-05,
+        "cost_memory_usd_per_gib_second": 2.22e-06,
+        "cost_estimated_requested_resources_usd": 0.0035086920707635594,
+        "cost_estimated_limit_resources_usd": 0.004396867258573719,
+        "cost_estimate_scope": "measured worker interval only; resource-request and resource-limit scenarios; not an invoice",
+        "cost_billed_usd_status": "unavailable in worker result; reconcile with Modal billing separately",
+        "worker_cgroup_cpu_max": "unavailable",
+        "worker_cgroup_memory_max": "unavailable"
+      },
+      {
+        "task": "verify-11-1",
+        "worker_wall_seconds": 105.405714349,
+        "worker_process_cpu_seconds": 134.75,
+        "worker_started_unix_seconds": 1794771977.468987,
+        "worker_finished_unix_seconds": 1794772082.8754783,
+        "worker_timing_scope": "decode, preparation, JAX compilation, integration and diagnostics; excludes container startup and transfer",
+        "worker_cpu_requested_physical_cores": 2.0,
+        "worker_cpu_limit_physical_cores": 2.0,
+        "worker_visible_logical_cpus": 2,
+        "worker_memory_requested_mib": 4096,
+        "worker_memory_limit_mib": 8192,
+        "worker_process_lifetime_peak_rss_mib": 1626.85546875,
+        "worker_cpu_model": "unknown",
+        "worker_python": "3.12.10",
+        "worker_jax": "0.7.1",
+        "worker_numpy": "1.26.4",
+        "worker_scipy": "1.17.1",
+        "cost_currency": "USD",
+        "cost_tariff_date": "2026-11-15",
+        "cost_tariff_source": "https://modal.com/pricing",
+        "cost_cpu_usd_per_core_second": 1.31e-05,
+        "cost_memory_usd_per_gib_second": 2.22e-06,
+        "cost_estimated_requested_resources_usd": 0.0036976324593629194,
+        "cost_estimated_limit_resources_usd": 0.00463363520278204,
+        "cost_estimate_scope": "measured worker interval only; resource-request and resource-limit scenarios; not an invoice",
+        "cost_billed_usd_status": "unavailable in worker result; reconcile with Modal billing separately",
+        "worker_cgroup_cpu_max": "unavailable",
+        "worker_cgroup_memory_max": "unavailable"
+      },
+      {
+        "task": "verify-12-0",
+        "worker_wall_seconds": 123.698881773,
+        "worker_process_cpu_seconds": 153.95,
+        "worker_started_unix_seconds": 1794771401.9261138,
+        "worker_finished_unix_seconds": 1794771525.6253405,
+        "worker_timing_scope": "decode, preparation, JAX compilation, integration and diagnostics; excludes container startup and transfer",
+        "worker_cpu_requested_physical_cores": 2.0,
+        "worker_cpu_limit_physical_cores": 2.0,
+        "worker_visible_logical_cpus": 2,
+        "worker_memory_requested_mib": 4096,
+        "worker_memory_limit_mib": 8192,
+        "worker_process_lifetime_peak_rss_mib": 1949.54296875,
+        "worker_cpu_model": "unknown",
+        "worker_python": "3.12.10",
+        "worker_jax": "0.7.1",
+        "worker_numpy": "1.26.4",
+        "worker_scipy": "1.17.1",
+        "cost_currency": "USD",
+        "cost_tariff_date": "2026-11-15",
+        "cost_tariff_source": "https://modal.com/pricing",
+        "cost_cpu_usd_per_core_second": 1.31e-05,
+        "cost_memory_usd_per_gib_second": 2.22e-06,
+        "cost_estimated_requested_resources_usd": 0.00433935677259684,
+        "cost_estimated_limit_resources_usd": 0.0054378028427410794,
+        "cost_estimate_scope": "measured worker interval only; resource-request and resource-limit scenarios; not an invoice",
+        "cost_billed_usd_status": "unavailable in worker result; reconcile with Modal billing separately",
+        "worker_cgroup_cpu_max": "unavailable",
+        "worker_cgroup_memory_max": "unavailable"
+      },
+      {
+        "task": "verify-5-0",
+        "worker_wall_seconds": 100.502247583,
+        "worker_process_cpu_seconds": 128.39999999999998,
+        "worker_started_unix_seconds": 1794771289.7824469,
+        "worker_finished_unix_seconds": 1794771390.285325,
+        "worker_timing_scope": "decode, preparation, JAX compilation, integration and diagnostics; excludes container startup and transfer",
+        "worker_cpu_requested_physical_cores": 2.0,
+        "worker_cpu_limit_physical_cores": 2.0,
+        "worker_visible_logical_cpus": 2,
+        "worker_memory_requested_mib": 4096,
+        "worker_memory_limit_mib": 8192,
+        "worker_process_lifetime_peak_rss_mib": 1602.98046875,
+        "worker_cpu_model": "unknown",
+        "worker_python": "3.12.10",
+        "worker_jax": "0.7.1",
+        "worker_numpy": "1.26.4",
+        "worker_scipy": "1.17.1",
+        "cost_currency": "USD",
+        "cost_tariff_date": "2026-11-15",
+        "cost_tariff_source": "https://modal.com/pricing",
+        "cost_cpu_usd_per_core_second": 1.31e-05,
+        "cost_memory_usd_per_gib_second": 2.22e-06,
+        "cost_estimated_requested_resources_usd": 0.0035256188452116397,
+        "cost_estimated_limit_resources_usd": 0.00441807880374868,
+        "cost_estimate_scope": "measured worker interval only; resource-request and resource-limit scenarios; not an invoice",
+        "cost_billed_usd_status": "unavailable in worker result; reconcile with Modal billing separately",
+        "worker_cgroup_cpu_max": "unavailable",
+        "worker_cgroup_memory_max": "unavailable"
+      },
+      {
+        "task": "verify-6-0-attempt2",
+        "worker_wall_seconds": 43.010103619000006,
+        "worker_process_cpu_seconds": 51.190000000000005,
+        "worker_started_unix_seconds": 1794771529.0606124,
+        "worker_finished_unix_seconds": 1794771572.0710638,
+        "worker_timing_scope": "decode, preparation, JAX compilation, integration and diagnostics; excludes container startup and transfer",
+        "worker_cpu_requested_physical_cores": 2.0,
+        "worker_cpu_limit_physical_cores": 2.0,
+        "worker_visible_logical_cpus": 2,
+        "worker_memory_requested_mib": 4096,
+        "worker_memory_limit_mib": 8192,
+        "worker_process_lifetime_peak_rss_mib": 1189.046875,
+        "worker_cpu_model": "unknown",
+        "worker_python": "3.12.10",
+        "worker_jax": "0.7.1",
+        "worker_numpy": "1.26.4",
+        "worker_scipy": "1.17.1",
+        "cost_currency": "USD",
+        "cost_tariff_date": "2026-11-15",
+        "cost_tariff_source": "https://modal.com/pricing",
+        "cost_cpu_usd_per_core_second": 1.31e-05,
+        "cost_memory_usd_per_gib_second": 2.22e-06,
+        "cost_estimated_requested_resources_usd": 0.00150879443495452,
+        "cost_estimated_limit_resources_usd": 0.0018907241550912403,
+        "cost_estimate_scope": "measured worker interval only; resource-request and resource-limit scenarios; not an invoice",
+        "cost_billed_usd_status": "unavailable in worker result; reconcile with Modal billing separately",
+        "worker_cgroup_cpu_max": "unavailable",
+        "worker_cgroup_memory_max": "unavailable"
+      },
+      {
+        "task": "verify-6-0",
+        "worker_wall_seconds": 125.79409356,
+        "worker_process_cpu_seconds": 159.15,
+        "worker_started_unix_seconds": 1794771290.4126596,
+        "worker_finished_unix_seconds": 1794771416.2075074,
+        "worker_timing_scope": "decode, preparation, JAX compilation, integration and diagnostics; excludes container startup and transfer",
+        "worker_cpu_requested_physical_cores": 2.0,
+        "worker_cpu_limit_physical_cores": 2.0,
+        "worker_visible_logical_cpus": 2,
+        "worker_memory_requested_mib": 4096,
+        "worker_memory_limit_mib": 8192,
+        "worker_process_lifetime_peak_rss_mib": 1614.8125,
+        "worker_cpu_model": "unknown",
+        "worker_python": "3.12.10",
+        "worker_jax": "0.7.1",
+        "worker_numpy": "1.26.4",
+        "worker_scipy": "1.17.1",
+        "cost_currency": "USD",
+        "cost_tariff_date": "2026-11-15",
+        "cost_tariff_source": "https://modal.com/pricing",
+        "cost_cpu_usd_per_core_second": 1.31e-05,
+        "cost_memory_usd_per_gib_second": 2.22e-06,
+        "cost_estimated_requested_resources_usd": 0.004412856802084799,
+        "cost_estimated_limit_resources_usd": 0.005529908352897599,
+        "cost_estimate_scope": "measured worker interval only; resource-request and resource-limit scenarios; not an invoice",
+        "cost_billed_usd_status": "unavailable in worker result; reconcile with Modal billing separately",
+        "worker_cgroup_cpu_max": "unavailable",
+        "worker_cgroup_memory_max": "unavailable"
+      },
+      {
+        "task": "verify-7-0",
+        "worker_wall_seconds": 113.109147822,
+        "worker_process_cpu_seconds": 143.56,
+        "worker_started_unix_seconds": 1794771290.545662,
+        "worker_finished_unix_seconds": 1794771403.6551874,
+        "worker_timing_scope": "decode, preparation, JAX compilation, integration and diagnostics; excludes container startup and transfer",
+        "worker_cpu_requested_physical_cores": 2.0,
+        "worker_cpu_limit_physical_cores": 2.0,
+        "worker_visible_logical_cpus": 2,
+        "worker_memory_requested_mib": 4096,
+        "worker_memory_limit_mib": 8192,
+        "worker_process_lifetime_peak_rss_mib": 1610.30078125,
+        "worker_cpu_model": "unknown",
+        "worker_python": "3.12.10",
+        "worker_jax": "0.7.1",
+        "worker_numpy": "1.26.4",
+        "worker_scipy": "1.17.1",
+        "cost_currency": "USD",
+        "cost_tariff_date": "2026-11-15",
+        "cost_tariff_source": "https://modal.com/pricing",
+        "cost_cpu_usd_per_core_second": 1.31e-05,
+        "cost_memory_usd_per_gib_second": 2.22e-06,
+        "cost_estimated_requested_resources_usd": 0.003967868905595759,
+        "cost_estimated_limit_resources_usd": 0.00497227813825512,
+        "cost_estimate_scope": "measured worker interval only; resource-request and resource-limit scenarios; not an invoice",
+        "cost_billed_usd_status": "unavailable in worker result; reconcile with Modal billing separately",
+        "worker_cgroup_cpu_max": "unavailable",
+        "worker_cgroup_memory_max": "unavailable"
+      },
+      {
+        "task": "verify-8-0-attempt2",
+        "worker_wall_seconds": 81.850953496,
+        "worker_process_cpu_seconds": 95.92,
+        "worker_started_unix_seconds": 1794771530.242636,
+        "worker_finished_unix_seconds": 1794771612.0941675,
+        "worker_timing_scope": "decode, preparation, JAX compilation, integration and diagnostics; excludes container startup and transfer",
+        "worker_cpu_requested_physical_cores": 2.0,
+        "worker_cpu_limit_physical_cores": 2.0,
+        "worker_visible_logical_cpus": 2,
+        "worker_memory_requested_mib": 4096,
+        "worker_memory_limit_mib": 8192,
+        "worker_process_lifetime_peak_rss_mib": 1227.5546875,
+        "worker_cpu_model": "unknown",
+        "worker_python": "3.12.10",
+        "worker_jax": "0.7.1",
+        "worker_numpy": "1.26.4",
+        "worker_scipy": "1.17.1",
+        "cost_currency": "USD",
+        "cost_tariff_date": "2026-11-15",
+        "cost_tariff_source": "https://modal.com/pricing",
+        "cost_cpu_usd_per_core_second": 1.31e-05,
+        "cost_memory_usd_per_gib_second": 2.22e-06,
+        "cost_estimated_requested_resources_usd": 0.0028713314486396796,
+        "cost_estimated_limit_resources_usd": 0.00359816791568416,
+        "cost_estimate_scope": "measured worker interval only; resource-request and resource-limit scenarios; not an invoice",
+        "cost_billed_usd_status": "unavailable in worker result; reconcile with Modal billing separately",
+        "worker_cgroup_cpu_max": "unavailable",
+        "worker_cgroup_memory_max": "unavailable"
+      },
+      {
+        "task": "verify-8-0",
+        "worker_wall_seconds": 111.265019959,
+        "worker_process_cpu_seconds": 137.94,
+        "worker_started_unix_seconds": 1794771290.4291756,
+        "worker_finished_unix_seconds": 1794771401.6946957,
+        "worker_timing_scope": "decode, preparation, JAX compilation, integration and diagnostics; excludes container startup and transfer",
+        "worker_cpu_requested_physical_cores": 2.0,
+        "worker_cpu_limit_physical_cores": 2.0,
+        "worker_visible_logical_cpus": 2,
+        "worker_memory_requested_mib": 4096,
+        "worker_memory_limit_mib": 8192,
+        "worker_process_lifetime_peak_rss_mib": 1588.8203125,
+        "worker_cpu_model": "unknown",
+        "worker_python": "3.12.10",
+        "worker_jax": "0.7.1",
+        "worker_numpy": "1.26.4",
+        "worker_scipy": "1.17.1",
+        "cost_currency": "USD",
+        "cost_tariff_date": "2026-11-15",
+        "cost_tariff_source": "https://modal.com/pricing",
+        "cost_cpu_usd_per_core_second": 1.31e-05,
+        "cost_memory_usd_per_gib_second": 2.22e-06,
+        "cost_estimated_requested_resources_usd": 0.0039031769001617194,
+        "cost_estimated_limit_resources_usd": 0.00489121027739764,
+        "cost_estimate_scope": "measured worker interval only; resource-request and resource-limit scenarios; not an invoice",
+        "cost_billed_usd_status": "unavailable in worker result; reconcile with Modal billing separately",
+        "worker_cgroup_cpu_max": "unavailable",
+        "worker_cgroup_memory_max": "unavailable"
+      },
+      {
+        "task": "verify-9-0-attempt2",
+        "worker_wall_seconds": 72.42891129899999,
+        "worker_process_cpu_seconds": 87.44,
+        "worker_started_unix_seconds": 1794771534.763563,
+        "worker_finished_unix_seconds": 1794771607.193117,
+        "worker_timing_scope": "decode, preparation, JAX compilation, integration and diagnostics; excludes container startup and transfer",
+        "worker_cpu_requested_physical_cores": 2.0,
+        "worker_cpu_limit_physical_cores": 2.0,
+        "worker_visible_logical_cpus": 2,
+        "worker_memory_requested_mib": 4096,
+        "worker_memory_limit_mib": 8192,
+        "worker_process_lifetime_peak_rss_mib": 1177.0,
+        "worker_cpu_model": "unknown",
+        "worker_python": "3.12.10",
+        "worker_jax": "0.7.1",
+        "worker_numpy": "1.26.4",
+        "worker_scipy": "1.17.1",
+        "cost_currency": "USD",
+        "cost_tariff_date": "2026-11-15",
+        "cost_tariff_source": "https://modal.com/pricing",
+        "cost_cpu_usd_per_core_second": 1.31e-05,
+        "cost_memory_usd_per_gib_second": 2.22e-06,
+        "cost_estimated_requested_resources_usd": 0.0025408062083689194,
+        "cost_estimated_limit_resources_usd": 0.0031839749407040394,
+        "cost_estimate_scope": "measured worker interval only; resource-request and resource-limit scenarios; not an invoice",
+        "cost_billed_usd_status": "unavailable in worker result; reconcile with Modal billing separately",
+        "worker_cgroup_cpu_max": "unavailable",
+        "worker_cgroup_memory_max": "unavailable"
+      },
+      {
+        "task": "verify-9-0",
+        "worker_wall_seconds": 131.729293142,
+        "worker_process_cpu_seconds": 167.83,
+        "worker_started_unix_seconds": 1794771291.4413106,
+        "worker_finished_unix_seconds": 1794771423.1710541,
+        "worker_timing_scope": "decode, preparation, JAX compilation, integration and diagnostics; excludes container startup and transfer",
+        "worker_cpu_requested_physical_cores": 2.0,
+        "worker_cpu_limit_physical_cores": 2.0,
+        "worker_visible_logical_cpus": 2,
+        "worker_memory_requested_mib": 4096,
+        "worker_memory_limit_mib": 8192,
+        "worker_process_lifetime_peak_rss_mib": 1616.76171875,
+        "worker_cpu_model": "unknown",
+        "worker_python": "3.12.10",
+        "worker_jax": "0.7.1",
+        "worker_numpy": "1.26.4",
+        "worker_scipy": "1.17.1",
+        "cost_currency": "USD",
+        "cost_tariff_date": "2026-11-15",
+        "cost_tariff_source": "https://modal.com/pricing",
+        "cost_cpu_usd_per_core_second": 1.31e-05,
+        "cost_memory_usd_per_gib_second": 2.22e-06,
+        "cost_estimated_requested_resources_usd": 0.004621063603421359,
+        "cost_estimated_limit_resources_usd": 0.00579081972652232,
+        "cost_estimate_scope": "measured worker interval only; resource-request and resource-limit scenarios; not an invoice",
+        "cost_billed_usd_status": "unavailable in worker result; reconcile with Modal billing separately",
+        "worker_cgroup_cpu_max": "unavailable",
+        "worker_cgroup_memory_max": "unavailable"
+      }
+    ],
+    "task_count": 25,
+    "sum_worker_wall_seconds": 1747.10990259,
+    "estimated_requested_resources_usd": 0.061288615382857195,
+    "estimated_limit_resources_usd": 0.0768029513178564,
+    "currency": "USD",
+    "billed_cost_status": "unavailable",
+    "scope": "Measured completed worker intervals, including search and continued attempts; excludes container startup, idle time, transfer and work lost to preemption."
+  }
+}

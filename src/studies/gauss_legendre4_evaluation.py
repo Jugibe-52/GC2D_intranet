@@ -537,7 +537,7 @@ def run_gauss_legendre4_evaluation(
 		dynamics,
 		problem.initial_state,
 		request.output_times,
-		period=potential.grid.period,
+		period=potential.spatial_period,
 		relative_tolerance=config.reference_relative_tolerance,
 		absolute_tolerance=config.reference_absolute_tolerance,
 		maximum_step=config.reference_maximum_step,
@@ -576,7 +576,7 @@ def run_gauss_legendre4_evaluation(
 			"GaussLegendre4",
 			solution.states.T,
 			reference.states,
-			period=potential.grid.period,
+			period=potential.spatial_period,
 			distance_convention="periodic",
 		)
 		energy_request: SimulationRequest = SimulationRequest.uniform(
@@ -618,7 +618,7 @@ def run_gauss_legendre4_evaluation(
 			"GaussLegendre4 tighter Newton audit",
 			solution.states.T,
 			newton_audit_solution.states.T,
-			period=potential.grid.period,
+			period=potential.spatial_period,
 			distance_convention="periodic",
 		)
 		duration: float = float(reference.times[-1] - reference.times[0])

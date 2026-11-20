@@ -6,13 +6,15 @@ from diagnostics.studies.comparison import time_integrated_rms_floor
 
 from dynamics.gc import GuidingCenterDynamics
 
+from dataclasses import replace
 import unittest
+from unittest.mock import patch
 
 import matplotlib.pyplot as plt
 import numpy as np
 
 
-from potential import Potential
+from potential import Grid, Potential
 from studies import (
 	GAUSS_BM4_METHODS,
 	GaussBM4ComparisonConfig,
@@ -39,6 +41,7 @@ def _problem_data() -> tuple[Potential, np.ndarray]:
 			ny=16,
 			seed=27,
 			interpolation_order=3,
+			spatial_extension="periodic",
 		),
 		np.array(np.asarray((1.0, 1.2)), dtype=float, copy=True),
 	)
@@ -141,6 +144,43 @@ class GaussLegendre4StudyTests(unittest.TestCase):
 			reference_floor=time_integrated_rms_floor(result.reference),
 		)
 		plt.close(figure)
+
+	def test_reflected_stationary_corner_has_undefined_error_ratio(self) -> None:
+		grid = Grid.periodic(8, 8, period=1.0)
+		axis = np.linspace(0.0, 1.0, 9)
+		profile = 3 * axis**2 - 2 * axis**3
+		closed = profile[:, None] + profile[None, :]
+		potential = Potential(grid, mean=closed[:-1, :-1], reflected_samples=closed[None])
+		self.assertEqual(potential.spatial_extension, "reflected")
+		config = GaussBM4ComparisonConfig(
+			integration_steps=(0.02, 0.01), t_span=(0.0, 0.04), save_interval=0.02,
+			rho=0.0, timing_warmups=0, timing_repeats=1,
+			reference_maximum_step=0.005, audit_maximum_step=0.0025,
+		)
+		result = run_gauss_bm4_comparison(potential, np.zeros(2), config=config)
+		for method_solutions in result.solutions.values():
+			for solution in method_solutions.values():
+				np.testing.assert_array_equal(solution.states, np.zeros_like(solution.states))
+		for row in result.summaries():
+			self.assertEqual(row.time_integrated_rms_distance, 0.0)
+		for ratio in result.equal_step_ratios():
+			self.assertTrue(np.isnan(ratio.gauss_to_bm4_error_ratio))
+			self.assertTrue(np.isfinite(ratio.bm4_to_gauss_runtime_ratio))
+			self.assertGreater(ratio.bm4_to_gauss_runtime_ratio, 0.0)
+		for order in result.observed_orders():
+			self.assertFalse(order.resolved_above_reference_floor)
+			self.assertTrue(np.isnan(order.time_integrated_rms_order))
+		self.assertEqual(result.equal_accuracy_ratios(), ())
+
+		# Distinguish an undefined 0/0 from a positive error over an exact result,
+		# while preserving ordinary finite ratios when the denominator is positive.
+		for gauss_error, bm4_error, expected in ((1e-6, 0.0, np.inf), (0.0, 1e-6, 0.0), (1e-6, 2e-6, 0.5)):
+			rows = tuple(replace(row, time_integrated_rms_distance=(
+				gauss_error if row.method_name == "GaussLegendre4" else bm4_error
+			)) for row in result.summaries())
+			with patch.object(type(result), "summaries", return_value=rows):
+				for ratio in result.equal_step_ratios():
+					self.assertEqual(ratio.gauss_to_bm4_error_ratio, expected)
 
 
 if __name__ == "__main__":

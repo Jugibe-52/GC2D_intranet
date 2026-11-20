@@ -41,12 +41,13 @@ def plot_stored_gc_solution(record: StoredSolution) -> Figure:
     figure.colorbar(background, ax=axes[0], label="Effective potential at initial time")
     wrapped_x: np.ndarray
     wrapped_y: np.ndarray
-    wrapped_x, wrapped_y = field.grid.normalize(x, y)
+    wrapped_x, wrapped_y = field.display_coordinates(x, y)
     energy: Any = field.evaluate(solution.t, x, y)
     for particle in range(x.shape[0]):
         label = f"Particle {particle + 1}"
         # Break curves at periodic jumps instead of drawing across the cell.
-        jumps = np.hypot(np.diff(wrapped_x[particle]), np.diff(wrapped_y[particle])) > field.grid.period / 2
+        jumps = (field.spatial_extension == "periodic") & (
+            np.hypot(np.diff(wrapped_x[particle]), np.diff(wrapped_y[particle])) > field.grid.period / 2)
         px: Any
         py: Any
         px, py = wrapped_x[particle].copy(), wrapped_y[particle].copy()

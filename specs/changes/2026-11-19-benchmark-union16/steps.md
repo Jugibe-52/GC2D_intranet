@@ -1,0 +1,4 @@
+- [x] Verify exact selected records and a reduced paired execution.
+- [x] Run nine cases, verify repetition and cache checks, and read back 18 B2 trajectories.
+- [x] Execute notebooks on saved data, regenerate both figures and update documentation.
+- [x] Check changed Python modules, notebook syntax and specification records.

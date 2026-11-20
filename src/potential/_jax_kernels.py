@@ -11,6 +11,7 @@ import jax
 import jax.numpy as jnp
 
 from ._evaluation import normalize_coordinates, reconstruct
+from ._spatial import reflected_coordinates
 
 
 def _basis(knots: Any, points: Any, degree: int, derivative: int) -> tuple[Any, Any]:
@@ -48,11 +49,11 @@ def _basis(knots: Any, points: Any, degree: int, derivative: int) -> tuple[Any, 
     return indices, jnp.stack([value[derivative] for value in weights], axis=-1)
 
 
-@partial(jax.jit, static_argnames=("degree", "dx", "dy", "dt"))
+@partial(jax.jit, static_argnames=("degree", "dx", "dy", "dt", "spatial_extension"))
 def evaluate_splines(
     time: Any, x: Any, y: Any, knots_x: Any, knots_y: Any,
     coefficients: Any, frequencies: Any, origin: Any, period: Any,
-    *, degree: int, dx: int, dy: int, dt: int,
+    *, degree: int, dx: int, dy: int, dt: int, spatial_extension: str = "periodic",
 ) -> Any:
     """Evaluate paired periodic coordinates, preserving JAX array placement.
 
@@ -60,7 +61,12 @@ def evaluate_splines(
     The mean and all complex modes share the same spatial basis and lookup.
     """
     time, x, y = jnp.broadcast_arrays(time, x, y)
-    x, y = normalize_coordinates(x, y, origin, period)
+    factor: Any = 1.0
+    if spatial_extension == "reflected":
+        x, y, sx, sy = reflected_coordinates(x, y, origin, period, xp=jnp)
+        factor = sx**dx * sy**dy
+    else:
+        x, y = normalize_coordinates(x, y, origin, period)
     ix: jax.Array
     wx: jax.Array
     ix, wx = _basis(knots_x, x, degree, dx)
@@ -69,7 +75,7 @@ def evaluate_splines(
     iy, wy = _basis(knots_y, y, degree, dy)
     local = coefficients[:, ix[..., :, None], iy[..., None, :]]
     fields: jax.Array = jnp.sum(local * wx[..., :, None] * wy[..., None, :], axis=(-2, -1))
-    return reconstruct(time, fields, frequencies, dt, xp=jnp)
+    return reconstruct(time, fields * factor, frequencies, dt, xp=jnp)
 
 
 __all__: list[str] = []

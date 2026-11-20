@@ -228,7 +228,7 @@ class ABBA4ImplicitAccuracyResult:
 	def summaries(self) -> tuple[ABBA4ImplicitAccuracySummary, ...]:
 		"""Return error, work, and runtime metrics from coarse to fine."""
 		rows: list[ABBA4ImplicitAccuracySummary] = []
-		period: float = float(self.potential.grid.period)
+		period: float = float(self.potential.spatial_period)
 		floor: float = max(self.reference_floor, float(np.finfo(float).eps))
 		duration: float = float(self.times[-1] - self.times[0])
 		for step in self.config.integration_steps:
@@ -373,7 +373,7 @@ def run_abba4_implicit_accuracy_study(
 			"ABBA4Implicit",
 			solution.states.T,
 			reference.states[:, indices],
-			period=float(potential.grid.period),
+			period=float(potential.spatial_period),
 			distance_convention=distance_convention,
 		)
 	assert reference_indices is not None

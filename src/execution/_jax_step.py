@@ -21,6 +21,8 @@ from methods.base import IntegrationMethod
 from methods.implicit import ImplicitIntegrationMethod
 from methods.runge_kutta.euler import ExplicitEuler
 from methods.runge_kutta.rk4 import RK4
+from methods.runge_kutta.rk2 import RK2
+from methods.runge_kutta.implicit_midpoint import ImplicitMidpoint
 from methods.runge_kutta.gauss_legendre import GaussLegendre4
 from methods.runge_kutta.implicit import _StageEvaluation, ImplicitRungeKutta
 from methods.runge_kutta.explicit import ExplicitRungeKutta
@@ -45,7 +47,7 @@ for _record, _metadata in ((_StageEvaluation, ()), (_ResidualPayload, ()),
 		data_fields=[item.name for item in fields(_record) if item.name not in _metadata],
 		meta_fields=list(_metadata))
 
-_SUPPORTED_FIXED = (ExplicitRungeKutta, DiagonallyImplicitRungeKutta, ImplicitRungeKutta, ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42,
+_SUPPORTED_FIXED = (ExplicitRungeKutta, DiagonallyImplicitRungeKutta, ImplicitRungeKutta, ExplicitEuler, RK2, ImplicitMidpoint, RK4, GaussLegendre4, SDIRK4, HBVM42,
 	ABBA2Implicit, ABBA4Implicit, ABBA2Midpoint, BM4Implicit,
 	BM4Midpoint, PalindromicImplicit, PalindromicMidpoint)
 

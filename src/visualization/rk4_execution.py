@@ -38,7 +38,7 @@ def plot_rk4_execution_comparison(comparison: RK4ExecutionComparison) -> Any:
     axes[0, 0].bar(keys, median, yerr=np.stack((median-low, high-median)), capsize=5)
     axes[0, 0].set(title="Complete integration time after warm-up", ylabel="Seconds (median and IQR)")
     reference = comparison.solutions["scipy_cpu_0"]
-    period = comparison.potential.grid.period
+    period = comparison.potential.spatial_period
     for key, solution in comparison.solutions.items():
         if key != "scipy_cpu_0":
             discrepancy: np.ndarray = periodic_discrepancy(reference, solution, period)

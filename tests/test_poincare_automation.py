@@ -1,6 +1,7 @@
 """Independent geometry, physical scaling, numerical references and archive reuse."""
 
 from dataclasses import replace
+from hashlib import sha256
 import importlib.util
 from itertools import product
 import json
@@ -20,6 +21,7 @@ from potential.potential import Potential
 from studies.poincare_automation import (
 	AutomationConfig, METHODS, fixed_particle_fractions, load_automation_field,
 	prepare_automation_case, run_automation_case, validate_saved_automation, automation_method,
+	canonical_json, PARTICLE_SET,
 )
 from studies.poincare_automation_io import (
 	case_key, prepare_automation, read_automation, run_automation, load_completed_case,
@@ -71,18 +73,47 @@ class AutomationTests(unittest.TestCase):
 		self.assertEqual(p.case.B, 1.5)
 		self.assertTrue(config.spatial_rescaling and config.temporal_rescaling)
 		self.assertEqual(p.metadata['time_convention'], 'physical_cycles')
+		self.assertEqual(config.spatial_extension, 'reflected')
+		self.assertEqual(p.metadata['spatial_extension'], 'reflected')
+		self.assertEqual(p.metadata['spatial_period'], 2*p.dynamics.potential.grid.period)
 
 	def test_invalid_choices_and_collision_free_case_matrix(self):
 		for kw in [dict(rhos=()),dict(rhos=(.3,.3)),dict(rhos=(-1.,)),dict(rhos=(True,)),
 			dict(rhos=(np.nan,)),dict(magnetic_fields=(0.,)),dict(methods=('FC',)),dict(methods=()),
 			dict(cycles=True),dict(steps_per_cycle=1.5),dict(spatial_rescaling=1),dict(sigma=-1),
-			dict(coupling_frequency=.3),dict(source_index=0),dict(backend='other'),dict(device='gpu')]:
+			dict(coupling_frequency=.3),dict(source_index=0),dict(backend='other'),dict(device='gpu'),
+			dict(spatial_extension='unknown'),dict(interpolation_order=5)]:
 			with self.subTest(kw=kw), self.assertRaises((TypeError, ValueError)):
 				replace(self.config, **kw)
 		c = replace(self.config, rhos=(.3,.300000001), magnetic_fields=(1.5,-2.), methods=METHODS)
 		self.assertEqual(len(c.cases()),16)
 		self.assertEqual(len({case_key(c, case) for case in c.cases()}),16)
 		self.assertNotEqual(case_key(c,c.cases()[0]),case_key(replace(c,cycles=3),c.cases()[0]))
+		self.assertNotEqual(case_key(c,c.cases()[0]),case_key(replace(c,spatial_extension='periodic'),c.cases()[0]))
+
+	def test_legacy_configuration_keeps_periodic_model_and_exact_archive_keys(self):
+		periodic=replace(self.config,spatial_extension='periodic',cycles=1)
+		raw=periodic.to_dict(); raw.pop('spatial_extension')
+		legacy=AutomationConfig.from_dict(raw)
+		self.assertEqual(legacy.spatial_extension,'periodic')
+		self.assertEqual(legacy.to_dict(),raw)
+		case=legacy.cases()[0]
+		expected_key=sha256(canonical_json(dict(config=raw,
+			case=dict(rho=case.rho,B=case.B,method=case.method),particle_set=PARTICLE_SET)).encode()).hexdigest()
+		self.assertEqual(case_key(legacy,case),expected_key)
+		prepared=self.prepared(legacy)
+		current=self.prepared(periodic).metadata.copy()
+		current.pop('input_digest'); current.pop('spatial_extension'); current.pop('spatial_period')
+		current.update(schema_version=1,config=raw)
+		current['input_digest']=sha256(canonical_json(current).encode()).hexdigest()
+		self.assertEqual(prepared.metadata,current)
+		directory=prepare_automation(legacy,self.root,self.root/'legacy')
+		run_automation(directory)
+		loaded,_,_=read_automation(directory)
+		self.assertEqual(loaded.to_dict(),raw)
+		with patch('studies.poincare_automation.simulate',side_effect=AssertionError('must reuse')):
+			run_automation(directory)
+		load_completed_case(directory,prepared)
 
 	def test_fields_rho_and_time_scale_for_all_representations(self):
 		raw = Potential.load(self.source, indx=(1,))

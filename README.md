@@ -162,7 +162,8 @@ potential = Potential.random(
     nx=64,
     ny=64,
     seed=27,
-    interpolation_order=5,
+    interpolation_order=3,
+    spatial_extension="reflected",
 )
 configuration = GuidingCenterDynamics.coordinates.pack_components(
     np.asarray([np.pi]),
@@ -404,7 +405,8 @@ potential_config = RandomPotentialConfig(
     nx=64,
     ny=64,
     seed=27,
-    interpolation_order=5,
+    interpolation_order=3,
+    spatial_extension="reflected",
 )
 potential = potential_config.build()
 area = centered_circle(potential, radius=0.5, points=16)
@@ -418,7 +420,7 @@ config = AreaComparisonConfig(
 result = run_area_comparison(
     potential,
     area,
-    notebook_path="notebooks/experiments/area_study.ipynb",
+    notebook_path="notebooks/developements/experiments/area_study.ipynb",
     config=config,
     metadata={**potential_config.metadata(), "geometry": "circle"},
 )
@@ -524,14 +526,20 @@ are exposed by `visualization`.
 
 ## Examples and notebooks
 
-Fast supported scripts live in `examples/`. Git versions notebooks only in:
+Fast supported scripts live in `examples/`. Local notebooks include:
 
-- `notebooks/experiments/`: reproducible scientific experiment artifacts;
-- `notebooks/sympy/`: symbolic derivations supporting numerical methods.
+- `notebooks/developements/experiments/`: scientific experiment notebooks;
+- `notebooks/developements/sympy/`: symbolic derivations supporting numerical methods.
 
 `notebooks/developements/` contains local working notebooks and remains
 ignored. Generated outputs live below
 `outputs/<notebook folder>/<notebook>/<date>/` and are not versioned.
+
+The intended Colab publication destination is `COLAB NOTEBOOKS/MEMOIRE_TFM`
+in Google Drive. The entire `developements` tree is excluded. The personal
+`publicar-notebooks-colab` and `comprobar-notebooks-colab` skills handle
+explicitly selected notebooks and their status. The registry is currently
+empty, Drive access remains pending, and no CI deployment is active.
 
 Local and reusable AWS notebook execution is selected by one attribute; see
 [`docs/cloud-notebook-execution.md`](docs/cloud-notebook-execution.md).
@@ -553,3 +561,10 @@ python -m build
 Explicit A/B/T/C recipes and generic palindromic methods are described in [the palindromic operation guide](docs/models/palindromic/simulation/palindromic-operations.md); see `examples/palindromic_time.py` for center/end time placement.
 
 [Contract locations and canonical imports](docs/simulation/contracts.md).
+
+## Spatial extension
+
+New potentials default to `spatial_extension="reflected"` with constrained cubic
+splines. Select `"periodic"` explicitly for the previous model and degrees 2–5.
+The [spatial extension guide](docs/dynamics/spatial-extension.md) describes
+the physical period, gyroaverage, display and archive compatibility.

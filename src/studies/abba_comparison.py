@@ -227,7 +227,7 @@ class ABBAComparisonResult:
 	) -> tuple[ABBATrajectoryDifferenceSeries, ...]:
 		"""Return pairwise RMS and maximum particle distances on the periodic cell."""
 		series: list[ABBATrajectoryDifferenceSeries] = []
-		period = self.potential.grid.period
+		period = self.potential.spatial_period
 		for first_method, second_method in combinations(ABBA_METHOD_NAMES, 2):
 			first: States = self._solution(first_method)
 			second: States = self._solution(second_method)

@@ -31,6 +31,7 @@ def load_poincare_probe(directory: Path, *, expected_contract: dict | None = Non
         if 'copy_separation_norms' in arrays:
             result['copy_separation_norms'] = arrays['copy_separation_norms'].copy()
     result.update(runtime_seconds=metadata['runtime_seconds'], step_count=metadata['step_count'])
+    result['spatial_extension'] = metadata.get('spatial_extension', 'periodic')
     if 'method_diagnostics' in metadata:
         result['method_diagnostics'] = metadata['method_diagnostics']
     return result, metadata
@@ -59,6 +60,7 @@ def save_poincare_probe(directory: Path, result: dict, *, contract: dict) -> Pat
     metadata: dict[str, Any] = dict(contract=contract, runtime_seconds=result['runtime_seconds'],
                     step_count=result['step_count'], coordinate_layout='(step, particle, xy), unwrapped',
                     initial_state_included=True, sample_scope='Every complete step, including initial state')
+    metadata['spatial_extension'] = result.get('spatial_extension', 'periodic')
     if 'method_diagnostics' in result:
         metadata['method_diagnostics'] = result['method_diagnostics']
     (directory / 'metadata.json').write_text(json.dumps(metadata, indent=2) + '\n')

@@ -1,0 +1,6 @@
+- [x] Inspect section 4.2, reference selection and existing Modal/persistence facilities.
+- [x] Implement and validate a reduced eight-method run, including compilation-cache checks.
+- [x] Execute 32 integrations of 500 cycles in Modal and verify saved B2 results.
+- [x] Execute the visualization notebook and check figures and provenance.
+- [x] Write section 4.3, compile main.pdf and review the log.
+- [x] Validate SDD records and report actual results.

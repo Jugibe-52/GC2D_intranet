@@ -24,7 +24,8 @@ class ProbeTests(unittest.TestCase):
     def test_linear_gc_drift_keeps_every_step_across_chunks_and_wraps_only_for_display(self):
         # Phi=cos(x) gives constant x and y'=-sin(x). At x=pi/2 it crosses y=0.
         grid = Grid.periodic(128, 16)
-        potential = Potential(grid, mean=np.cos(grid.x)[:, None] * np.ones(grid.shape))
+        potential = Potential(grid, mean=np.cos(grid.x)[:, None] * np.ones(grid.shape),
+                              spatial_extension="periodic")
         result = integrate_rk4_probe(potential, self.settings)
         self.assertEqual(result['step_count'], 60)
         self.assertEqual(result['xy'].shape, (61, 1, 2))
@@ -50,6 +51,16 @@ class ProbeTests(unittest.TestCase):
                 stream.write(b'corruption')
             with self.assertRaisesRegex(ValueError, 'checksum mismatch'):
                 load_rk4_probe(directory)
+
+    def test_reflected_probe_display_survives_storage(self):
+        settings = replace(self.settings, cycles=1, steps_per_cycle=1, chunk_steps=1)
+        result = dict(times=np.array([0., 1.]), xy=np.array([[[.25, .05]], [[1.25, -.2]]]),
+                      step_count=1, runtime_seconds=.1, spatial_extension="reflected")
+        with tempfile.TemporaryDirectory() as tmp:
+            save_rk4_probe(Path(tmp), result, contract={"cycles": 1})
+            loaded, _ = load_rk4_probe(Path(tmp))
+        np.testing.assert_allclose(probe_section(loaded, settings, 1.)[1, 0], [.75, .2])
+        np.testing.assert_array_equal(loaded["xy"], result["xy"])
 
     def test_panel_keeps_background_ids_colors_and_cycle_alignment(self):
         background = SimpleNamespace(positions=np.arange(16).reshape(4,2,2)/20,

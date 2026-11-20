@@ -12,7 +12,7 @@ from visualization import plot_implicit_method_iterations
 
 class ReusedThreeMethodTests(unittest.TestCase):
     def test_reuse_and_substep_csv(self):
-        p=RandomPotentialConfig(amplitude=.2,max_wave_number=3,nx=16,ny=16,seed=27,interpolation_order=5).build()
+        p=RandomPotentialConfig(amplitude=.2,max_wave_number=3,nx=16,ny=16,seed=27,interpolation_order=5, spatial_extension="periodic").build()
         ic=latin_hypercube_gc_configuration(p,particle_count=3,seed=20260905,domain_margin_fraction=.35)
         c=FiveMethodComparisonConfig(t_span=(0.,.04),integration_step=.02,save_interval=.02,timing_warmups=0,timing_repeats=1,progress=False)
         a=run_five_method_comparison(p,ic,config=c)
@@ -26,7 +26,7 @@ class ReusedThreeMethodTests(unittest.TestCase):
         plt.close("all")
 
     def test_recompute_dop853_and_reuse_radau(self):
-        p=RandomPotentialConfig(amplitude=.2,max_wave_number=3,nx=16,ny=16,seed=27,interpolation_order=5).build()
+        p=RandomPotentialConfig(amplitude=.2,max_wave_number=3,nx=16,ny=16,seed=27,interpolation_order=5, spatial_extension="periodic").build()
         ic=latin_hypercube_gc_configuration(p,particle_count=3,seed=20260905,domain_margin_fraction=.35)
         c=FiveMethodComparisonConfig(t_span=(0.,.04),integration_step=.02,save_interval=.02,timing_warmups=0,timing_repeats=1,progress=False)
         original=run_five_method_comparison(p,ic,config=c)
@@ -42,7 +42,7 @@ class ReusedThreeMethodTests(unittest.TestCase):
         self.assertEqual(refined.execution_log[0].method_name, 'DOP853')
 
     def test_parallel_model_campaigns(self):
-        p=RandomPotentialConfig(amplitude=.2,max_wave_number=3,nx=16,ny=16,seed=27,interpolation_order=5).build()
+        p=RandomPotentialConfig(amplitude=.2,max_wave_number=3,nx=16,ny=16,seed=27,interpolation_order=5, spatial_extension="periodic").build()
         ic=latin_hypercube_gc_configuration(p,particle_count=3,seed=20260905,domain_margin_fraction=.35)
         c=FiveMethodComparisonConfig(t_span=(0.,.04),integration_step=.02,save_interval=.02,timing_warmups=0,timing_repeats=2,progress=False)
         reference=run_five_method_comparison(p,ic,config=replace(c, timing_repeats=1)).reference

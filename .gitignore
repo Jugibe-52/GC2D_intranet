@@ -13,18 +13,9 @@ logs/
 *.log
 *.mat
 
-# Experiment, symbolic-derivation, and developements_2 notebooks are versioned.
-# Development notebooks remain local working files.
-notebooks/*
+# Notebooks outside developements are versioned with their data/ inputs.
+# Only developements belongs to the notebook Backblaze synchronization.
 notebooks/developements/
-!notebooks/experiments/
-!notebooks/experiments/**
-!notebooks/sympy/
-!notebooks/sympy/**
-!notebooks/developements_2/
-
-# Keep this oversized notebook local.
-notebooks/developements_2/accuracy/compare_three_order4_r4_models.ipynb
 
 # LaTeX sources and deliberate PDFs are versioned; compiler intermediates are
 # reproducible build products.

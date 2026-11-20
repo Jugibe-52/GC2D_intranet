@@ -50,6 +50,7 @@ def _potential() -> Potential:
 		nx=16,
 		ny=16,
 		seed=27,
+		spatial_extension="periodic",
 		interpolation_order=5,
 	)
 

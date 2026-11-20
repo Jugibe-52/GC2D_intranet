@@ -20,7 +20,8 @@ potential = Potential.random(
 	nx=16,
 	ny=16,
 	seed=27,
-	interpolation_order=5,
+	interpolation_order=3,
+	spatial_extension="reflected",
 )
 configuration = InitialConditions.gc(x=[1.0], y=[1.2])
 request = SimulationRequest.uniform(

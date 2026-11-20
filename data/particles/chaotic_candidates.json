@@ -1,0 +1,175 @@
+{
+  "schema_version": 1,
+  "source_h5": "data/potential/V1/PHI_2.h5",
+  "source_sha256": "4bbd873cd05992e0a615d66ebbf4d96b38c8b3c36be2ca62932e66af7e6d4ced",
+  "coordinate_units": {
+    "position_m": "meters",
+    "cell_fraction": "fraction of the historical base cell width"
+  },
+  "cell_bounds_m": [
+    0.0007031250000002487,
+    0.00035156249999999993,
+    0.1799999999998363
+  ],
+  "display_potential": {
+    "spatial_extension": "reflected",
+    "source_field_indices": [
+      15
+    ],
+    "constant_field_index": 0,
+    "magnetic_field_T": 1.5,
+    "default_rho": 0.3
+  },
+  "dataset_id": "chaotic_candidates",
+  "title": "8 candidate chaotic particles",
+  "description": "User-selected original IDs 12, 15, 18, 21, 24, 27, 30 and 33; chaotic behavior has not been verified for the reflected potential.",
+  "particle_count": 8,
+  "target_particle_count": 8,
+  "status": "candidates",
+  "particles": [
+    {
+      "id": 12,
+      "position_m": [
+        0.07544593637509946,
+        0.10560875112473708
+      ],
+      "cell_fraction": [
+        0.41523784097315103,
+        0.5847621590268489
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#1ad2d2"
+    },
+    {
+      "id": 15,
+      "position_m": [
+        0.0907031249999184,
+        0.06289002403840466
+      ],
+      "cell_fraction": [
+        0.5,
+        0.3474358974358974
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#2aefa1"
+    },
+    {
+      "id": 18,
+      "position_m": [
+        0.11428241651100221,
+        0.11393085401100195
+      ],
+      "cell_fraction": [
+        0.6309960639505848,
+        0.6309960639505847
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#6dfe62"
+    },
+    {
+      "id": 21,
+      "position_m": [
+        0.051472355769184845,
+        0.09035156249991814
+      ],
+      "cell_fraction": [
+        0.28205128205128205,
+        0.5
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#acfb38"
+    },
+    {
+      "id": 24,
+      "position_m": [
+        0.12260451939726708,
+        0.05845016810256945
+      ],
+      "cell_fraction": [
+        0.6772299688743205,
+        0.32277003112567937
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#d9e436"
+    },
+    {
+      "id": 27,
+      "position_m": [
+        0.0907031249999184,
+        0.14135156249987174
+      ],
+      "cell_fraction": [
+        0.5,
+        0.7833333333333331
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#f8be39"
+    },
+    {
+      "id": 30,
+      "position_m": [
+        0.05047962771630483,
+        0.05012806521630459
+      ],
+      "cell_fraction": [
+        0.2765361262019436,
+        0.2765361262019437
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#fd8d27"
+    },
+    {
+      "id": 33,
+      "position_m": [
+        0.15347235576909207,
+        0.09035156249991814
+      ],
+      "cell_fraction": [
+        0.8487179487179487,
+        0.5
+      ],
+      "parent": null,
+      "kind": "original",
+      "color": "#ef5811"
+    }
+  ],
+  "provenance": {
+    "campaign": "main-20261115",
+    "campaign_sha256": "d9506b5f9980be6e811b3a3a80e6d40f2d197eeebdd3a620d9f448a9972dfe96",
+    "original_particle_record_sha256": "03fcdec505ae6a8635488cb9de32c6538fa980f639f4eeacce201dd601df77f0",
+    "historical_particle_ids": [
+      12,
+      15,
+      18,
+      21,
+      24,
+      27,
+      30,
+      33
+    ],
+    "selection_source": "data/particles/original_40.json",
+    "selection": "Eight original star particles selected by the user on 2026-11-16, adding particle 33 to the preceding seven-particle selection."
+  },
+  "selection": {
+    "classification": "user_selected_candidates",
+    "selected_on": "2026-11-16",
+    "particle_ids": [
+      12,
+      15,
+      18,
+      21,
+      24,
+      27,
+      30,
+      33
+    ],
+    "verified_for_reflected_potential": false
+  }
+}

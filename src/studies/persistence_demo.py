@@ -50,6 +50,7 @@ class PersistenceDemoConfig:
     t_span: tuple[float, float]
     max_step: float
     sample_count: int
+    spatial_extension: str = "reflected"
 
 
 def run_persistence_demo(
@@ -60,6 +61,7 @@ def run_persistence_demo(
         A=config.amplitude, M=config.maximum_wave_number,
         nx=config.nx, ny=config.ny, seed=config.seed,
         interpolation_order=config.interpolation_order,
+        spatial_extension=config.spatial_extension,
     )
     grid = potential.grid
     fractions: np.ndarray = np.asarray(config.radial_fractions, dtype=float)
@@ -89,7 +91,8 @@ def run_persistence_demo(
         "potential_recipe": {"factory": "Potential.random", "A": config.amplitude,
                              "M": config.maximum_wave_number, "nx": config.nx,
                              "ny": config.ny, "seed": config.seed,
-                             "interpolation_order": config.interpolation_order},
+                             "interpolation_order": config.interpolation_order,
+                             "spatial_extension": potential.spatial_extension},
         "source_sha256": digest.hexdigest(),
         "purpose": "Storage smoke test; not a method accuracy comparison.",
     }

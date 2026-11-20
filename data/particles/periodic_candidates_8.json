@@ -1,0 +1,193 @@
+{
+  "schema_version": 1,
+  "source_h5": "data/potential/V1/PHI_2.h5",
+  "source_sha256": "4bbd873cd05992e0a615d66ebbf4d96b38c8b3c36be2ca62932e66af7e6d4ced",
+  "coordinate_units": {
+    "position_m": "meters",
+    "cell_fraction": "fraction of the historical base cell width"
+  },
+  "cell_bounds_m": [
+    0.0007031250000002487,
+    0.00035156249999999993,
+    0.1799999999998363
+  ],
+  "display_potential": {
+    "spatial_extension": "reflected",
+    "source_field_indices": [
+      15
+    ],
+    "constant_field_index": 0,
+    "magnetic_field_T": 1.5,
+    "default_rho": 0.3
+  },
+  "dataset_id": "periodic_candidates_8",
+  "title": "8 candidate periodic particles",
+  "description": "User-selected IDs 1, 2, 60, 64, 65, 72, 76 and 83 from the 84-particle dataset; periodicity has not been verified for the reflected potential.",
+  "particle_count": 8,
+  "target_particle_count": 8,
+  "status": "candidates",
+  "particles": [
+    {
+      "id": 1,
+      "position_m": [
+        0.0907031249999184,
+        0.09035156249991814
+      ],
+      "cell_fraction": [
+        0.5,
+        0.5
+      ],
+      "parent": 1,
+      "kind": "original",
+      "color": "#372466"
+    },
+    {
+      "id": 2,
+      "position_m": [
+        0.0920901421476292,
+        0.09173857964762895
+      ],
+      "cell_fraction": [
+        0.5077056508206226,
+        0.5077056508206226
+      ],
+      "parent": 2,
+      "kind": "original",
+      "color": "#3d358b"
+    },
+    {
+      "id": 60,
+      "parent": 41,
+      "side": "outer-far",
+      "signed_width_fraction": 0.04,
+      "distance_m": 7.4218326156819006e-06,
+      "cell_fraction": [
+        0.44073608154859295,
+        0.581680044225323
+      ],
+      "position_m": [
+        0.08003561967867483,
+        0.10505397046046293
+      ],
+      "kind": "neighbor",
+      "color": "#0b1019"
+    },
+    {
+      "id": 64,
+      "parent": 42,
+      "side": "outer-far",
+      "signed_width_fraction": 0.04,
+      "distance_m": 0.00010592239905291038,
+      "cell_fraction": [
+        0.4417667305885278,
+        0.5901846619353012
+      ],
+      "position_m": [
+        0.08022113650586293,
+        0.1065848016482576
+      ],
+      "kind": "neighbor",
+      "color": "#51269a"
+    },
+    {
+      "id": 65,
+      "parent": 43,
+      "side": "inner-near",
+      "signed_width_fraction": -0.02,
+      "distance_m": 4.01233627298531e-06,
+      "cell_fraction": [
+        0.6072785564873048,
+        0.5674939128320098
+      ],
+      "position_m": [
+        0.1100132651676157,
+        0.10250046680966886
+      ],
+      "kind": "neighbor",
+      "color": "#ec409e"
+    },
+    {
+      "id": 72,
+      "parent": 44,
+      "side": "outer-far",
+      "signed_width_fraction": 0.04,
+      "distance_m": 0.00010079131454586625,
+      "cell_fraction": [
+        0.6027604666391632,
+        0.5758061321255852
+      ],
+      "position_m": [
+        0.10920000899495094,
+        0.10399666628251107
+      ],
+      "kind": "neighbor",
+      "color": "#5f2a09"
+    },
+    {
+      "id": 76,
+      "parent": 45,
+      "side": "outer-far",
+      "signed_width_fraction": 0.04,
+      "distance_m": 2.568540426402128e-05,
+      "cell_fraction": [
+        0.4317230206833127,
+        0.38574082753132216
+      ],
+      "position_m": [
+        0.07841326872292585,
+        0.06978491145557483
+      ],
+      "kind": "neighbor",
+      "color": "#055e74"
+    },
+    {
+      "id": 83,
+      "parent": 48,
+      "side": "outer-near",
+      "signed_width_fraction": 0.02,
+      "distance_m": 2.391051550351008e-05,
+      "cell_fraction": [
+        0.5791305243546484,
+        0.3917753251516462
+      ],
+      "position_m": [
+        0.10494661938374215,
+        0.07087112102723218
+      ],
+      "kind": "neighbor",
+      "color": "#a20f33"
+    }
+  ],
+  "provenance": {
+    "campaign": "main-20261115",
+    "campaign_sha256": "d9506b5f9980be6e811b3a3a80e6d40f2d197eeebdd3a620d9f448a9972dfe96",
+    "original_particle_record_sha256": "03fcdec505ae6a8635488cb9de32c6538fa980f639f4eeacce201dd601df77f0",
+    "historical_particle_ids": [
+      1,
+      2,
+      60,
+      64,
+      65,
+      72,
+      76,
+      83
+    ],
+    "selection_source": "data/particles/expanded_84.json",
+    "selection": "Eight particles selected by the user on 2026-11-16 for the study of periodicity."
+  },
+  "selection": {
+    "classification": "user_selected_candidates",
+    "selected_on": "2026-11-16",
+    "particle_ids": [
+      1,
+      2,
+      60,
+      64,
+      65,
+      72,
+      76,
+      83
+    ],
+    "verified_for_reflected_potential": false
+  }
+}

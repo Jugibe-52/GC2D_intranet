@@ -74,7 +74,7 @@ class DiagnosticValidationContracts(unittest.TestCase):
 			self.assertEqual(tuple(root.iterdir()), ())
 
 	def test_sampling_skips_snapshot_checks_and_energy_rejection_is_atomic(self) -> None:
-		potential = Potential.random(A=0.03, M=2, nx=8, ny=8, seed=7, interpolation_order=5)
+		potential = Potential.random(A=0.03, M=2, nx=8, ny=8, seed=7, spatial_extension="periodic", interpolation_order=5)
 		dynamics = GuidingCenterDynamics(potential, rho=0.02)
 		configuration = GuidingCenterDynamics.coordinates.pack_components(np.array([1.0]), np.array([1.2]))
 		events: list[IntegrationStep] = []

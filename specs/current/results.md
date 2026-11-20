@@ -68,8 +68,9 @@ specialized CSV/NPZ/HDF5 study formats retain their component-first contracts.
 Pass `solution.states.T` when those consumers need a packed history.
 `select(indices)` selects rows; independent diagnostic axes are unchanged.
 
-`save_solution` writes schema 2 time rows. `load_solution` converts schema 1
-columns using the archive version, never shape inference. Old files are not
+`save_solution` writes time rows with schema 3 for reflected potentials and
+schema 2 for periodic potentials or no field. `load_solution` accepts schemas
+1/2/3 and converts schema 1 columns using the archive version, never shape inference. Old files are not
 rewritten. Completed States pickles also carry a history version; older
 States pickles with the supported restoration function decode as columns.
 Compiled kernels may keep component-first work arrays and transpose once

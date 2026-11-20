@@ -23,7 +23,7 @@ def _potential(degree: int = 3) -> JaxPotential:
         grid, mean=0.2 * np.cos(x) * np.sin(y),
         modes=np.stack((0.1 * np.sin(x + y) + 0.04j * np.cos(x - y),
                         0.03 * np.cos(2 * x) + 0.02j * np.sin(y))),
-        frequencies=np.array([1.0, 0.37]), interpolation_order=degree,
+        frequencies=np.array([1.0, 0.37]), spatial_extension="periodic", interpolation_order=degree,
     )
 
 

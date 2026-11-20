@@ -152,7 +152,7 @@ def audit_saved_reference_refinement(
 			raise ValueError("The standard reference must refine step and both tolerances.")
 	indices: np.ndarray = saved_sample_indices(coarse, reference.times)
 	distance: np.ndarray = particle_distances(reference.states, coarse.states[:, indices],
-		period=potential.grid.period, distance_convention=config.distance_convention)
+		period=potential.spatial_period, distance_convention=config.distance_convention)
 	arrays = {"reference.full_times": reference.times,
 		"reference.full_audit_distance": reference.audit_distances,
 		"reference.refinement_distance": distance}
@@ -193,7 +193,7 @@ def run_bm4_projection_comparison(
 	request: SimulationRequest = SimulationRequest.uniform(t_span=config.t_span,
 		sample_count=config.output_sample_count)
 	times = request.output_times
-	period = potential.grid.period if config.distance_convention == "periodic" else None
+	period = potential.spatial_period if config.distance_convention == "periodic" else None
 	implicit: BM4Implicit = BM4Implicit(
 		solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_relative_step=config.jacobian_relative_step, jacobian_method='analytic'),
 	)

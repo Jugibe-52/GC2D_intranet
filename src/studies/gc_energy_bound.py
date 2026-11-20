@@ -223,7 +223,7 @@ def run_gc_energy_bound_study(
                 K_error = H+momenta[name]-H[0]
                 H_error = H[method_indices]-ref_H
                 distance = particle_distances(solution.states[method_indices].T, ref_states,
-                    distance_convention="periodic", period=potential.grid.period)[0]
+                    distance_convention="periodic", period=potential.spatial_period)[0]
                 prefix = f"h{level}/{name}"
                 values: Any
                 for label, values in {

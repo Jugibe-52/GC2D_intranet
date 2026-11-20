@@ -13,6 +13,7 @@ potential = Potential.load(
     temporal_rescaling=False,
     sigma=None,
     interpolation_order=3,
+    spatial_extension="reflected",
 )
 dynamics = GuidingCenterDynamics(potential, B=1.5, rho=0.0)
 ```
@@ -20,7 +21,9 @@ dynamics = GuidingCenterDynamics(potential, B=1.5, rho=0.0)
 `JaxPotential.load` inherits this interface and preserves its class. The loader
 accepts no `B`, `characteristic_length`, `characteristic_frequency`, `nx` or `ny`;
 removed keywords raise `TypeError`. Sample counts remain properties of `Grid`
-and parameters of artificial field construction.
+and parameters of artificial field construction. `spatial_extension` selects
+`"reflected"` by default; use `"periodic"` explicitly for the previous direct
+periodic construction. See [spatial extension](spatial-extension.md).
 
 ## Source data and orientation
 
@@ -30,8 +33,11 @@ source time unit (Hz when time is seconds). `fields` has shape `(len(freqs), len
 The existing square-grid/common-period restriction and matrix interpretation
 are retained: arrays are **not transposed**. This convention must be considered
 when interpreting spatial derivatives. Rectangular sampled fields are rejected.
-The periodic cell length is `L=n*dx`, including the final interval back to the
-first sample; it is not `last-first`.
+The base-square width is `L=n*dx`, including the unsampled upper endpoint;
+it is not `last-first`. `Grid.period` retains this base width. The physical
+period is `potential.spatial_period`: `2*L` for reflection and `L` for direct
+periodicity. Spatial rescaling still uses `L`, so the reflected unit square
+belongs to a field of period 2.
 
 The constant component is always `fields[0].real`, with `freqs[0] == 0` exactly.
 `indx` selects original variable-field indices, preserving order and pairing.
@@ -42,8 +48,21 @@ fail explicitly. There is no amplitude ranking or one-based index conversion.
 With both flags false and `sigma=None`, source samples, cyclic frequencies,
 origins, spacing and resolution are preserved. Time and coordinates retain
 source units (seconds and meters for `PHI_2.h5`). No normalization or resampling
-is performed. Periodic splines interpolate the samples; interpolation error is
-separate from sample preservation. Supported spline orders are 2 through 5.
+is performed. Reflected fields use a cubic tensor-product spline with zero
+normal derivative on all four sides; the resulting reflected scalar is C2
+and its canonical Hamiltonian field is C1. Direct-periodic fields retain
+orders 2 through 5 and their previous interpolation behavior. Interpolation
+error and floating-point evaluation roundoff are separate from preserving
+the original half-open sample arrays.
+
+For reflected input, the missing upper sample edges are initially completed
+from the opposite source traces as an explicit data convention. This does not
+identify the opposite sides dynamically. After gyroaveraging, upper edges are
+independent and retained in read-only `reflected_samples`, whose shape is
+`(1 + mode_count, nx + 1, ny + 1)` and whose first field is the mean. The FFT
+uses the doubled domain and the same physical gyro-radius. Reconstruction
+enforces the normal conditions again; it does not overwrite the averaged
+upper edges with the lower edges.
 
 ## Cyclic frequency convention
 
@@ -126,6 +145,7 @@ coordinates are 2*pi*(X-X0)/lambda, cyclic rates f/r and amplitudes are divided 
 r*lambda**2*B/(2*pi)**2. The legacy parameter `angular_reference` names r and
 retains its public spelling; by default r is raw f_ref, not physical omega_ref.
 The result is already a Hamiltonian, so downstream GC dynamics uses B=1.
+These historical helpers explicitly select `spatial_extension="periodic"`.
 Original arithmetic, fingerprints and recorded custom periods are preserved.
 Selection uses recorded original indices; old ranks are recovered by provenance
 helpers, never reinterpreted as source indices.
@@ -135,6 +155,10 @@ sampling grid. It is not part of loading. New imports retain the source grid;
 plotting can evaluate on a separate mesh without changing the potential.
 `load_dimensional_h5_field` starts directly from physical samples and builds its
 legacy cycle-time Hamiltonian with T_old and B, without normalizing and undoing the import.
+Historical resampling rejects reflected fields rather than silently changing
+their boundary construction. `RandomPotentialConfig` uses cubic reflection for
+new studies; reproducing an older random study requires an explicit periodic
+option and its recorded interpolation order.
 
 New potential pickles, study snapshots and solution sidecars identify
 `frequency_convention="cycles"`. Known unmarked legacy arrays remain cyclic;
@@ -151,6 +175,16 @@ it is not the public cyclic rate or necessarily the raw source frequency.
 Frozen study bundles execute their own verified historical source and retain
 its cyclic convention; do not convert their data under that old evaluator.
 
+New pickles, worker snapshots and solution sidecars also retain
+`spatial_extension` and all closed reflected samples, including independent
+gyroaveraged upper edges. Missing extension markers are interpreted as
+`"periodic"`. Do not infer reflection from a saved trajectory's appearance or
+rebuild an old field using the new default. Reflected dynamics have a distinct
+fingerprint, including when both models happen to have identical zero fields;
+historical periodic fingerprints retain their original bytes. Minimum-image
+trajectory diagnostics use the physical period, while initial geometry and
+folded displays keep the original base-square width.
+
 ## Validation
 
 `tests/test_h5_frequency_units.py` independently reconstructs FFT time samples.
@@ -159,5 +193,8 @@ all four variable maps, amplitude-aware mixed derivatives, gyro-radius maps,
 B, JAX agreement, serialization, an analytical shear and independently audited
 short trajectories. `tests/test_gc2d_h5_potential.py` retains historical
 normalization and interpolation regressions through explicit study composition.
+`tests/test_solution_persistence.py`, `tests/test_potential_snapshot.py` and
+`tests/test_spatial_extension_study_contracts.py` check independent reflected
+endpoint storage, historical fallbacks and model-specific reference identities.
 See [the change record](../../specs/changes/2026-10-18-hdf5-frequency-units/tasks.md)
 for observed errors, consumer coverage and execution limitations.

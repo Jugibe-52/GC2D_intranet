@@ -154,7 +154,7 @@ def run_single_particle_recurrence(
     if not np.allclose(potential.frequencies, 1.0, rtol=0, atol=1e-14):
         raise ValueError("This study requires unit-period forcing for integer-time returns.")
     dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
-    period: float = float(potential.grid.period)
+    period: float = float(potential.spatial_period)
     times: np.ndarray = np.linspace(0, config.final_time,
                         int(config.final_time * config.samples_per_cycle) + 1)
     search_times: np.ndarray = np.unique(np.r_[config.search_start, times[times >= config.search_start]])

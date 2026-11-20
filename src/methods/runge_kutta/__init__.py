@@ -7,6 +7,8 @@ from methods.runge_kutta.gauss_legendre import (
 	GaussLegendre4,
 )
 from methods.runge_kutta.rk4 import RK4
+from methods.runge_kutta.rk2 import RK2
+from methods.runge_kutta.implicit_midpoint import ImplicitMidpoint
 from methods.runge_kutta.sdirk import (
 	SDIRK4_TABLEAU_A,
 	SDIRK4_TABLEAU_B,
@@ -30,6 +32,7 @@ __all__ = [
 	"GaussJacobianMethod",
 	"GaussLegendre4",
 	"RK4",
+	"RK2", "ImplicitMidpoint",
 	"SDIRK4_TABLEAU_A",
 	"SDIRK4_TABLEAU_B",
 	"SDIRK4_TABLEAU_C",

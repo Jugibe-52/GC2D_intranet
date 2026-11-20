@@ -7,9 +7,9 @@ stage counts:
 
 | Algorithm class | Restriction on A | Existing recipes |
 | --- | --- | --- |
-| `ExplicitRungeKutta` | Strictly lower triangular | `ExplicitEuler`, `RK4` |
+| `ExplicitRungeKutta` | Strictly lower triangular | `ExplicitEuler`, `RK2`, `RK4` |
 | `DiagonallyImplicitRungeKutta` | Lower triangular | `SDIRK4` |
-| `ImplicitRungeKutta` | Any validated square matrix | `GaussLegendre4` |
+| `ImplicitRungeKutta` | Any validated square matrix | `ImplicitMidpoint`, `GaussLegendre4` |
 
 Concrete recipes declare a fixed `tableau`, an order and optional metadata;
 they inherit all stage calculations. Gauss additionally retains its specialized
@@ -67,7 +67,7 @@ these are residual controls, not bounds on trajectory error.
 still owns interval clipping and independent shadow samples.
 
 NumPy and JAX use the same algorithms. The three generic family classes and the
-four existing recipes are explicitly supported at the JAX execution boundary;
+six named recipes are explicitly supported at the JAX execution boundary;
 arbitrary user subclasses retain the existing CPU-only policy. Coefficients
 participate in the generic compiled configuration key. JAX still requires
 float64 and rejects Python callbacks. HBVM retains its separate implementation. Reference studies call adaptive SciPy solvers directly, outside the simulation API.
@@ -75,7 +75,7 @@ float64 and rejects Python callbacks. HBVM retains its separate implementation. 
 ## Migration and verification
 
 Use `methods.runge_kutta` and `contracts.methods.runge_kutta`; the old namespaces
-have no aliases. Existing imports of the four recipes from `methods` and
+have no aliases. Existing imports of the original four recipes from `methods` and
 `simulation`, the specialized `GaussLegendre4IntegrationStep` facade export and
 `SDIRK4_TABLEAU_A/B/C` remain available. Recreate configured-object pickles that
 refer to the old modules. Completed solution archive formats are unchanged.
@@ -95,3 +95,16 @@ solver attribute. `_NewtonRungeKutta` also inherits ImplicitIntegrationMethod,
 which supplies optional derivative binding before the shared initialization.
 Both diagonal and coupled algorithms therefore retain their solver controls
 and derivative strategies. Family equations and tableaux remain shared.
+
+## Named second-order midpoint recipes
+
+`RK2(step=...)` is the two-stage explicit midpoint method: A[1,0]=1/2,
+B=(0,1), C=(0,1/2). `ImplicitMidpoint(step=..., solver=...)` has one coupled
+stage with A=(1/2), B=(1), C=(1/2). Both have global order two for sufficiently
+smooth problems. Stage count does not count Newton corrections or field
+reevaluations inside an implicit solve. The implicit method is symmetric and
+symplectic for canonical Hamiltonian systems when its algebraic equation is
+solved exactly; finite tolerances introduce additional defects. Explicit RK2
+has neither property in general. Both recipes are exported by `methods` and
+`simulation`, with NumPy and JAX execution. See their [RK2 model](../models/rk2/simulation/rk2-simulation-architecture.md)
+and [implicit midpoint model](../models/implicit-midpoint/simulation/implicit-midpoint-simulation-architecture.md).

@@ -60,3 +60,25 @@ This is a numerical quadrature, not an exact integral. Both the integral and
 sampled width may miss excursions below the integration step; check step
 refinement when assessing accuracy. The observer does not change the method,
 its physical trajectory, saved output times or other observers.
+
+## Main reflected campaign
+
+Projected palindromic steps expose signed `projection_multipliers` with shape
+`(d*N,)` in step statistics, in addition to scalar solver diagnostics. Consumers
+must compare these array values elementwise. The main campaign reduces the
+accepted-step history to ten aligned samples/cycle, per-particle projection
+norms/block maxima using JAX float64. All methods evaluate the same physical H
+and analytic partial_t H directly at their saved states. Schema-2 archives retain
+H and H-H0 without energy quadrature; H-H0 is not a conservation error. Schema-1
+archives remain readable with their original diagnostics.
+Worker timings, allocated resources and explicitly estimated USD compute costs
+are retained per rho/method case. Actual billing is not inferred from estimates.
+See [the campaign protocol](../../docs/studies/main-reflected-campaign.md).
+
+## Periodic particle verification
+
+The separate periodic-particle study retains unwrapped zero-winding closure, step-refined seed positions, independent-method checks, minimum-period separation and phase-duplicate diagnostics. Its accepted JSON includes measured Modal resources and explicitly estimated compute costs. Candidate status is not a verification result. See [the periodic selection protocol](../../docs/studies/periodic-particles.md).
+
+## Midpoint geometric defects
+
+The separate midpoint study differentiates complete physical ABBA2Midpoint and BM4Midpoint steps and records signed determinant defects, correctly timed forward/backward infinity-norm displacements, copy separation and the determinant-identity residual. Symmetric-projection controls retain their nonlinear tolerances. Accumulated log absolute determinants and long-time return displacements are distinct diagnostics; energy variation is not a surrogate for either geometric property. Raw archives, parameters and provenance support saved-data visualization without reintegration. See [the study protocol](../../docs/studies/midpoint-geometry.md).

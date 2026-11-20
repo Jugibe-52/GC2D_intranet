@@ -98,17 +98,25 @@ def export_automation_viewer(directory: Path) -> Path:
 			x, y = stored.solution.positions()
 			xy: np.ndarray = np.stack((x.T, y.T), axis=-1)
 			cell: np.ndarray = np.asarray(prepared.metadata["cell_bounds"])
-			fractions = ((xy - cell[:2]) % cell[2])/cell[2]
+			shown_x: np.ndarray
+			shown_y: np.ndarray
+			shown_x, shown_y = field.potential.display_coordinates(xy[..., 0], xy[..., 1])
+			fractions = (np.stack((shown_x, shown_y), axis=-1) - cell[:2])/cell[2]
 			if (case.rho, case.B) not in fields:
 				fields[case.rho, case.B] = sample_automation_field(prepared)
 			item["panels"] = [
-				dict(common, title="Effective potential and GC velocity", static=True,
+				dict(common, title=("Base-tile potential and GC velocity" if config.spatial_extension == "reflected"
+					else "Effective potential and GC velocity"), static=True,
 					coordinates=fractions[:1], field=fields[case.rho, case.B]),
 				dict(common, title=f"{case.method} · rho={case.rho:g} · B={case.B:g}", coordinates=fractions),
 			]
 			item["note"] = (f"{config.cycles} cycles · {config.steps_per_cycle} steps/cycle · "
 				f"rho_m={prepared.metadata['rho_m']:.9g} m · B={case.B:g} · "
-				f"physical period={prepared.metadata['physical_period_seconds']:.9g} s")
+				f"physical period={prepared.metadata['physical_period_seconds']:.9g} s · "
+				f"spatial extension={config.spatial_extension}")
+			if config.spatial_extension == "reflected":
+				item["note"] += (". Returns are reflected for display. The left arrows describe the base tile; "
+					"folded trajectories from tiles with one reflected axis have the opposite projected orientation.")
 		datasets.append(item)
 	selected: dict[str, Any] = next(d for d in datasets if "panels" in d)
 	output = directory / "viewer.html"

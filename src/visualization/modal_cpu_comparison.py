@@ -79,7 +79,7 @@ def plot_cpu_comparison(comparison: ModalCPUComparison) -> Any:
     axes[1].set(xticks=range(len(cores)), xticklabels=cores, xlabel='CPU cores',
                 ylabel='Seconds', title='First integration, including JAX compilation')
     baseline = comparison.solutions[1]
-    period = comparison.potential.grid.period
+    period = comparison.potential.spatial_period
     for core, solution in comparison.solutions.items():
         delta = (solution.states.T - baseline.states.T + period / 2) % period - period / 2
         dx: np.ndarray
@@ -109,8 +109,9 @@ def export_cpu_star_poincare(comparison: ModalCPUComparison, path: str | Path) -
         x: np.ndarray
         y: np.ndarray
         x, y = solution.layout.positions(solution.states[step::step].T)
-        coordinates: np.ndarray = np.stack(((x.T - grid.x0) / grid.period % 1,
-                                (y.T - grid.y0) / grid.period % 1), axis=-1)
+        x, y = comparison.potential.display_coordinates(x, y)
+        coordinates: np.ndarray = np.stack(((x.T - grid.x0) / grid.period,
+                                (y.T - grid.y0) / grid.period), axis=-1)
         panels.append(dict(coordinates=coordinates, particle_ids=ids, colors=colors,
                            title=f'JAX CPU: {cores} core(s)'))
     path = Path(path)

@@ -37,7 +37,7 @@ def _execute_prepared(run, problem, request, *, controller=None, observers=()):
 def _problem() -> InitialValueProblem:
 	"""One smooth, non-autonomous particle exercises all internal state modes."""
 	return InitialValueProblem(GuidingCenterDynamics(Potential.random(
-			A=0.08, M=3, nx=16, ny=16, seed=27, interpolation_order=5,
+			A=0.08, M=3, nx=16, ny=16, seed=27, spatial_extension="periodic", interpolation_order=5,
 		), rho=0.05), GuidingCenterDynamics.coordinates.pack_components([1.0], [1.2]), layout=GuidingCenterDynamics.coordinates)
 
 

@@ -80,13 +80,14 @@ def export_local_star_poincare(saved: StoredSolution, path: str | Path, *, cycle
     arms: np.ndarray
     ids, arms = np.asarray(metadata['particle_ids']), np.asarray(metadata['arm_ids'])
     colors = ['#111111' if arm < 0 else to_hex(plt.get_cmap('tab10')(int(arm) % 10)) for arm in arms]
-    # Only display arrays are wrapped and converted to the viewer's float32.
+    # Only display arrays are folded and converted to the viewer's float32.
     x: np.ndarray
     y: np.ndarray
     x, y = saved.solution.positions()
+    x, y = saved.potential.display_coordinates(x, y)
     step = config['steps_per_cycle']
-    positions: np.ndarray = np.stack(((x[:, ::step].T - grid.x0) / grid.period % 1,
-                          (y[:, ::step].T - grid.y0) / grid.period % 1), axis=-1)
+    positions: np.ndarray = np.stack(((x[:, ::step].T - grid.x0) / grid.period,
+                          (y[:, ::step].T - grid.y0) / grid.period), axis=-1)
     common: dict[str, object] = dict(particle_ids=ids, colors=colors)
     panels = [dict(common, title='Initial star', coordinates=positions[:1], static=True),
               dict(common, title='BM4Midpoint: local JAX CPU', coordinates=positions[1:])]
@@ -99,7 +100,7 @@ def export_local_star_poincare(saved: StoredSolution, path: str | Path, *, cycle
         title=f'Local JAX star: {len(ids)} particles, {config["cycles"]} cycles',
         axis_labels=('x / L', 'y / L'),
         description='A single central particle and equally spaced positive arm radii. '
-                    'Coordinates are folded into the periodic cell for display. '
+                    f'Coordinates use the {saved.potential.spatial_extension} display map. '
                     'The initial panel stays fixed; the trajectory panel shows integer-cycle returns. '
                     'Select the center or an arm, drag to zoom, and Shift-drag to pan.')
     return path

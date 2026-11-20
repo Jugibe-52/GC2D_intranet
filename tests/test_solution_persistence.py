@@ -28,6 +28,16 @@ from states.history import States
 from studies.persistence_demo import PersistenceDemoConfig, run_persistence_demo
 
 
+def _refresh_manifest(directory: Path, *names: str) -> None:
+    """Keep fixture integrity valid while testing semantic archive mismatches."""
+    path = directory / "manifest.json"
+    manifest = json.loads(path.read_text())
+    for name in names:
+        payload = (directory / name).read_bytes()
+        manifest["files"][name] = {"bytes": len(payload), "sha256": sha256(payload).hexdigest()}
+    path.write_text(json.dumps(manifest))
+
+
 class SolutionPersistenceTests(unittest.TestCase):
     def test_incomplete_recording_is_rejected_before_creating_an_archive(self) -> None:
         result = States.prepare(np.array([0., 1.]), np.array([1., 2.]), layout=GuidingCenterDynamics.coordinates)
@@ -87,10 +97,114 @@ class SolutionPersistenceTests(unittest.TestCase):
                     np.testing.assert_array_equal(original, restored)
                 self.assertEqual(stored.metadata, {"rho": 0.3})
                 assert stored.potential is not None
+                self.assertEqual(stored.potential.spatial_extension, self.field.spatial_extension)
                 for dx, dy in ((0, 0), (1, 0), (0, 1), (2, 0)):
                     np.testing.assert_array_equal(
                         stored.potential.evaluate(0.37, np.array([0.13, 2.27]), np.array([0.49, 0.49]), dx=dx, dy=dy),
                         self.field.evaluate(0.37, np.array([0.13, 2.27]), np.array([0.49, 0.49]), dx=dx, dy=dy))
+
+    def test_reflected_gyroaverage_roundtrip_preserves_endpoint_fields(self) -> None:
+        field = self.field.gyroaverage(0.43)
+        location = self.directory / "reflected-gyroaverage"
+        save_solution(self.solution(), location, metadata={}, potential=field)
+        manifest = json.loads((location / "manifest.json").read_text())
+        description = json.loads((location / "metadata.json").read_text())
+        self.assertEqual(manifest["schema_version"], 3)
+        self.assertEqual(description["schema_version"], 3)
+        # The historical reader's manifest contract accepts only versions 1/2;
+        # it must reject this archive before interpreting the saved field.
+        self.assertNotIn(manifest["schema_version"], (1, 2))
+        restored = load_solution(location).potential
+        assert restored is not None
+        self.assertEqual(restored.spatial_extension, "reflected")
+        self.assertEqual(restored.spatial_period, 2 * field.grid.period)
+        np.testing.assert_array_equal(restored.reflected_samples, field.reflected_samples)
+        x = np.array([-0.1, 0.2, field.grid.period, 1.7 * field.grid.period])
+        y = np.array([0.4, field.grid.period, 0.6, -0.3])
+        for dx, dy in ((0, 0), (1, 0), (0, 1), (2, 0), (1, 1)):
+            np.testing.assert_array_equal(restored.evaluate(.3, x, y, dx=dx, dy=dy),
+                                          field.evaluate(.3, x, y, dx=dx, dy=dy))
+
+    def test_untagged_potential_archive_loads_as_periodic(self) -> None:
+        field = Potential.random(A=.1, M=2, nx=12, ny=12, seed=17,
+                                 spatial_extension="periodic")
+        for version in (1, 2):
+            with self.subTest(version=version):
+                location = self.directory / f"legacy-periodic-{version}"
+                solution = self.solution()
+                save_solution(solution, location, metadata={}, potential=field)
+                metadata_path = location / "metadata.json"
+                description = json.loads(metadata_path.read_text())
+                self.assertEqual(description["schema_version"], 2)
+                description["schema_version"] = version
+                description["potential"].pop("spatial_extension")
+                description["potential"].pop("spatial_period")
+                metadata_path.write_text(json.dumps(description))
+                manifest_path = location / "manifest.json"
+                manifest = json.loads(manifest_path.read_text())
+                manifest["schema_version"] = version
+                manifest_path.write_text(json.dumps(manifest))
+                if version == 1:
+                    array_path = location / "solution.npz"
+                    with np.load(array_path) as saved:
+                        arrays = {name: saved[name] for name in saved.files}
+                    arrays["states"] = arrays["states"].T
+                    np.savez_compressed(array_path, **arrays)
+                _refresh_manifest(location, "metadata.json", "solution.npz")
+                restored = load_solution(location)
+                np.testing.assert_array_equal(restored.solution.states, solution.states)
+                assert restored.potential is not None
+                self.assertEqual(restored.potential.spatial_extension, "periodic")
+                np.testing.assert_array_equal(restored.potential.evaluate(.3, -.1, 7., dx=1),
+                                              field.evaluate(.3, -.1, 7., dx=1))
+
+    def test_reflected_archive_requires_coherent_model_metadata(self) -> None:
+        cases = (
+            ("missing-extension", "explicit reflected"),
+            ("periodic-extension", "explicit reflected"),
+            ("missing-period", "explicit reflected"),
+            ("wrong-period", "spatial period disagrees"),
+            ("missing-potential", "explicit reflected"),
+            ("missing-endpoints", "endpoint samples"),
+            ("wrong-endpoints", "must match"),
+            ("legacy-version", "requires schema version 3"),
+        )
+        for case, message in cases:
+            with self.subTest(case=case):
+                location = self.directory / case
+                save_solution(self.solution(), location, metadata={}, potential=self.field.gyroaverage(.43))
+                metadata_path = location / "metadata.json"
+                description = json.loads(metadata_path.read_text())
+                field = description["potential"]
+                if case == "missing-extension":
+                    field.pop("spatial_extension")
+                elif case == "periodic-extension":
+                    field["spatial_extension"] = "periodic"
+                elif case == "missing-period":
+                    field.pop("spatial_period")
+                elif case == "wrong-period":
+                    field["spatial_period"] = self.field.grid.period
+                elif case == "missing-potential":
+                    description.pop("potential")
+                elif case == "legacy-version":
+                    description["schema_version"] = 2
+                    manifest_path = location / "manifest.json"
+                    manifest = json.loads(manifest_path.read_text())
+                    manifest["schema_version"] = 2
+                    manifest_path.write_text(json.dumps(manifest))
+                else:
+                    array_path = location / "potential.npz"
+                    with np.load(array_path) as saved:
+                        arrays = {name: saved[name] for name in saved.files}
+                    if case == "missing-endpoints":
+                        arrays.pop("reflected_samples")
+                    else:
+                        arrays["reflected_samples"][0, 1, 1] += 1.0
+                    np.savez_compressed(array_path, **arrays)
+                metadata_path.write_text(json.dumps(description))
+                _refresh_manifest(location, "metadata.json", "potential.npz")
+                with self.assertRaisesRegex(ValueError, message):
+                    load_solution(location)
 
     def test_hdf5_provenance_is_preserved_without_source_file(self) -> None:
         provenance = GC2DH5Metadata(
@@ -140,6 +254,7 @@ class SolutionPersistenceTests(unittest.TestCase):
         solution = States(t=original.t, states=original.states, initial_state=None, layout=GuidingCenterDynamics.coordinates)
         location = self.directory / "plain"
         save_solution(solution, location, metadata={})
+        self.assertEqual(json.loads((location / "manifest.json").read_text())["schema_version"], 2)
         restored = load_solution(location)
         self.assertIsNone(restored.potential)
         self.assertIsNone(restored.solution.initial_state)
@@ -198,6 +313,8 @@ class SolutionPersistenceTests(unittest.TestCase):
         location = self.directory / "run"
         location.mkdir()
         for manifest in (
+            {"schema_version": 4, "artifact_kind": "gc2d_solution",
+             "files": {"solution.npz": {}, "metadata.json": {}}},
             {"schema_version": 2, "artifact_kind": "gc2d_solution", "files": {}},
             {"schema_version": 1, "artifact_kind": "gc2d_solution",
              "files": {"../secret": {}, "solution.npz": {}, "metadata.json": {}}},

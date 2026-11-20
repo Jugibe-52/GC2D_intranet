@@ -53,7 +53,7 @@ def historical_h5_hamiltonian(
 	if not np.isfinite(length) or length <= 0:
 		raise ValueError("Historical length must be finite and positive.")
 	raw: Potential = potential_class.load(source, indx=indx, sigma=None,
-		interpolation_order=interpolation_order)
+		interpolation_order=interpolation_order, spatial_extension="periodic")
 	metadata = raw.metadata
 	assert isinstance(metadata, GC2DH5Metadata)
 	if angular_reference is None:
@@ -89,7 +89,7 @@ def historical_h5_hamiltonian(
 			characteristic_period=2 * np.pi / omega0, normalization_factor=divisor,
 			spatial_scale=length / (2 * np.pi), time_scale=2 * np.pi / omega0,
 			spatial_rescaling=True, temporal_rescaling=True, sigma=sigma, time_convention="legacy_cycles"),
-		interpolation_order=interpolation_order)
+		interpolation_order=interpolation_order, spatial_extension="periodic")
 
 
 def sample_study_grid(potential: _P, nx: int | None, ny: int | None) -> _P:
@@ -99,6 +99,8 @@ def sample_study_grid(potential: _P, nx: int | None, ny: int | None) -> _P:
 	"""
 	if nx is None and ny is None:
 		return potential
+	if potential.spatial_extension != "periodic":
+		raise ValueError("Historical study resampling requires a direct-periodic potential.")
 	if nx is None or ny is None:
 		raise ValueError("Both study sample counts must be supplied.")
 	_validate_periodic_sizes(nx, ny)
@@ -127,4 +129,4 @@ def sample_study_grid(potential: _P, nx: int | None, ny: int | None) -> _P:
 	return type(potential)(grid, mean=fields[0].real,
 		modes=np.asarray(fields[1:], dtype=complex).reshape((-1, nx, ny)),
 		frequencies=potential.frequencies, metadata=potential.metadata,
-		interpolation_order=potential.interpolation_order)
+		interpolation_order=potential.interpolation_order, spatial_extension="periodic")

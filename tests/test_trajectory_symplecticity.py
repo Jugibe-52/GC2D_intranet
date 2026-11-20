@@ -57,6 +57,7 @@ def _problem() -> InitialValueProblem:
 		nx=16,
 		ny=16,
 		seed=27,
+		spatial_extension="periodic",
 		interpolation_order=5,
 	)
 	dynamics = GuidingCenterDynamics(potential, rho=0.05)
@@ -123,6 +124,7 @@ class ExactTrajectoryJacobianTests(unittest.TestCase):
 			ny=16,
 			seed=27,
 			interpolation_order=5,
+			spatial_extension="periodic",
 		)
 		potential = potential_config.build()
 		configuration = random_gc_configuration(

@@ -1,0 +1,1 @@
+Update preparation and archive dimensions, the paired notebooks, French figures and study documentation. Keep numerical algorithms unchanged and historical 40-particle archives readable. Thesis edits and compilation are recorded in [the thesis change](../../../../TFM_redaccion/specs/changes/2026-11-19-apartado-4-2-union16/goal.md).

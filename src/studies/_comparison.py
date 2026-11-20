@@ -530,7 +530,7 @@ def run_alternating_comparison(
 		problem.initial_state,
 		request.output_times,
 		period=(
-			potential.grid.period
+			potential.spatial_period
 			if config.distance_convention == "periodic"
 			else None
 		),
@@ -581,7 +581,7 @@ def run_alternating_comparison(
 			solution.states.T,
 			reference.states,
 			period=(
-				potential.grid.period
+				potential.spatial_period
 				if config.distance_convention == "periodic"
 				else None
 			),

@@ -40,6 +40,7 @@ def random_potential(*, interpolation_order: int = 3) -> Potential:
 		nx=16,
 		ny=16,
 		seed=27,
+		spatial_extension="periodic",
 		interpolation_order=interpolation_order,
 	)
 
@@ -160,7 +161,7 @@ class PotentialTests(unittest.TestCase):
 		with self.assertRaises(ValueError):
 			Potential.random(A=0.1, M=2, nx=0, ny=8, interpolation_order=3)
 		with self.assertRaises(ValueError):
-			Potential.random(A=0.1, M=2, nx=8, ny=8, interpolation_order=1)
+			Potential.random(A=0.1, M=2, nx=8, ny=8, spatial_extension="periodic", interpolation_order=1)
 
 
 class TrajectoryTests(unittest.TestCase):

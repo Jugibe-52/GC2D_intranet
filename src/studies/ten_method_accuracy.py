@@ -119,7 +119,7 @@ class TenMethodAccuracyResult:
 	def summaries(self) -> tuple[TenMethodAccuracySummary, ...]:
 		"""Return accuracy, resolution margin, and runtime in stable order."""
 		rows: list[TenMethodAccuracySummary] = []
-		period: float = float(self.comparison.potential.grid.period)
+		period: float = float(self.comparison.potential.spatial_period)
 		times = self.times
 		duration: float = float(times[-1] - times[0])
 		floor: float = max(
@@ -319,7 +319,7 @@ def run_ten_method_accuracy_study(
 	comparison_times = next(iter(comparison.solutions.values())).t
 	reference_indices: np.ndarray = _reference_indices_for_times(reference, comparison_times)
 	reference_states = reference.states[:, reference_indices]
-	period: float = float(potential.grid.period)
+	period: float = float(potential.spatial_period)
 	distance_convention: Literal['euclidean'] | Literal['periodic'] = _reference_distance_convention(reference)
 	series = {
 		label: _accuracy_series(

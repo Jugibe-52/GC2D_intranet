@@ -148,7 +148,7 @@ def run_cpu_star_comparison(
         }
         print(f'CPU {cores}: first {records[str(cores)]["first_seconds"]:.3f} s; median {median:.6f} s.', flush=True)
     baseline = solutions[1]
-    period = potential.grid.period
+    period = potential.spatial_period
     for cores, solution in solutions.items():
         np.testing.assert_allclose(solution.states, baseline.states,
                                    rtol=config.equivalence_rtol, atol=config.equivalence_atol)
@@ -172,7 +172,7 @@ def run_cpu_star_comparison(
         'particle_ids': np.arange(1, x.size + 1),
         'arm_ids': np.repeat(np.arange(config.arms), config.particles_per_arm),
         'radii_over_R': np.linspace(config.inner_radius_fraction, config.outer_radius_fraction, config.particles_per_arm),
-        'reference_radius': config.radius_over_period * period,
+        'reference_radius': config.radius_over_period * potential.grid.period,
         'effective_field_fingerprint': potential_fingerprint(problem.dynamics.hamiltonian_potential),
         'arithmetic': 'float64', 'reference_computed': False, 'accuracy_certified': False,
         'timing_scope': 'Worker complete integration after first-call warmup; NumPy output synchronizes JAX.',
