@@ -1,0 +1,3 @@
+# Accepted protocol
+
+Use ABBA2Midpoint and BM4Midpoint, rho=0.015, counts 20,40,80,160 steps per cycle, and horizons 10,20,40,80 cycles from phase zero. Each (step,horizon) evaluation contains both methods and both diagnostics over eight particles. Keep coordinates unwrapped and store individual values before group maxima. Accumulate signed log1p(det(D e)), recover area with abs(expm1(sum)), and independently reverse from every horizon with the correct times. Preserve historical records; archive a fresh run in the configured B2 study prefix. Produce one French-labelled 2-by-4 figure per defect and parallel thesis explanations.

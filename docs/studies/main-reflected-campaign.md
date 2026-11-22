@@ -200,6 +200,8 @@ although all 86 available cases have completed B2 verification. It is not a bill
 
 ## Poincare-only website
 
+The viewer initially selects `rho=0.015` when that radius is available; otherwise it keeps the first recorded radius.
+
 By default, the exporter requires all campaign cases. Explicit partial publication
 admits B2-verified results and recorded failed cases without saved archives;
 pending uploads, unknown cases and corrupt archives still stop the export.
@@ -219,6 +221,27 @@ period-two coordinates and the numerical trajectories are unchanged. The website
 rho/particle/family selection, animation and synchronized zoom/pan. It excludes
 intermediate trajectory samples, energy/projection plots and horizontal transport Qx.
 
+Beside **Tout sélectionner** (group 2, all 84 particles), three buttons select
+the other chapter-4 groups: the original 40 particles (group 1), eight chaotic
+candidates (group 3), and eight periodic candidates (group 4). Each replaces the
+current selection and updates the checkboxes and all panels. Their IDs match
+`data/particles/original_40.json`, `chaotic_candidates.json`, and
+`periodic_candidates_8.json`; individual and family selection remain available.
+Family buttons toggle their own particles while preserving all other selections:
+a fully selected family is removed; an unselected or partially selected family
+is completed. Highlighted buttons indicate full selection, and dashed borders
+indicate partial selection. These states also follow individual, group and all/none controls.
+
+**Taille des points** scales accumulated and current returns together from 0.25×
+to 4× (default 1×). Start circles remain hollow and large enough to surround the
+current marker. The setting applies to all method panels and their PNG exports,
+and remains selected when the radius, cycles or viewport change. Drag with the
+right mouse button to move the shared viewport continuously, including the field;
+Shift plus left-drag remains available. Left-drag still selects a zoom region.
+Panning remains bounded by `[0,2]²`, and the context menu is suppressed only on
+plot canvases. Pointer capture keeps the gesture active outside the canvas;
+cancellation or loss of capture ends it.
+
 Each method panel provides **Télécharger l’image** for a direct PNG download of
 the current frame, with no preview, export settings or auxiliary files. The
 existing **Copier l’image** control remains available. Both use a 1200-by-1320 PNG
@@ -231,6 +254,16 @@ and pauses cycle playback. Both controls are disabled for loading, unavailable o
 results. If the browser lacks image clipboard support or denies the write, the
 panel explicitly reports that copying is unavailable and offers **Télécharger
 l’image** for the same PNG; it does not claim clipboard success.
+
+The global **Télécharger les 8 évolutions (2 × 4)** button downloads one
+4800-by-2640 PNG containing the eight method panels in the same order, in two rows
+and four columns even on narrow screens. It uses the individual PNG renderer,
+including the selected radius, cycles, particles, viewport and point size, with
+French labels. Playback pauses and all panels are drawn synchronously before PNG
+encoding. Unavailable results and loading errors retain explicitly labelled slots.
+The button stays disabled while panels load, while PNG encoding runs, or when no
+result is available. Encoding failures report an error and allow retry. The
+potential/field panel is separate and is not included in this eight-method image.
 
 For a partial campaign, an availability notice gives the available/expected counts
 and identifies the missing combinations. Missing cases retain their panels with

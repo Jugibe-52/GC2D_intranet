@@ -1,6 +1,6 @@
 # Third-set Poincare section
 
-Open `notebooks/third_set_poincare.ipynb` in the existing GC2D Python environment.
+Open `notebooks/04_01_01_third_set_poincare.ipynb` in the existing GC2D Python environment.
 The notebook reads the sibling thesis's [reference selection](../../../TFM_redaccion/datos/campana_referencia.json),
 currently `main-20261117-rho-div20` with representative `rho=0.015`, and extracts
 the saved BM4Implicit result. It launches no trajectory integration.

@@ -1,5 +1,7 @@
 # Geometric defects of midpoint projection
 
+The current step/horizon experiment for thesis section 4.8 is documented in [the accumulated sweep](midpoint-geometry-sweep.md). This page preserves the original 2026-11-18 local and 100-cycle protocol and its results.
+
 This dedicated study supports thesis section 4.9 by measuring the symplecticity and time-symmetry defects of ABBA2Midpoint and BM4Midpoint. ABBA2Implicit and BM4Implicit provide symmetric-projection controls. It uses the reflected potential and the 84 initial positions of `main-20261117-rho-div20`, at normalized gyro-radius 0.015. The original campaign and its trajectories are unchanged; these new calculations answer a separate geometric question.
 
 For the complete physical step Phi at time t, including final averaging, retain the signed determinant defect `det(D Phi)-1` and the infinity norm of `Phi(-h,t+h,Phi(h,t,z))-z`. Each map receives a physical point and reconstructs its own copies; passing the discarded copies into the reverse step would test a different algorithm. In two spatial dimensions, unit determinant is exactly the symplectic condition. The reverse test must begin at t+h because the potential depends on time.
@@ -12,7 +14,7 @@ The accumulation study uses 40 fixed steps per cycle for 10 and 100 cycles. Summ
 
 ## Reproduction and storage
 
-The [calculation notebook](../../notebooks/midpoint_geometry/01_compute.ipynb) and [visualization notebook](../../notebooks/midpoint_geometry/02_visualize.ipynb) share study prefix `studies/midpoint_geometry` and run identifier `midpoint-geometry-20261118-rho0015`. Their local recovery directory is `outputs/midpoint_geometry/midpoint-geometry-20261118-rho0015`; the scientific destination is `gc2d_data:gc2d-notebooks-data/studies/midpoint_geometry/midpoint-geometry-20261118-rho0015`. The local path does not replace the bucket as the final destination.
+The [calculation notebook](../../notebooks/04_08_midpoint_geometry/01_compute.ipynb) and [visualization notebook](../../notebooks/04_08_midpoint_geometry/02_visualize.ipynb) share study prefix `studies/midpoint_geometry` and run identifier `midpoint-geometry-20261118-rho0015`. Their local recovery directory is `outputs/midpoint_geometry/midpoint-geometry-20261118-rho0015`; the scientific destination is `gc2d_data:gc2d-notebooks-data/studies/midpoint_geometry/midpoint-geometry-20261118-rho0015`. The local path does not replace the bucket as the final destination.
 
 The calculation notebook defaults to loading completed files. Set `RUN_COMPUTATION=True` only to request a new calculation and use a new run identifier to preserve completed records. The study entry point is `studies.midpoint_geometry.run_study(project_root, output_directory, accumulation_cycles=(10, 100))`; the CLI is `scripts/run_midpoint_geometry.py --output DIRECTORY`. Raw arrays are kept in `local.npz`, `seams.npz`, `fd_audit.npz`, `calibration.npz`, `implicit_controls.npz` and `accumulation.npz`, with `summary.json` and `manifest.json` for reductions and provenance. The calculation also freezes the relevant source files and inputs in `source.tar.gz`. The local arrays use axes `(method, step, phase, particle)`, with two midpoint methods, four step sizes, four phases and 84 particles.
 

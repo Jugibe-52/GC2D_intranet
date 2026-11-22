@@ -1,6 +1,6 @@
 # Particle datasets
 
-The viewing notebook [`particle_sets_potential.ipynb`](../../notebooks/particle_sets_potential.ipynb) displays these four datasets in order:
+The viewing notebook [`04_01_01_particle_sets_potential.ipynb`](../../notebooks/04_01_01_particle_sets_potential.ipynb) displays these four datasets in order:
 
 | Dataset | IDs | Purpose |
 | --- | --- | --- |
