@@ -1,6 +1,6 @@
 # Accumulated midpoint defects across step and horizon
 
-The current thesis section 4.8 uses `midpoint-jacobian-product-20261122-rho0015`. It compares ABBA2Midpoint and BM4Midpoint with four fixed steps, `h=1/20,1/40,1/80,1/160`, at horizons of 10, 20, 40 and 80 physical cycles, starting at phase zero. A cycle has normalized duration one. Each group has 16 evaluations: one evaluation is a `(h,T)` combination containing both methods and both diagnostics.
+The current thesis section 4.9 uses `midpoint-jacobian-product-20261122-rho0015`. It compares ABBA2Midpoint and BM4Midpoint with four fixed steps, `h=1/20,1/40,1/80,1/160`, at horizons of 10, 20, 40 and 80 physical cycles, starting at phase zero. A cycle has normalized duration one. Each group has 16 evaluations: one evaluation is a `(h,T)` combination containing both methods and both diagnostics.
 
 The radius is 0.015 in base-cell widths. The reflected field, magnetic field 1.5, cubic interpolation, selected source mode 15, unsmoothed HDF5 fingerprint and original initial positions come from `main-20261117-rho-div20`. Coordinates remain unwrapped. The two groups retain their IDs and colors: periodic candidates `1,2,60,64,65,72,76,83` and chaotic candidates `12,15,18,21,24,27,30,33`. Only these 16 particles are integrated because they are exactly the groups being compared. These labels do not prove periodicity or chaos. The original 84-particle reference campaign is not rerun or altered.
 
@@ -16,7 +16,7 @@ The return diagnostic is the Euclidean norm of the difference between the final 
 
 ## Reproduction and saved arrays
 
-The paired notebooks [01_compute.ipynb](../../notebooks/04_08_midpoint_geometry/01_compute.ipynb) and [02_visualize.ipynb](../../notebooks/04_08_midpoint_geometry/02_visualize.ipynb) select the same run and `studies/midpoint_geometry` prefix. The calculation notebook reuses completed files by default; explicitly enable computation with a fresh run ID to repeat the experiment. The visualization notebook only reads verified saved data and invokes the thesis plotting script.
+The paired notebooks [calcul.ipynb](../../notebooks/04_09_defauts_geometriques/calcul.ipynb) and [visualisation.ipynb](../../notebooks/04_09_defauts_geometriques/visualisation.ipynb) select the same run and `studies/midpoint_geometry` prefix. The calculation notebook reuses completed files by default; explicitly enable computation with a fresh run ID to repeat the experiment. The visualization notebook only reads verified saved data and invokes the thesis plotting script.
 
 From the repository root:
 

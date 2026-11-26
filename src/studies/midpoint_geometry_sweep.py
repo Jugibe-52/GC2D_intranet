@@ -132,11 +132,11 @@ def run_sweep(root: Path, output: Path, *, counts: tuple[int, ...] = COUNTS,
 	with tarfile.open(output/'source.tar.gz', 'w:gz') as archive:
 		for path in sorted((root/'src').rglob('*.py')):
 			archive.add(path, arcname=str(path.relative_to(root)))
-		for directory in ('scripts', 'tests', 'notebooks/04_08_midpoint_geometry'):
+		for directory in ('scripts', 'tests'):
 			for path in sorted((root/directory).glob('*midpoint*')):
 				if path.is_file():
 					archive.add(path, arcname=str(path.relative_to(root)))
-		for path in sorted((root/'notebooks/04_08_midpoint_geometry').glob('*.ipynb')):
+		for path in sorted((root/'notebooks/04_09_defauts_geometriques').glob('*.ipynb')):
 			archive.add(path, arcname=str(path.relative_to(root)))
 		for path in (campaign_path, selection_path, groups_path):
 			archive.add(path, arcname='inputs/'+path.name)

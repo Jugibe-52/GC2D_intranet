@@ -1,0 +1,2 @@
+# Preserve the existing local-only status of thesis notebooks.
+*.ipynb
