@@ -1,6 +1,6 @@
 # Third-set Poincare section
 
-Open `notebooks/third_set_poincare.ipynb` in the existing GC2D Python environment.
+Open [visualisation_troisieme_ensemble.ipynb](../../../TFM_redaccion/notebooks/archives_ensembles_particules/visualisation_troisieme_ensemble.ipynb) in the existing GC2D Python environment.
 The notebook reads the sibling thesis's [reference selection](../../../TFM_redaccion/datos/campana_referencia.json),
 currently `main-20261117-rho-div20` with representative `rho=0.015`, and extracts
 the saved BM4Implicit result. It launches no trajectory integration.
@@ -41,8 +41,9 @@ The reference selection supplies the campaign and representative radius.
 `first_cycle`, `last_cycle`, `view_limits` and `show_legend` control the plot;
 `export_thesis_figure` controls copying to the existing sibling thesis directory.
 Changing a plotting parameter only reads and extracts saved results.
-The calculation and visualization notebooks for the complete campaign remain
-separate in its development directory.
+The complete campaign is prepared or recovered through the section 4.1
+[calculation notebook](../../notebooks/04_01_execution_principale/calcul.ipynb);
+its visualization is provided by the campaign website.
 
 Derived NPZ returns, JSON provenance and French-labelled PNG/PDF figures belong
 under `notebooks/developements/main_reflected_campaign/main-20261117-rho-div20/postprocessing/chapter4/current/`.

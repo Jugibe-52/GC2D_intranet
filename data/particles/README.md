@@ -1,6 +1,6 @@
 # Particle datasets
 
-The viewing notebook [`particle_sets_potential.ipynb`](../../notebooks/particle_sets_potential.ipynb) displays these four datasets in order:
+The viewing notebook [`visualisation_ensembles.ipynb`](../../notebooks/annexe_C_ensembles_particules/visualisation_ensembles.ipynb) displays these four datasets in order:
 
 | Dataset | IDs | Purpose |
 | --- | --- | --- |
@@ -19,4 +19,4 @@ The first dataset preserves the complete records of IDs 1–40 from `original_48
 
 Each JSON records its source field and provenance. The notebook shows initial positions over the reflected, gyroaveraged potential without integrating trajectories. Its figure text is in French, following the thesis convention. The historical verified dataset retains the conditions and checks described in [Periodic particle selection](../../docs/studies/periodic-particles.md).
 
-The notebook also displays a standalone view of the first 40 particles. Set `export_thesis_figure = True` to update `primer_conjunto_40_fr.pdf`, its PNG and the JSON parameter record in the existing sibling `TFM_redaccion/figuras/` directory. Export is disabled by default; ordinary viewing does not require the thesis checkout.
+The single viewing notebook displays only the four initial-condition panels, with optional IDs and a configurable potential phase. It reads the representative radius from the sibling thesis's `datos/campana_referencia.json` and does not read trajectory archives or export figures. Previous figure-generation notebooks and their saved outputs are preserved in [the thesis archive](../../../TFM_redaccion/notebooks/archives_ensembles_particules/).

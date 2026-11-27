@@ -1,0 +1,2 @@
+# Keep the locally generated notebook untracked after relocation.
+*.ipynb
