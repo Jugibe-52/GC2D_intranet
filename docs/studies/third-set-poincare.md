@@ -41,8 +41,8 @@ The reference selection supplies the campaign and representative radius.
 `first_cycle`, `last_cycle`, `view_limits` and `show_legend` control the plot;
 `export_thesis_figure` controls copying to the existing sibling thesis directory.
 Changing a plotting parameter only reads and extracts saved results.
-The complete campaign is prepared or recovered through the section 4.2
-[calculation notebook](../../notebooks/04_02_execution_principale/calcul.ipynb);
+The complete campaign is prepared or recovered through the section 4.1
+[calculation notebook](../../notebooks/04_01_execution_principale/calcul.ipynb);
 its visualization is provided by the campaign website.
 
 Derived NPZ returns, JSON provenance and French-labelled PNG/PDF figures belong

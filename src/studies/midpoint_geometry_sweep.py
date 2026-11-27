@@ -136,7 +136,7 @@ def run_sweep(root: Path, output: Path, *, counts: tuple[int, ...] = COUNTS,
 			for path in sorted((root/directory).glob('*midpoint*')):
 				if path.is_file():
 					archive.add(path, arcname=str(path.relative_to(root)))
-		for path in sorted((root/'notebooks/04_09_defauts_geometriques').glob('*.ipynb')):
+		for path in sorted((root/'notebooks/04_08_defauts_geometriques').glob('*.ipynb')):
 			archive.add(path, arcname=str(path.relative_to(root)))
 		for path in (campaign_path, selection_path, groups_path):
 			archive.add(path, arcname='inputs/'+path.name)

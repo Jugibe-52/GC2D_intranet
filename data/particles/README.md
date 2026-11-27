@@ -1,6 +1,6 @@
 # Particle datasets
 
-The viewing notebook [`visualisation_ensembles.ipynb`](../../notebooks/04_01_jeux_de_donnees/visualisation_ensembles.ipynb) displays these four datasets in order:
+The viewing notebook [`visualisation_ensembles.ipynb`](../../notebooks/annexe_C_ensembles_particules/visualisation_ensembles.ipynb) displays these four datasets in order:
 
 | Dataset | IDs | Purpose |
 | --- | --- | --- |
